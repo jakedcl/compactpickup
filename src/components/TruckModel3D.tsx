@@ -2,7 +2,7 @@
 
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, useGLTF, Environment, Html } from '@react-three/drei'
-import { Suspense, useState, useEffect } from 'react'
+import { Suspense, useState, useEffect, useCallback } from 'react'
 import * as THREE from 'three'
 
 // Preload the GLTF to catch errors early
@@ -110,12 +110,12 @@ export default function TruckModel3D({ modelUrl, className = "", attribution }: 
   // Check if URL is valid GLB
   const isValidGLB = modelUrl && (modelUrl.endsWith('.glb') || modelUrl.includes('.glb'))
   
-  const handleError = (message: string) => {
+  const handleError = useCallback((message: string) => {
     console.error('3D Model Error:', message)
     console.error('Model URL:', modelUrl)
     setErrorMessage(message)
     setHasError(true)
-  }
+  }, [modelUrl])
   
   // Test if the file is accessible and preload it
   useEffect(() => {
@@ -140,7 +140,7 @@ export default function TruckModel3D({ modelUrl, className = "", attribution }: 
           handleError(`Network error: ${error.message}`)
         })
     }
-  }, [modelUrl, isValidGLB])
+  }, [modelUrl, isValidGLB, handleError])
   
   // Early return for invalid URLs
   if (!isValidGLB) {

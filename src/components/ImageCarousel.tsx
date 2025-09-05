@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { urlFor } from '@/lib/sanity'
@@ -79,14 +79,14 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
       // Time's up
       handleAnswer(null)
     }
-  }, [gameMode, timeLeft, showAnswer])
+  }, [gameMode, timeLeft, showAnswer, handleAnswer])
 
   // Generate game choices when entering game mode or changing image
   useEffect(() => {
     if (gameMode && images.length > 0) {
       generateGameChoices()
     }
-  }, [gameMode, currentIndex, images])
+  }, [gameMode, currentIndex, images, generateGameChoices])
 
   const nextImage = () => {
     setImageLoaded(false)
@@ -157,7 +157,7 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
     setImageLoaded(false)
   }
 
-  const generateGameChoices = () => {
+  const generateGameChoices = useCallback(() => {
     if (images.length < 4) return
 
     const currentTruck = images[currentIndex]
@@ -222,9 +222,9 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
     // Final verification: ensure all choices are unique
     const uniqueChoices = Array.from(new Set(allChoices))
     setGameChoices(uniqueChoices)
-  }
+  }, [images, currentIndex])
 
-  const handleAnswer = (answer: string | null) => {
+  const handleAnswer = useCallback((answer: string | null) => {
     setSelectedAnswer(answer)
     setShowAnswer(true)
     
@@ -243,7 +243,7 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
         resetQuestion()
       }
     }, 2000)
-  }
+  }, [correctAnswer, score, questionsAnswered])
 
   if (!images.length) {
     return null
@@ -422,7 +422,7 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
                 {selectedAnswer === correctAnswer ? (
                   <span className="text-green-400">✓ Correct!</span>
                 ) : selectedAnswer === null ? (
-                  <span className="text-red-400">⏰ Time's up!</span>
+                  <span className="text-red-400">⏰ Time&apos;s up!</span>
                 ) : (
                   <span className="text-red-400">✗ Wrong! It was: {correctAnswer}</span>
                 )}
