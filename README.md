@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Compact Pickup
+
+A retro VHS-themed website showcasing compact and mid-size pickup trucks. Built with Next.js, Sanity CMS, and Three.js for 3D model viewing.
+
+## Features
+
+- 🎮 **VHS Camcorder UI** - Authentic retro blue LCD screen aesthetic
+- 📸 **Global Photo Carousel** - Randomized gallery of all truck images
+- 🚛 **3D Model Viewer** - Interactive GLB model support with Three.js
+- 📱 **Responsive Design** - Optimized for mobile and desktop
+- 🎨 **Custom VCR Font** - Authentic vintage typography
+- ⚡ **Sanity CMS** - Headless content management
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+
+### Development
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Run the development server:
+   ```bash
+   npm run dev
+   ```
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+### Sanity Studio
+
+Run the Sanity Studio for content management:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run studio:dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Tech Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Framework**: Next.js 15 with App Router
+- **Styling**: Tailwind CSS with custom VHS theme
+- **CMS**: Sanity.io
+- **3D Graphics**: Three.js + React Three Fiber
+- **Typography**: Custom VCR OSD Mono font
+- **Deployment**: Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project Structure
 
-## Learn More
+```
+src/
+├── app/                    # Next.js App Router pages
+│   ├── page.tsx           # Homepage with carousel
+│   ├── [manufacturer]/   # Dynamic manufacturer pages
+│   └── [model]/          # Individual truck model pages
+├── components/
+│   ├── ImageCarousel.tsx  # Global photo carousel
+│   └── TruckModel3D.tsx  # 3D model viewer
+└── lib/
+    └── sanity.ts         # Sanity client & queries
 
-To learn more about Next.js, take a look at the following resources:
+sanity/
+├── schemaTypes/          # Content schemas
+│   ├── manufacturer.ts
+│   └── truckModel.ts
+└── sanity.config.ts     # Sanity configuration
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Live Site
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Visit [compactpickup.com](https://compactpickup.com) to see the live version.
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Private project - All rights reserved.

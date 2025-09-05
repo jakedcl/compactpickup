@@ -1,103 +1,187 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import Link from 'next/link'
+import { client, manufacturersQuery, urlFor, allTruckImagesQuery } from '@/lib/sanity'
+import { useState, useEffect } from 'react'
+import Image from 'next/image'
+import ImageCarousel from '@/components/ImageCarousel'
+
+interface Manufacturer {
+  _id: string
+  name: string
+  slug: { current: string }
+  logo?: {
+    asset: {
+      _ref: string
+    }
+  }
+}
+
+interface TruckImageData {
+  alt?: string
+  caption?: string
+  asset: {
+    _ref: string
+  }
+  truckTitle: string
+  manufacturerName: string
+  truckSlug: string
+  manufacturerSlug: string
+}
+
+export default function HomePage() {
+  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([])
+  const [allImages, setAllImages] = useState<TruckImageData[]>([])
+  const [currentTime, setCurrentTime] = useState('')
+  const [selectedIndex, setSelectedIndex] = useState(-1)
+
+      useEffect(() => {
+      // Get manufacturers and sort with special categories at the bottom
+      client.fetch(manufacturersQuery).then((data) => {
+        const sortedManufacturers = data.sort((a: Manufacturer, b: Manufacturer) => {
+          // Put "More..." and "One-Off's" at the bottom
+          if (a.name === "More..." || a.name === "One-Off's") return 1
+          if (b.name === "More..." || b.name === "One-Off's") return -1
+          // Regular alphabetical sort for everything else
+          return a.name.localeCompare(b.name)
+        })
+        setManufacturers(sortedManufacturers)
+      })
+
+      // Get all images from all truck models
+      client.fetch(allTruckImagesQuery).then((data: Array<{images: TruckImageData[]}>) => {
+        const allImagesFlattened: TruckImageData[] = []
+        data.forEach((truck) => {
+          truck.images.forEach((image) => {
+            allImagesFlattened.push(image)
+          })
+        })
+        setAllImages(allImagesFlattened)
+      })
+    
+    // Update time every second
+    const updateTime = () => {
+      const now = new Date()
+      setCurrentTime(now.toLocaleTimeString('en-US', { 
+        hour12: false, 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      }))
+    }
+    
+    updateTime()
+    const interval = setInterval(updateTime, 1000)
+    
+    return () => clearInterval(interval)
+  }, [])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowUp' && selectedIndex > 0) {
+      setSelectedIndex(selectedIndex - 1)
+    } else if (e.key === 'ArrowDown' && selectedIndex < manufacturers.length - 1) {
+      setSelectedIndex(selectedIndex + 1)
+    }
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="vhs-screen" onKeyDown={handleKeyDown} tabIndex={0}>
+      {/* VHS Scan Line */}
+      <div className="vhs-scan-line"></div>
+      
+      <div className="vhs-content">
+        {/* VHS Header */}
+        <div className="vhs-header">
+          Compact and Mid-Size Pickups
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        {/* Manufacturer Logos Row - Only show manufacturers with logos */}
+        {manufacturers.filter(m => m.logo).length > 0 && (
+          <div className="flex justify-center items-center mb-8 mt-6 px-2 w-full max-w-4xl mx-auto">
+            {manufacturers
+              .filter((manufacturer) => manufacturer.logo) // Only include manufacturers with logos
+              .map((manufacturer) => (
+                <Link
+                  key={manufacturer._id}
+                  href={`/${manufacturer.slug.current}`}
+                  className="vhs-logo-container hover:scale-110 transition-transform"
+                >
+                  <Image
+                    src={urlFor(manufacturer.logo!).url()}
+                    alt={manufacturer.name}
+                    width={120}
+                    height={60}
+                    className="vhs-logo"
+                  />
+                </Link>
+              ))}
+          </div>
+        )}
+
+        {/* Menu Instructions */}
+        <div className="vhs-subtitle text-center text-white">
+          U.S. Truck Market
+        </div>
+
+        {/* Manufacturers Menu - Text Only */}
+        {manufacturers.length > 0 ? (
+          <div className="space-y-2 w-full flex flex-col items-center">
+            {manufacturers.map((manufacturer, index) => (
+              <Link
+                key={manufacturer._id}
+                href={`/${manufacturer.slug.current}`}
+                className={`vhs-menu-item flex items-center ${
+                  index === selectedIndex ? 'selected' : ''
+                }`}
+                onMouseEnter={() => setSelectedIndex(index)}
+                onMouseLeave={() => setSelectedIndex(-1)}
+              >
+                <span className="vhs-arrow">
+                  ▶
+                </span>
+                <span className="flex-1 capitalize">
+                  {manufacturer.name}
+                </span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 w-full flex flex-col items-center">
+            <div className="vhs-menu-item justify-center">
+              <span className="vhs-arrow"> </span>
+              <span className="uppercase tracking-wider">No manufacturers found</span>
+            </div>
+            <div className="mt-4 text-white opacity-60 text-sm">
+              ADD MANUFACTURERS IN STUDIO
+            </div>
+          </div>
+        )}
+
+        {/* Image Carousel */}
+        {allImages.length > 0 && (
+          <ImageCarousel images={allImages} className="mt-8" />
+        )}
+
+      </div>
+
+      {/* VHS Status Bar */}
+      <div className="vhs-status">
+        <div className="flex items-center gap-4">
+          <Link 
+            href="https://compactpickup.sanity.studio" 
+            target="_blank"
+            className="text-red-400 hover:text-red-300 font-bold"
+          >
+            ● REC
+          </Link>
+          <span>AUTO</span>
+          <span>PAL</span>
+          <span>NTSC</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="vhs-time">{currentTime}</span>
+        </div>
+      </div>
     </div>
-  );
+  )
 }

@@ -1,27 +1,39 @@
 {
-  "name": "smalltrucks",
+  "name": "compactpickup",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "studio:dev": "sanity dev --dir ./sanity",
+    "studio:build": "sanity build --dir ./sanity",
+    "studio:deploy": "sanity deploy --dir ./sanity"
   },
   "dependencies": {
+    "@portabletext/react": "^4.0.3",
+    "@react-three/drei": "^10.7.4",
+    "@react-three/fiber": "^9.3.0",
+    "@sanity/client": "^7.11.0",
+    "@sanity/image-url": "^1.2.0",
+    "@sanity/vision": "^4.6.1",
+    "next": "15.5.2",
+    "next-sanity": "^10.0.15",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.5.2"
+    "sanity": "^4.6.1",
+    "three": "^0.180.0"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "15.5.2",
-    "@eslint/eslintrc": "^3"
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
