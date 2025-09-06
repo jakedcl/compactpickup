@@ -49,114 +49,7 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
   const [gameChoices, setGameChoices] = useState<string[]>([])
   const [correctAnswer, setCorrectAnswer] = useState('')
 
-  useEffect(() => {
-    if (!allImages?.length) return
-    
-    const shuffledImages = shuffleArray(allImages)
-    setImages(shuffledImages)
-    setCurrentIndex(0)
-  }, [allImages])
-
-  useEffect(() => {
-    if (!isAutoPlaying || images.length <= 1 || gameMode) return
-
-    const interval = setInterval(() => {
-      setImageLoaded(false)
-      setCurrentIndex((prev) => (prev + 1) % images.length)
-    }, 4000) // Change image every 4 seconds
-
-    return () => clearInterval(interval)
-  }, [images.length, isAutoPlaying, gameMode])
-
-  // Game timer effect
-  useEffect(() => {
-    if (!gameMode || showAnswer) return
-
-    if (timeLeft > 0) {
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000)
-      return () => clearTimeout(timer)
-    } else {
-      // Time's up
-      handleAnswer(null)
-    }
-  }, [gameMode, timeLeft, showAnswer, handleAnswer])
-
-  // Generate game choices when entering game mode or changing image
-  useEffect(() => {
-    if (gameMode && images.length > 0) {
-      generateGameChoices()
-    }
-  }, [gameMode, currentIndex, images, generateGameChoices])
-
-  const nextImage = () => {
-    setImageLoaded(false)
-    setCurrentIndex((prev) => (prev + 1) % images.length)
-  }
-
-  const prevImage = () => {
-    setImageLoaded(false)
-    setCurrentIndex((prev) => (prev - 1 + images.length) % images.length)
-  }
-
-  const goToImage = (index: number) => {
-    setImageLoaded(false)
-    setCurrentIndex(index)
-  }
-
-  const handleImageLoad = () => {
-    setImageLoaded(true)
-  }
-
-  // Swipe detection
-  const minSwipeDistance = 50
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null) // otherwise the swipe is fired even with usual touch events
-    setTouchStart(e.targetTouches[0].clientX)
-  }
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX)
-  }
-
-  const onTouchEnd = () => {
-    if (!touchStart || !touchEnd || gameMode) return
-    
-    const distance = touchStart - touchEnd
-    const isLeftSwipe = distance > minSwipeDistance
-    const isRightSwipe = distance < -minSwipeDistance
-
-    if (isLeftSwipe && images.length > 1) {
-      nextImage()
-    }
-    if (isRightSwipe && images.length > 1) {
-      prevImage()
-    }
-  }
-
-  // Game functions
-  const startGame = () => {
-    setGameMode(true)
-    setScore(0)
-    setQuestionsAnswered(0)
-    setIsAutoPlaying(false)
-    resetQuestion()
-  }
-
-  const endGame = () => {
-    setGameMode(false)
-    setIsAutoPlaying(true)
-    setShowAnswer(false)
-    setSelectedAnswer(null)
-  }
-
-  const resetQuestion = () => {
-    setTimeLeft(15)
-    setShowAnswer(false)
-    setSelectedAnswer(null)
-    setImageLoaded(false)
-  }
-
+  // Game functions - defined before useEffect hooks that reference them
   const generateGameChoices = useCallback(() => {
     if (images.length < 4) return
 
@@ -224,6 +117,48 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
     setGameChoices(uniqueChoices)
   }, [images, currentIndex])
 
+  const nextImage = useCallback(() => {
+    setImageLoaded(false)
+    setCurrentIndex((prev) => (prev + 1) % images.length)
+  }, [images.length])
+
+  const prevImage = useCallback(() => {
+    setImageLoaded(false)
+    setCurrentIndex((prev) => (prev - 1 + images.length) % images.length)
+  }, [images.length])
+
+  const goToImage = useCallback((index: number) => {
+    setImageLoaded(false)
+    setCurrentIndex(index)
+  }, [])
+
+  const handleImageLoad = useCallback(() => {
+    setImageLoaded(true)
+  }, [])
+
+  // Game functions
+  const resetQuestion = useCallback(() => {
+    setTimeLeft(15)
+    setShowAnswer(false)
+    setSelectedAnswer(null)
+    setImageLoaded(false)
+  }, [])
+
+  const endGame = useCallback(() => {
+    setGameMode(false)
+    setIsAutoPlaying(true)
+    setShowAnswer(false)
+    setSelectedAnswer(null)
+  }, [])
+
+  const startGame = useCallback(() => {
+    setGameMode(true)
+    setScore(0)
+    setQuestionsAnswered(0)
+    setIsAutoPlaying(false)
+    resetQuestion()
+  }, [resetQuestion])
+
   const handleAnswer = useCallback((answer: string | null) => {
     setSelectedAnswer(answer)
     setShowAnswer(true)
@@ -243,7 +178,73 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
         resetQuestion()
       }
     }, 2000)
-  }, [correctAnswer, score, questionsAnswered])
+  }, [correctAnswer, score, questionsAnswered, endGame, nextImage, resetQuestion])
+
+  useEffect(() => {
+    if (!allImages?.length) return
+    
+    const shuffledImages = shuffleArray(allImages)
+    setImages(shuffledImages)
+    setCurrentIndex(0)
+  }, [allImages])
+
+  useEffect(() => {
+    if (!isAutoPlaying || images.length <= 1 || gameMode) return
+
+    const interval = setInterval(() => {
+      setImageLoaded(false)
+      setCurrentIndex((prev) => (prev + 1) % images.length)
+    }, 4000) // Change image every 4 seconds
+
+    return () => clearInterval(interval)
+  }, [images.length, isAutoPlaying, gameMode])
+
+  // Game timer effect
+  useEffect(() => {
+    if (!gameMode || showAnswer) return
+
+    if (timeLeft > 0) {
+      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000)
+      return () => clearTimeout(timer)
+    } else {
+      // Time's up
+      handleAnswer(null)
+    }
+  }, [gameMode, timeLeft, showAnswer, handleAnswer])
+
+  // Generate game choices when entering game mode or changing image
+  useEffect(() => {
+    if (gameMode && images.length > 0) {
+      generateGameChoices()
+    }
+  }, [gameMode, currentIndex, images, generateGameChoices])
+
+  // Swipe detection
+  const minSwipeDistance = 50
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null) // otherwise the swipe is fired even with usual touch events
+    setTouchStart(e.targetTouches[0].clientX)
+  }
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX)
+  }
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd || gameMode) return
+    
+    const distance = touchStart - touchEnd
+    const isLeftSwipe = distance > minSwipeDistance
+    const isRightSwipe = distance < -minSwipeDistance
+
+    if (isLeftSwipe && images.length > 1) {
+      nextImage()
+    }
+    if (isRightSwipe && images.length > 1) {
+      prevImage()
+    }
+  }
 
   if (!images.length) {
     return null

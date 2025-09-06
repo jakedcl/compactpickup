@@ -8,11 +8,13 @@ import * as THREE from 'three'
 // Preload the GLTF to catch errors early
 function preloadGLTF(url: string) {
   return new Promise((resolve, reject) => {
-    useGLTF.preload(url, undefined, (error) => {
+    try {
+      useGLTF.preload(url)
+      resolve(true)
+    } catch (error) {
       console.error('GLTF Preload error:', error)
       reject(error)
-    })
-    resolve(true)
+    }
   })
 }
 

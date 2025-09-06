@@ -61,6 +61,8 @@ export const truckModelBySlugQuery = `*[_type == "truckModel" && slug.current ==
 export const allTruckImagesQuery = `*[_type == "truckModel" && defined(content)] {
   _id,
   title,
+
+
   yearRange,
   manufacturer->{name, slug},
   "images": content[_type == "image"] {
