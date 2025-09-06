@@ -404,7 +404,17 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
               {gameChoices.map((choice, index) => (
                 <button
                   key={index}
-                  onClick={() => !showAnswer && handleAnswer(choice)}
+                  onClick={(e) => {
+                    if (!showAnswer) {
+                      // Remove focus to prevent sticky hover states
+                      e.currentTarget.blur()
+                      handleAnswer(choice)
+                    }
+                  }}
+                  onTouchEnd={(e) => {
+                    // Prevent sticky hover on touch devices
+                    e.currentTarget.blur()
+                  }}
                   disabled={showAnswer}
                   className={`vhs-game-choice ${
                     showAnswer && choice === correctAnswer ? 'vhs-game-choice-correct' :

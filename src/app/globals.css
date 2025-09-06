@@ -835,10 +835,29 @@ body {
   cursor: pointer;
 }
 
-.vhs-game-choice-active:hover {
+.vhs-game-choice-active:hover:not(:disabled) {
   background: linear-gradient(90deg, rgba(0,51,204,0.6) 0%, rgba(0,34,153,0.8) 50%, rgba(0,17,102,0.6) 100%);
   border-color: rgba(255,255,255,0.4);
   transform: translateX(4px);
+}
+
+.vhs-game-choice-active:focus {
+  outline: 2px solid rgba(255,255,255,0.5);
+  outline-offset: 2px;
+}
+
+.vhs-game-choice-active:active {
+  transform: translateX(2px);
+  background: linear-gradient(90deg, rgba(0,51,204,0.8) 0%, rgba(0,34,153,1.0) 50%, rgba(0,17,102,0.8) 100%);
+}
+
+/* Remove hover effects on touch devices after tap */
+@media (hover: none) and (pointer: coarse) {
+  .vhs-game-choice-active:hover {
+    background: linear-gradient(90deg, rgba(0,51,204,0.3) 0%, rgba(0,34,153,0.5) 50%, rgba(0,17,102,0.3) 100%);
+    border-color: rgba(255,255,255,0.2);
+    transform: none;
+  }
 }
 
 .vhs-game-choice-correct {
