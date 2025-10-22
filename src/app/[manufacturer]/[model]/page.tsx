@@ -205,8 +205,8 @@ export default function TruckModelPage({ params }: Props) {
           </div>
         </div>
 
-        {/* 3D Model Viewer */}
-        {truckModel.model3d && (
+        {/* 3D Model Viewer - Commented out for submission */}
+        {/* {truckModel.model3d && (
           <TruckModel3D 
             modelUrl={fileUrlFor(truckModel.model3d)}
             className="mb-6"
@@ -216,7 +216,7 @@ export default function TruckModelPage({ params }: Props) {
               license: "CC Attribution"
             }}
           />
-        )}
+        )} */}
 
         {/* Content */}
         <div className="bg-black/20 border border-white/20 p-6 min-h-96">

@@ -884,8 +884,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
-  max-height: 400px;
+  height: 400px;
   background: linear-gradient(135deg, #000022 0%, #000011 50%, #000000 100%);
   touch-action: pan-y pinch-zoom; /* Allow vertical scrolling and pinch zoom, but handle horizontal swipes */
 }
@@ -937,9 +936,9 @@ body {
 .vhs-carousel-image {
   display: block !important;
   margin: 0 auto !important;
-  max-width: 100% !important;
-  height: auto !important;
-  object-fit: contain !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
   border-radius: 2px;
   filter: 
     contrast(110%) 
@@ -1096,3 +1095,95 @@ body {
     height: 34px;
   }
 }
+
+/* Timeline Styles */
+.vhs-timeline-card {
+  position: relative;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.vhs-timeline-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  transition: left 0.5s ease;
+  z-index: 1;
+}
+
+.vhs-timeline-card:hover::before {
+  left: 100%;
+}
+
+.vhs-timeline-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 25px rgba(0,0,0,0.3),
+    0 0 20px rgba(251, 191, 36, 0.2);
+  border-color: rgba(251, 191, 36, 0.6);
+}
+
+.vhs-scanlines {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,255,255,0.03) 2px,
+    rgba(255,255,255,0.03) 4px
+  );
+}
+
+/* Timeline Decade Headers */
+.timeline-decade {
+  position: sticky;
+  top: 2rem;
+  z-index: 10;
+  background: rgba(30, 58, 138, 0.9);
+  backdrop-filter: blur(10px);
+  border: 2px solid #fbbf24;
+  padding: 1rem;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.timeline-decade h2 {
+  font-family: 'VCR OSD Mono', 'Courier New', monospace;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #fbbf24;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+  letter-spacing: 2px;
+}
+
+/* Timeline Grid */
+.timeline-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+/* Mobile Timeline */
+@media (max-width: 768px) {
+  .timeline-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .timeline-decade h2 {
+    font-size: 1.25rem;
+    letter-spacing: 1px;
+  }
+  
+  .vhs-timeline-card {
+    margin-bottom: 1rem;
+  }
+}
+
+

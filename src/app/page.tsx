@@ -30,6 +30,7 @@ interface TruckImageData {
 }
 
 export default function HomePage() {
+  // React useState hooks for component state management
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([])
   const [allImages, setAllImages] = useState<TruckImageData[]>([])
   const [currentTime, setCurrentTime] = useState('')
@@ -92,7 +93,15 @@ export default function HomePage() {
       <div className="vhs-content">
         {/* VHS Header */}
         <div className="vhs-header">
-          Compact and Mid-Size Pickups
+          <div className="flex justify-between items-center">
+            <span>Compact and Mid-Size Pickups</span>
+            <Link 
+              href="/timeline" 
+              className="text-yellow-400 hover:text-yellow-300 transition-colors font-mono text-sm"
+            >
+              TIMELINE
+            </Link>
+          </div>
         </div>
 
         {/* Manufacturer Logos Row - Only show manufacturers with logos */}
@@ -161,6 +170,7 @@ export default function HomePage() {
         {allImages.length > 0 && (
           <ImageCarousel images={allImages} className="mt-8" />
         )}
+
 
       </div>
 

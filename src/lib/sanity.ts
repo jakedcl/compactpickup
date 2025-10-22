@@ -61,8 +61,6 @@ export const truckModelBySlugQuery = `*[_type == "truckModel" && slug.current ==
 export const allTruckImagesQuery = `*[_type == "truckModel" && defined(content)] {
   _id,
   title,
-
-
   yearRange,
   manufacturer->{name, slug},
   "images": content[_type == "image"] {
@@ -74,5 +72,19 @@ export const allTruckImagesQuery = `*[_type == "truckModel" && defined(content)]
     "manufacturerName": ^.manufacturer->name,
     "truckSlug": ^.slug.current,
     "manufacturerSlug": ^.manufacturer->slug.current
+  }
+}[count(images) > 0]`
+
+// Query to get all truck models for timeline (grouped by decade)
+export const timelineQuery = `*[_type == "truckModel" && defined(content)] | order(yearRange asc) {
+  _id,
+  title,
+  yearRange,
+  slug,
+  manufacturer->{name, slug},
+  "images": content[_type == "image"] {
+    alt,
+    caption,
+    asset
   }
 }[count(images) > 0]`

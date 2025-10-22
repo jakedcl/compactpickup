@@ -1,4 +1,5 @@
 'use client'
+// NEED TO FIX THIS FOR THE FUTURE, IT ONLY WORKS WITH A FEW PAGE REFRESHES. THIS IS NOT PART OF THE PROJECT.
 
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, useGLTF, Environment, Html } from '@react-three/drei'
