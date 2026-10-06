@@ -89,6 +89,7 @@ export const truckModelBySlugQuery = `*[_type == "truckModel" && slug.current ==
   productionStart,
   productionEnd,
   yearBasis,
+  productionNotes,
   internalCodes,
   assemblyPlants,
   markets,

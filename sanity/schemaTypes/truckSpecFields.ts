@@ -137,6 +137,15 @@ export const truckSpecFields = [
     group: 'production',
     description: 'e.g. "US model years" or "Japan production years"',
   }),
+  defineField({
+    name: 'productionNotes',
+    title: 'Production notes',
+    type: 'text',
+    rows: 3,
+    group: 'production',
+    description:
+      'Build dates and facts the year numbers do not cover, such as "Production Aug 1992–Jul 1997" or markets outside the US.',
+  }),
   stringList('assemblyPlants', 'Assembly plants', 'production'),
   stringList('markets', 'Markets', 'production'),
   stringList('bodyStyles', 'Body styles', 'production'),
