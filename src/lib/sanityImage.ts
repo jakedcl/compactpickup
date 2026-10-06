@@ -1,7 +1,16 @@
+import imageUrlBuilder from '@sanity/image-url'
 import type { ImageLoader } from 'next/image'
-import { urlFor } from '@/lib/sanity'
+import { dataset, projectId } from '@/lib/sanityConfig'
 
-export { sanityImageFields } from '@/lib/sanity'
+const builder = imageUrlBuilder({ projectId, dataset })
+
+export function urlFor(source: {
+  asset?: { _ref?: string } | null
+  crop?: { top: number; bottom: number; left: number; right: number } | null
+  hotspot?: { x: number; y: number; height?: number; width?: number } | null
+}) {
+  return builder.image(source)
+}
 
 export const IMAGE_QUALITY = 75
 
