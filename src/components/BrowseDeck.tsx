@@ -156,7 +156,7 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
           <input
             id="truck-search"
             value={q}
-            placeholder="Hilux, 22R, N10"
+            placeholder="Hilux, 4x4, 22R"
             autoComplete="off"
             enterKeyHint="search"
             onChange={(event) => setQ(event.target.value)}
