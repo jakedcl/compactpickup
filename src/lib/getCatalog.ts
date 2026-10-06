@@ -1,5 +1,7 @@
+import 'server-only'
 import { unstable_cache } from 'next/cache'
-import { client, sanityImageFields } from '@/lib/sanity'
+import { sanityImageFields } from '@/lib/sanity'
+import { client } from '@/lib/sanityClient'
 import type { SanityImageValue } from '@/lib/sanityImage'
 import {
   decadesFor,

@@ -1,107 +1,72 @@
-'use client'
-
+import type { Metadata } from 'next'
 import Link from 'next/link'
-import { client, manufacturerBySlugQuery, truckModelsByManufacturerQuery } from '@/lib/sanity'
 import { notFound } from 'next/navigation'
-import { useState, useEffect } from 'react'
 import ManufacturerProfile from '@/components/ManufacturerProfile'
 import PageHeader from '@/components/ui/PageHeader'
-import { compareTrucksByYear, formatProduction } from '@/lib/truckDisplay'
+import {
+  getManufacturerBySlug,
+  getManufacturerParams,
+  getTrucksForManufacturer,
+  type ManufacturerRecord,
+} from '@/lib/getContent'
+import { cleanText, formatProduction } from '@/lib/truckDisplay'
 
-interface Manufacturer {
-  _id: string
-  name: string
-  slug: { current: string }
-  founded?: string | null
-  hq?: string | null
-  country?: string | null
-  website?: string | null
-  description?: string | null
-  compactPickupHistory?: string | null
-  logo?: {
-    asset?: {
-      _ref: string
-    }
-  } | null
-}
+export const revalidate = 3600
 
-interface TruckModel {
-  _id: string
-  title: string
-  slug: { current: string }
-  yearRange?: string | null
-  productionStart?: number | null
-  productionEnd?: number | null
-  manufacturer: {
-    name: string
-    slug: { current: string }
-  }
-}
-
-interface Props {
+type Props = {
   params: Promise<{ manufacturer: string }>
 }
 
-export default function ManufacturerPage({ params }: Props) {
-  const [manufacturer, setManufacturer] = useState<Manufacturer | null>(null)
-  const [truckModels, setTruckModels] = useState<TruckModel[]>([])
-  const [manufacturerSlug, setManufacturerSlug] = useState('')
-  const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading')
-
-  useEffect(() => {
-    let cancelled = false
-
-    params.then(({ manufacturer: slug }) => {
-      if (cancelled) return
-      setManufacturerSlug(slug)
-      setStatus('loading')
-
-      client.fetch(manufacturerBySlugQuery, { slug }).then(manufacturerData => {
-        if (cancelled) return
-        if (!manufacturerData) {
-          setStatus('missing')
-          return
-        }
-        setManufacturer(manufacturerData)
-        setStatus('ready')
-
-        client.fetch(truckModelsByManufacturerQuery, {
-          manufacturerId: manufacturerData._id
-        }).then((models: TruckModel[]) => {
-          if (cancelled) return
-          setTruckModels([...models].sort(compareTrucksByYear))
-        }).catch(() => {
-          if (!cancelled) setStatus('error')
-        })
-      }).catch(() => {
-        if (!cancelled) setStatus('error')
-      })
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [params])
-
-  if (status === 'missing') notFound()
-
-  if (status === 'error') {
-    return (
-      <main className="screen">
-        <div className="wrap narrow">
-          <PageHeader kicker="Signal lost" title="Could not load this maker" />
-          <Link href="/" className="btn">Back to the shelf</Link>
-        </div>
-      </main>
-    )
+export async function generateStaticParams() {
+  try {
+    return await getManufacturerParams()
+  } catch {
+    return []
   }
+}
 
-  if (!manufacturer) {
-    return (
-      <main className="screen">
-        <div className="wrap"><p className="state">Loading the shelf...</p></div>
-      </main>
-    )
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { manufacturer: slug } = await params
+  try {
+    const manufacturer = await getManufacturerBySlug(slug)
+    if (!manufacturer) return {}
+    const description = cleanText(manufacturer.description)
+    return {
+      title: `${manufacturer.name} · Compact Pickup`,
+      ...(description ? { description } : {}),
+    }
+  } catch {
+    return {}
+  }
+}
+
+function signalLost() {
+  return (
+    <main className="screen">
+      <div className="wrap narrow">
+        <PageHeader kicker="Signal lost" title="Could not load this maker" />
+        <Link href="/" className="btn">Back to the shelf</Link>
+      </div>
+    </main>
+  )
+}
+
+export default async function ManufacturerPage({ params }: Props) {
+  const { manufacturer: slug } = await params
+
+  let manufacturer: ManufacturerRecord | null
+  try {
+    manufacturer = await getManufacturerBySlug(slug)
+  } catch {
+    return signalLost()
+  }
+  if (!manufacturer) notFound()
+
+  let truckModels
+  try {
+    truckModels = await getTrucksForManufacturer(manufacturer._id)
+  } catch {
+    return signalLost()
   }
 
   return (
@@ -115,7 +80,7 @@ export default function ManufacturerPage({ params }: Props) {
             <ul className="maker-list">
               {truckModels.map((model) => (
                 <li key={model._id}>
-                  <Link href={`/${manufacturerSlug}/${model.slug.current}`}>
+                  <Link href={`/${slug}/${model.slug.current}`}>
                     <span className="card-title">{model.title}</span>
                     <span className="meta">{model.yearRange || formatProduction(model.productionStart, model.productionEnd) || ''}</span>
                   </Link>

@@ -1,26 +1,6 @@
-import { createClient } from 'next-sanity'
-import imageUrlBuilder from '@sanity/image-url'
+import { dataset, projectId } from '@/lib/sanityConfig'
 
-export const projectId = 'xbw6uf6e'
-export const dataset = 'production'
-export const apiVersion = '2024-01-01'
-
-export const client = createClient({
-  projectId,
-  dataset,
-  apiVersion,
-  useCdn: false,
-})
-
-const builder = imageUrlBuilder(client)
-
-export function urlFor(source: {
-  asset?: { _ref?: string } | null
-  crop?: { top: number; bottom: number; left: number; right: number } | null
-  hotspot?: { x: number; y: number; height?: number; width?: number } | null
-}) {
-  return builder.image(source)
-}
+export { apiVersion, dataset, projectId } from '@/lib/sanityConfig'
 
 /** Crop, hotspot, and the LQIP/dimensions needed for blur placeholders. */
 export const sanityImageFields = `
@@ -159,6 +139,7 @@ export const timelineQuery = `*[_type == "truckModel" && defined(content)] | ord
   _id,
   title,
   yearRange,
+  productionStart,
   slug,
   manufacturer->{name, slug},
   "images": content[_type == "image"] {
@@ -167,3 +148,12 @@ export const timelineQuery = `*[_type == "truckModel" && defined(content)] | ord
     ${sanityImageFields}
   }
 }[count(images) > 0]`
+
+export const manufacturerParamsQuery = `*[_type == "manufacturer" && defined(slug.current)]{
+  "manufacturer": slug.current
+}`
+
+export const truckParamsQuery = `*[_type == "truckModel" && defined(slug.current) && defined(manufacturer->slug.current)]{
+  "manufacturer": manufacturer->slug.current,
+  "model": slug.current
+}`
