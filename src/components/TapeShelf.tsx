@@ -1,19 +1,15 @@
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
-import { urlFor } from '@/lib/sanity'
+import SanityImage from '@/components/SanityImage'
+import type { SanityImageValue } from '@/lib/sanityImage'
 
 export interface ShelfManufacturer {
   _id: string
   name: string
   slug: { current: string }
-  logo?: {
-    asset?: {
-      _ref: string
-    }
-  } | null
+  logo?: SanityImageValue | null
 }
 
 const BANDS: Record<string, string> = {
@@ -31,11 +27,6 @@ const FALLBACK_BANDS = ['#eb0a1e', '#003478', '#c99700', '#111111', '#1d4e89', '
 
 function bandFor(slug: string, index: number) {
   return BANDS[slug] ?? FALLBACK_BANDS[index % FALLBACK_BANDS.length]
-}
-
-function logoSrc(logo: ShelfManufacturer['logo']) {
-  if (!logo?.asset?._ref) return null
-  return urlFor({ asset: { _ref: logo.asset._ref } }).width(280).height(120).fit('max').auto('format').url()
 }
 
 export default function TapeShelf({
@@ -112,7 +103,6 @@ export default function TapeShelf({
               ))}
             {status === 'ready' &&
               manufacturers.map((manufacturer, index) => {
-                const src = logoSrc(manufacturer.logo)
                 const slug = manufacturer.slug.current
                 return (
                   <li key={manufacturer._id}>
@@ -146,12 +136,14 @@ export default function TapeShelf({
                         <span className="tape-sticker">
                           <span className="tape-band" aria-hidden="true" />
                           <span className="tape-logo-slot">
-                            {src ? (
-                              <Image
-                                src={src}
+                            {manufacturer.logo?.asset?._ref ? (
+                              <SanityImage
+                                image={manufacturer.logo}
                                 alt=""
+                                sizes="108px"
                                 width={140}
                                 height={48}
+                                eager
                                 className="tape-logo"
                               />
                             ) : (

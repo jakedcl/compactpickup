@@ -1,27 +1,18 @@
-import Image from 'next/image'
 import {PortableTextComponents} from '@portabletext/react'
 import {ReactNode} from 'react'
+import SanityImage from '@/components/SanityImage'
 import {imageAlt} from '@/lib/imageAlt'
-import {urlFor} from '@/lib/sanity'
-
-interface ImageValue {
-  alt?: string
-  caption?: string
-  asset: {
-    _ref: string
-  }
-}
+import type {SanityImageValue} from '@/lib/sanityImage'
 
 export function createVhsPortableTextComponents(fallbackAlt: string): PortableTextComponents {
   return {
     types: {
-      image: ({value}: {value: ImageValue}) => (
+      image: ({value}: {value: SanityImageValue}) => (
         <div className="my-6 border border-white/30 p-3 bg-black/20">
-          <Image
-            src={urlFor(value).width(600).height(400).url()}
+          <SanityImage
+            image={value}
             alt={imageAlt(value.alt, fallbackAlt)}
-            width={600}
-            height={400}
+            sizes="(max-width: 800px) 100vw, 760px"
             className="w-full h-auto"
           />
           {value.caption && (

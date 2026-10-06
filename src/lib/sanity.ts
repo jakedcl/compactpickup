@@ -14,9 +14,22 @@ export const client = createClient({
 
 const builder = imageUrlBuilder(client)
 
-export function urlFor(source: { asset: { _ref: string } }) {
+export function urlFor(source: {
+  asset?: { _ref?: string } | null
+  crop?: { top: number; bottom: number; left: number; right: number } | null
+  hotspot?: { x: number; y: number; height?: number; width?: number } | null
+}) {
   return builder.image(source)
 }
+
+/** Crop, hotspot, and the LQIP/dimensions needed for blur placeholders. */
+export const sanityImageFields = `
+  crop,
+  hotspot,
+  asset,
+  "lqip": asset->metadata.lqip,
+  "dimensions": asset->metadata.dimensions
+`
 
 export function fileUrlFor(source: { asset: { _ref: string } }) {
   const ref = source.asset._ref
@@ -29,14 +42,14 @@ export const manufacturersQuery = `*[_type == "manufacturer"] | order(name asc) 
   _id,
   name,
   slug,
-  logo
+  logo { ${sanityImageFields} }
 }`
 
 export const manufacturerBySlugQuery = `*[_type == "manufacturer" && slug.current == $slug][0] {
   _id,
   name,
   slug,
-  logo,
+  logo { ${sanityImageFields} },
   founded,
   hq,
   country,
@@ -111,7 +124,9 @@ export const truckModelBySlugQuery = `*[_type == "truckModel" && slug.current ==
     _type == "image" => {
       ...,
       alt,
-      caption
+      caption,
+      "lqip": asset->metadata.lqip,
+      "dimensions": asset->metadata.dimensions
     }
   },
   model3d,
@@ -130,7 +145,7 @@ export const allTruckImagesQuery = `*[_type == "truckModel" && defined(content)]
   "images": content[_type == "image"] {
     alt,
     caption,
-    asset,
+    ${sanityImageFields},
     "truckTitle": ^.title,
     "yearRange": ^.yearRange,
     "manufacturerName": ^.manufacturer->name,
@@ -149,6 +164,6 @@ export const timelineQuery = `*[_type == "truckModel" && defined(content)] | ord
   "images": content[_type == "image"] {
     alt,
     caption,
-    asset
+    ${sanityImageFields}
   }
 }[count(images) > 0]`

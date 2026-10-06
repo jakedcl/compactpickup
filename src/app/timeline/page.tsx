@@ -3,10 +3,10 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
+import SanityImage from '@/components/SanityImage'
 import { client } from '@/lib/sanity'
-import { urlFor } from '@/lib/sanity'
 import { imageAlt } from '@/lib/imageAlt'
+import { sanityImageFields, type SanityImageValue } from '@/lib/sanityImage'
 import { truckSortYear } from '@/lib/truckDisplay'
 
 interface TimelineTruck {
@@ -19,11 +19,7 @@ interface TimelineTruck {
     name: string
     slug: { current: string }
   }
-  images: Array<{
-    alt?: string
-    caption?: string
-    asset: { _ref: string }
-  }>
+  images: Array<SanityImageValue & { asset: { _ref: string } }>
 }
 
 interface DecadeGroup {
@@ -50,7 +46,7 @@ export default function TimelinePage() {
           "images": content[_type == "image"] {
             alt,
             caption,
-            asset
+            ${sanityImageFields}
           }
         }[count(images) > 0]`)
 
@@ -174,13 +170,13 @@ function TruckTimelineCard({ truck }: { truck: TimelineTruck }) {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <div className="relative">
-         <Image
-          src={urlFor({ asset: currentImage.asset }).width(400).height(300).url()}
+      <div className="relative h-64">
+         <SanityImage
+          image={currentImage}
           alt={imageAlt(currentImage.alt, truck.title)}
-          width={400}
-          height={300}
-          className="w-full h-64 object-cover"
+          fill
+          sizes="(max-width: 768px) 100vw, 360px"
+          className="sanity-cover"
         />
         
         {/* Year Badge */}

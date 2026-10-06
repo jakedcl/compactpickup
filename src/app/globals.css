@@ -390,8 +390,8 @@ body {
 }
 
 /* VHS Image Constraints - Fixed for Sanity Images */
-.vhs-content img,
-.prose img {
+.vhs-content img:not(.sanity-cover):not(.tape-logo):not(.vhs-logo),
+.prose img:not(.sanity-cover):not(.tape-logo):not(.vhs-logo) {
   max-width: 100% !important;
   width: 100% !important;
   height: auto !important;
@@ -412,9 +412,8 @@ body {
 }
 
 /* Force Next.js Image component from Sanity to respect container */
-.vhs-content img[data-nimg],
-.prose img[data-nimg],
-img[src*="cdn.sanity.io"] {
+.vhs-content img[data-nimg]:not(.sanity-cover):not(.tape-logo):not(.vhs-logo),
+.prose img[data-nimg]:not(.sanity-cover):not(.tape-logo):not(.vhs-logo) {
   max-width: 100% !important;
   width: 100% !important;
   height: auto !important;
@@ -444,9 +443,8 @@ img[src*="cdn.sanity.io"] {
 
 /* Mobile image responsiveness */
 @media (max-width: 768px) {
-  .vhs-content img,
-  .prose img,
-  img[src*="cdn.sanity.io"] {
+  .vhs-content img:not(.sanity-cover):not(.tape-logo):not(.vhs-logo),
+  .prose img:not(.sanity-cover):not(.tape-logo):not(.vhs-logo) {
     max-width: 100% !important;
     width: 100% !important;
     height: auto !important;
@@ -1184,6 +1182,29 @@ body {
   .vhs-timeline-card {
     margin-bottom: 1rem;
   }
+}
+
+img.sanity-cover {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: cover !important;
+  margin: 0 !important;
+}
+
+img.tape-logo {
+  width: auto !important;
+  height: 40px !important;
+  max-width: 108px !important;
+  object-fit: contain !important;
+  margin: 0 !important;
+}
+
+img.vhs-logo {
+  width: auto !important;
+  height: 40px !important;
+  max-width: 80px !important;
+  object-fit: contain !important;
 }
 
 
