@@ -72,6 +72,9 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
   const [sheet, setSheet] = useState(false)
   const [narrow, setNarrow] = useState(false)
   const skipQuery = useRef(false)
+  const wantsFilters = useRef(params.get('filters') === 'open')
+  const queryTimer = useRef<number | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const launchRef = useRef<HTMLButtonElement>(null)
   const doneRef = useRef<HTMLButtonElement>(null)
   const choices = useMemo(() => filterChoices(trucks), [trucks])
@@ -99,12 +102,26 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
     }
     const current = readFilters(params)
     if (q.trim() === current.q.trim()) return
-    const handle = window.setTimeout(() => {
+    queryTimer.current = window.setTimeout(() => {
+      queryTimer.current = null
       const latest = readFilters(new URLSearchParams(window.location.search))
       router.replace(`${pathname}${filtersToQuery({ ...latest, q })}`, { scroll: false })
     }, 180)
-    return () => window.clearTimeout(handle)
+    return () => {
+      if (queryTimer.current) {
+        window.clearTimeout(queryTimer.current)
+        queryTimer.current = null
+      }
+    }
   }, [q, params, pathname, router])
+
+  useEffect(() => {
+    if (!wantsFilters.current) return
+    wantsFilters.current = false
+    if (window.matchMedia('(max-width: 799px)').matches) setSheet(true)
+    const latest = readFilters(new URLSearchParams(window.location.search))
+    router.replace(`${pathname}${filtersToQuery(latest)}`, { scroll: false })
+  }, [pathname, router])
 
   useEffect(() => {
     if (!sheetOpen) return
@@ -144,6 +161,20 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
     launchRef.current?.focus()
   }
 
+  function commitSearch(event?: { preventDefault: () => void }) {
+    event?.preventDefault()
+    const input = searchRef.current
+    input?.blur()
+    window.setTimeout(() => input?.blur(), 0)
+    if (queryTimer.current) {
+      window.clearTimeout(queryTimer.current)
+      queryTimer.current = null
+    }
+    const latest = readFilters(new URLSearchParams(window.location.search))
+    if (q.trim() === latest.q.trim()) return
+    router.replace(`${pathname}${filtersToQuery({ ...latest, q })}`, { scroll: false })
+  }
+
   const countLabel = results.length === 1 ? '1 truck' : `${results.length} trucks`
 
   return (
@@ -151,16 +182,21 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
       <div className="find-wrap">
         <Link href="/" className="find-back">Main Menu</Link>
         <h1 className="find-header">Find a truck</h1>
-        <form className="find-search" role="search" onSubmit={(event) => event.preventDefault()}>
+        <form className="find-search" role="search" action={pathname} onSubmit={commitSearch}>
           <label className="find-sr" htmlFor="truck-search">Search</label>
           <input
+            ref={searchRef}
             id="truck-search"
+            type="search"
             value={q}
             placeholder="Hilux, 4x4, 22R"
             autoComplete="off"
             enterKeyHint="search"
             onChange={(event) => setQ(event.target.value)}
             onFocus={() => setSheet(false)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') commitSearch(event)
+            }}
           />
         </form>
         <div className="find-layout">
