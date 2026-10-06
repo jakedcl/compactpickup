@@ -163,6 +163,7 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
             onFocus={() => setSheet(false)}
           />
         </form>
+        <div className="find-layout">
         <button
           ref={launchRef}
           type="button"
@@ -173,12 +174,6 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
         >
           {selectedCount ? `Filters ${selectedCount}` : 'Filters'}
         </button>
-        <div className="find-toolbar">
-          <p aria-live="polite">{countLabel}</p>
-          {filtersActive(applied) ? (
-            <button type="button" className="find-text-button" onClick={clearAll}>Clear</button>
-          ) : null}
-        </div>
         {sheetOpen ? (
           <button type="button" className="find-backdrop is-open" aria-label="Close filters" onClick={closeSheet} />
         ) : null}
@@ -231,6 +226,13 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
             options={choices.gears.map((gear) => ({ value: gear, label: gear }))}
           />
         </div>
+        <div className="find-results">
+        <div className="find-toolbar">
+          <p aria-live="polite">{countLabel}</p>
+          {filtersActive(applied) ? (
+            <button type="button" className="find-text-button" onClick={clearAll}>Clear</button>
+          ) : null}
+        </div>
         {trucks.length === 0 ? (
           <p className="find-empty">No trucks in the deck.</p>
         ) : results.length === 0 ? (
@@ -265,6 +267,8 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
             ))}
           </ul>
         )}
+        </div>
+        </div>
       </div>
     </main>
   )

@@ -37,6 +37,7 @@ export default function SiteSearch() {
   const [q, setQ] = useState('')
   const [trucks, setTrucks] = useState<CatalogTruck[] | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [attempt, setAttempt] = useState(0)
   const [active, setActive] = useState(0)
   const onBrowse = pathname === '/browse'
 
@@ -71,7 +72,7 @@ export default function SiteSearch() {
   }, [open])
 
   useEffect(() => {
-    if (!open || trucks || status === 'loading') return
+    if (!open || trucks) return
     let cancelled = false
     setStatus('loading')
     loadCatalog().then((rows) => {
@@ -84,7 +85,7 @@ export default function SiteSearch() {
     return () => {
       cancelled = true
     }
-  }, [open, trucks, status])
+  }, [open, trucks, attempt])
 
   const hits = useMemo(() => {
     if (!trucks || !q.trim()) return []
@@ -99,6 +100,7 @@ export default function SiteSearch() {
     catalogPromise = null
     setTrucks(null)
     setStatus('idle')
+    setAttempt((value) => value + 1)
   }
 
   function close() {
