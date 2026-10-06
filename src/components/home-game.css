@@ -146,17 +146,11 @@
   }
 }
 
-.home-routes,
 .quiz-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
   justify-content: center;
-}
-
-.home-routes .btn {
-  min-width: 44px;
-  min-height: 44px;
 }
 
 .home-play {
@@ -210,12 +204,6 @@
   font: inherit;
   font-size: 16px;
   padding: 10px 12px;
-}
-
-.home-routes {
-  width: min(var(--page), calc(100% - 32px));
-  margin: var(--space-4) auto 0;
-  justify-content: flex-start;
 }
 
 .game-page {
@@ -402,8 +390,7 @@
     width: min(var(--page), calc(100% - 64px));
   }
 
-  .home-find,
-  .home-routes {
+  .home-find {
     width: min(var(--page), calc(100% - 64px));
   }
 

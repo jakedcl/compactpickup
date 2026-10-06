@@ -130,10 +130,6 @@ export default function HomeScreen({
             </Link>
           )}
         </section>
-        <div className="home-routes">
-          <Link href="/browse" className="btn">Browse</Link>
-          <Link href="/timeline" className="btn">Timeline</Link>
-        </div>
       </div>
     </main>
   )
