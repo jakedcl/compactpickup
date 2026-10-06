@@ -56,12 +56,20 @@
   min-width: 0;
   min-height: 48px;
   border: 1px solid #ffe14a;
+  border-radius: 2px;
   background: rgba(0, 0, 0, 0.45);
   color: #fff;
   font: inherit;
   font-size: 16px;
   letter-spacing: 0.04em;
   padding: 10px 12px;
+  appearance: none;
+}
+
+.find-search input::-webkit-search-decoration,
+.find-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .find-search input::placeholder,
@@ -342,6 +350,10 @@
 
   .find-filters-launch {
     display: block;
+  }
+
+  .find-toolbar {
+    margin-top: var(--space-5);
   }
 
   .find-filters {

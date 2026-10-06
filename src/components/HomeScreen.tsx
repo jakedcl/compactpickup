@@ -1,13 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import SanityImage from '@/components/SanityImage'
 import VhsBoot from '@/components/VhsBoot'
 import type { ShelfManufacturer } from '@/components/TapeShelf'
+import { EMPTY_FILTERS, filterTrucks, filtersToQuery, type CatalogTruck } from '@/lib/catalog'
 import type { GameStill } from '@/lib/gameDeck'
 import { hasSeenBoot, markBootSeen, prefersReducedMotion } from '@/lib/vhsSession'
+import '@/components/find.css'
 import '@/components/home-game.css'
 import '@/components/vhs-hero.css'
 
@@ -86,15 +88,22 @@ export default function HomeScreen({
   makerStatus,
   stills,
   stillStatus,
+  trucks,
+  catalogStatus,
   onRetry,
 }: {
   manufacturers: ShelfManufacturer[]
   makerStatus: 'ready' | 'error'
   stills: GameStill[]
   stillStatus: 'ready' | 'error'
+  trucks: CatalogTruck[]
+  catalogStatus: 'ready' | 'error'
   onRetry: () => Promise<void>
 }) {
   const router = useRouter()
+  const searchRef = useRef<HTMLInputElement>(null)
+  const [q, setQ] = useState('')
+  const [suggestOpen, setSuggestOpen] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [boot, setBoot] = useState<'unknown' | 'play' | 'menu'>('unknown')
   const [slideIndex, setSlideIndex] = useState(0)
@@ -139,8 +148,27 @@ export default function HomeScreen({
     }, 0)
   }, [])
 
+  const hits = useMemo(() => {
+    if (catalogStatus !== 'ready' || !q.trim()) return []
+    return filterTrucks(trucks, { ...EMPTY_FILTERS, q }).slice(0, 6)
+  }, [catalogStatus, q, trucks])
+
+  const showSuggest = suggestOpen && q.trim().length > 0
+  const browseHref = `/browse${filtersToQuery({ ...EMPTY_FILTERS, q })}`
+  const filtersHref = `${browseHref}${browseHref.includes('?') ? '&' : '?'}filters=open`
+
+  function runSearch(event?: { preventDefault: () => void }) {
+    event?.preventDefault()
+    const input = searchRef.current
+    input?.blur()
+    window.setTimeout(() => input?.blur(), 0)
+    setSuggestOpen(false)
+    router.push(browseHref)
+  }
+
   const brandStatus = retrying ? 'loading' : makerStatus
   const photoStatus = retrying ? 'loading' : stillStatus
+  const fieldStatus = retrying ? 'loading' : catalogStatus
   const logos = manufacturers.filter((manufacturer) => manufacturer.logo?.asset?._ref && manufacturer.slug?.current)
 
   return (
@@ -178,12 +206,92 @@ export default function HomeScreen({
         <div className="wrap home-intro">
           <p className="lede">Compact and mid-size pickups.</p>
         </div>
-        <form className="home-find" action="/browse" method="get">
+        <form className="home-find" role="search" action="/browse" method="get" onSubmit={runSearch}>
           <label htmlFor="home-q">What truck are you looking at?</label>
-          <div className="home-find-row">
-            <input id="home-q" name="q" placeholder="Hilux, 4x4, 22R" autoComplete="off" enterKeyHint="search" />
-            <button type="submit" className="btn">Search</button>
+          <div
+            className="home-find-field"
+            onBlur={(event) => {
+              const next = event.relatedTarget
+              if (next instanceof Node && event.currentTarget.contains(next)) return
+              setSuggestOpen(false)
+            }}
+          >
+            <div className="home-find-row">
+              <input
+                ref={searchRef}
+                id="home-q"
+                name="q"
+                type="search"
+                value={q}
+                placeholder="Hilux, 4x4, 22R"
+                autoComplete="off"
+                enterKeyHint="search"
+                role="combobox"
+                aria-expanded={showSuggest}
+                aria-controls="home-hits"
+                aria-autocomplete="list"
+                onChange={(event) => {
+                  setQ(event.target.value)
+                  setSuggestOpen(true)
+                }}
+                onFocus={() => setSuggestOpen(true)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') runSearch(event)
+                }}
+              />
+              <button type="submit" className="btn">Search</button>
+            </div>
+            {showSuggest ? (
+              <div id="home-hits" className="home-suggest">
+                {fieldStatus === 'loading' ? <p className="find-empty">Loading trucks...</p> : null}
+                {fieldStatus === 'error' ? (
+                  <p className="find-empty">
+                    Signal lost.{' '}
+                    <button type="button" className="find-text-button" onClick={retry}>Retry</button>
+                  </p>
+                ) : null}
+                {fieldStatus === 'ready' && hits.length === 0 ? <p className="find-empty">No trucks match.</p> : null}
+                {hits.length > 0 ? (
+                  <ul className="find-hits" role="listbox">
+                    {hits.map((truck) => (
+                      <li key={truck.id} role="presentation">
+                        <Link
+                          href={truck.href}
+                          role="option"
+                          aria-selected={false}
+                          className="find-hit"
+                          onPointerDown={(event) => event.preventDefault()}
+                          onClick={() => setSuggestOpen(false)}
+                        >
+                          <span className="find-hit-still">
+                            {truck.image ? (
+                              <SanityImage
+                                image={truck.image}
+                                alt=""
+                                sizes="64px"
+                                fill
+                                cropRatio={0.75}
+                                className="sanity-cover"
+                              />
+                            ) : (
+                              <span className="find-still-empty">No still</span>
+                            )}
+                          </span>
+                          <span>
+                            {truck.title}
+                            <small>{[truck.maker, truck.years].filter(Boolean).join(' · ')}</small>
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
           </div>
+          <Link href={filtersHref} className="btn btn-accent home-filters" onClick={() => searchRef.current?.blur()}>
+            Filters
+          </Link>
         </form>
         <TruckSlideshow
           stills={slides}
