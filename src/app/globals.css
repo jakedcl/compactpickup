@@ -45,7 +45,10 @@
 
 * { box-sizing: border-box; }
 
-html { scroll-padding-top: calc(var(--header) + var(--space-4)); }
+html {
+  background: var(--osd);
+  scroll-padding-top: calc(var(--header) + var(--space-4));
+}
 
 body {
   margin: 0;
@@ -101,9 +104,7 @@ button, input { font: inherit; color: inherit; }
 .screen {
   position: relative;
   min-height: calc(100vh - 120px);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 120px),
-    var(--osd);
+  background: var(--osd);
 }
 
 .wrap {
@@ -124,8 +125,9 @@ button, input { font: inherit; color: inherit; }
   flex-wrap: wrap;
   gap: 8px 12px;
   padding: 10px 16px;
-  background: rgba(0, 17, 90, 0.94);
-  border-bottom: 1px solid var(--line);
+  background: var(--osd);
+  border: 0;
+  box-shadow: none;
 }
 
 .site-mark {

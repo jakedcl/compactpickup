@@ -21,7 +21,7 @@
   align-items: center;
   width: 100%;
   max-width: 56rem;
-  margin: 24px auto 32px;
+  margin: 0 auto 32px;
   padding: 0 8px;
 }
 
@@ -69,7 +69,7 @@
 
 .home-logos-fallback {
   width: min(100%, 56rem);
-  margin: 24px auto 32px;
+  margin: 0 auto 32px;
   padding: 0 8px;
   color: var(--muted);
 }
