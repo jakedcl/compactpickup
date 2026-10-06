@@ -4,18 +4,33 @@ import Link from 'next/link'
 import { client, manufacturerBySlugQuery, truckModelsByManufacturerQuery } from '@/lib/sanity'
 import { notFound } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import ManufacturerProfile from '@/components/ManufacturerProfile'
+import { compareTrucksByYear, formatProduction } from '@/lib/truckDisplay'
 
 interface Manufacturer {
   _id: string
   name: string
   slug: { current: string }
+  founded?: string | null
+  hq?: string | null
+  country?: string | null
+  website?: string | null
+  description?: string | null
+  compactPickupHistory?: string | null
+  logo?: {
+    asset?: {
+      _ref: string
+    }
+  } | null
 }
 
 interface TruckModel {
   _id: string
   title: string
   slug: { current: string }
-  yearRange?: string
+  yearRange?: string | null
+  productionStart?: number | null
+  productionEnd?: number | null
   manufacturer: {
     name: string
     slug: { current: string }
@@ -32,23 +47,35 @@ export default function ManufacturerPage({ params }: Props) {
   const [manufacturerSlug, setManufacturerSlug] = useState('')
   const [currentTime, setCurrentTime] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(-1)
+  const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading')
 
   useEffect(() => {
+    let cancelled = false
+
     params.then(({ manufacturer: slug }) => {
+      if (cancelled) return
       setManufacturerSlug(slug)
+      setStatus('loading')
       
-      // Get manufacturer
       client.fetch(manufacturerBySlugQuery, { slug }).then(manufacturerData => {
+        if (cancelled) return
         if (!manufacturerData) {
-          notFound()
+          setStatus('missing')
           return
         }
         setManufacturer(manufacturerData)
+        setStatus('ready')
         
-        // Get truck models
         client.fetch(truckModelsByManufacturerQuery, {
           manufacturerId: manufacturerData._id
-        }).then(setTruckModels)
+        }).then((models: TruckModel[]) => {
+          if (cancelled) return
+          setTruckModels([...models].sort(compareTrucksByYear))
+        }).catch(() => {
+          if (!cancelled) setStatus('error')
+        })
+      }).catch(() => {
+        if (!cancelled) setStatus('error')
       })
     })
 
@@ -66,7 +93,10 @@ export default function ManufacturerPage({ params }: Props) {
     updateTime()
     const interval = setInterval(updateTime, 1000)
     
-    return () => clearInterval(interval)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
   }, [params])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -75,6 +105,21 @@ export default function ManufacturerPage({ params }: Props) {
     } else if (e.key === 'ArrowDown' && selectedIndex < truckModels.length - 1) {
       setSelectedIndex(selectedIndex + 1)
     }
+  }
+
+  if (status === 'missing') {
+    notFound()
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="vhs-screen">
+        <div className="vhs-content">
+          <div className="vhs-header mb-6">Signal lost</div>
+          <p className="text-white/80 text-sm uppercase tracking-wider">Could not load this manufacturer.</p>
+        </div>
+      </div>
+    )
   }
 
   if (!manufacturer) {
@@ -103,6 +148,8 @@ export default function ManufacturerPage({ params }: Props) {
           {manufacturer.name}
         </div>
 
+        <ManufacturerProfile manufacturer={manufacturer} />
+
         {/* Menu Instructions */}
         <div className="vhs-subtitle text-center text-white">
           Select Truck Model
@@ -129,7 +176,7 @@ export default function ManufacturerPage({ params }: Props) {
                     {model.title}
                   </div>
                   <div className="text-xs opacity-60 mt-1">
-                    {model.yearRange && model.yearRange}
+                    {model.yearRange || formatProduction(model.productionStart, model.productionEnd)}
                   </div>
                 </span>
               </Link>

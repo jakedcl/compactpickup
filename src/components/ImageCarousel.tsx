@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { imageAlt } from '@/lib/imageAlt'
 import { urlFor } from '@/lib/sanity'
 
 interface TruckImageData {
@@ -320,7 +321,7 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
             <div className="vhs-carousel-container">
               <Image
                 src={urlFor(images[currentIndex]).quality(85).url()}
-                alt={images[currentIndex].alt || ''}
+                alt={imageAlt(images[currentIndex].alt, images[currentIndex].truckTitle)}
                 width={800}
                 height={600}
                 className="vhs-carousel-image"
@@ -447,7 +448,7 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
               >
                 <Image
                   src={urlFor(image).width(80).height(60).quality(70).url()}
-                  alt={image.alt || ''}
+                  alt={imageAlt(image.alt, image.truckTitle)}
                   width={80}
                   height={60}
                   className="w-full h-full object-cover"
