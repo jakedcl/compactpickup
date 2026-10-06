@@ -7,11 +7,12 @@
   width: min(var(--page), calc(100% - 32px));
   margin: 0 auto;
   display: grid;
-  gap: var(--space-5);
-  align-items: center;
+  gap: var(--space-6);
+  justify-items: center;
 }
 
 .tape-hero {
+  width: min(100%, 720px);
   display: grid;
   justify-items: center;
   gap: var(--space-3);
@@ -19,8 +20,8 @@
 
 .tape-stage {
   position: relative;
-  width: min(100%, 560px);
-  aspect-ratio: 453 / 255;
+  width: 100%;
+  aspect-ratio: 438 / 240;
 }
 
 .tape-stage picture,
@@ -38,10 +39,10 @@
 
 .tape-stage .tape-window {
   position: absolute;
-  left: 30%;
-  top: 34%;
-  width: 40%;
-  height: 30%;
+  left: 27%;
+  top: 33%;
+  width: 46%;
+  height: 28%;
   margin: 0;
   overflow: hidden;
   z-index: 2;
@@ -61,10 +62,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.tape-track.is-smooth {
-  transition: transform 0.9s ease;
+  will-change: transform;
 }
 
 .tape-slot {
@@ -80,12 +78,7 @@ img.reel-logo {
   max-height: 70% !important;
   object-fit: contain !important;
   margin: 0 !important;
-  opacity: 0.38;
-}
-
-.tape-slot.is-on img,
-.tape-slot.is-on img.reel-logo {
-  opacity: 0.88;
+  opacity: 0.92;
 }
 
 .reel-fallback,
@@ -132,6 +125,7 @@ img.reel-logo {
 }
 
 .home-play {
+  width: min(100%, 720px);
   display: grid;
   gap: var(--space-3);
 }
@@ -367,13 +361,8 @@ img.reel-logo {
   padding-block: 8px;
 }
 
-@media (max-width: 799px) {
-  .home-play { order: -1; }
-}
-
 @media (min-width: 800px) {
   .home-grid {
-    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
     width: min(var(--page), calc(100% - 64px));
   }
 
@@ -392,7 +381,7 @@ img.reel-logo {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tape-track.is-smooth { transition: none; }
+  .tape-track { filter: none; }
   .game-still.is-motion.is-right,
   .game-still.is-motion.is-wrong { animation: none; }
 }
