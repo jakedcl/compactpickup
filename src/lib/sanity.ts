@@ -36,15 +36,34 @@ export const manufacturerBySlugQuery = `*[_type == "manufacturer" && slug.curren
   _id,
   name,
   slug,
-  logo
+  logo,
+  founded,
+  hq,
+  country,
+  website,
+  description,
+  compactPickupHistory
 }`
 
-export const truckModelsByManufacturerQuery = `*[_type == "truckModel" && manufacturer._ref == $manufacturerId] | order(yearRange asc) {
+export const truckModelsByManufacturerQuery = `*[_type == "truckModel" && manufacturer._ref == $manufacturerId] {
   _id,
   title,
   slug,
   yearRange,
+  productionStart,
+  productionEnd,
   manufacturer->{name, slug}
+}`
+
+const relatedTruckProjection = `{
+  _key,
+  name,
+  relation,
+  "truck": truck->{
+    title,
+    "slug": slug.current,
+    "manufacturerSlug": manufacturer->slug.current
+  }
 }`
 
 export const truckModelBySlugQuery = `*[_type == "truckModel" && slug.current == $slug][0] {
@@ -52,9 +71,54 @@ export const truckModelBySlugQuery = `*[_type == "truckModel" && slug.current ==
   title,
   slug,
   yearRange,
-  content,
+  generation,
+  nameplate,
+  productionStart,
+  productionEnd,
+  yearBasis,
+  internalCodes,
+  assemblyPlants,
+  markets,
+  bodyStyles,
+  bedLengths,
+  trims,
+  transmissions,
+  drivetrains,
+  engines[]{
+    _key,
+    name,
+    displacement,
+    config,
+    hp,
+    torque,
+    years,
+    notes
+  },
+  dimensions{
+    wheelbaseIn,
+    lengthIn,
+    widthIn,
+    heightIn
+  },
+  curbWeight,
+  payload,
+  towing,
+  launchMSRP,
+  summary,
+  sources,
+  content[]{
+    ...,
+    _type == "image" => {
+      ...,
+      alt,
+      caption
+    }
+  },
   model3d,
-  manufacturer->{name, slug}
+  manufacturer->{name, slug},
+  "predecessor": predecessor${relatedTruckProjection},
+  "successor": successor${relatedTruckProjection},
+  "siblings": siblings[]${relatedTruckProjection}
 }`
 
 // Query to get all images from all truck models for homepage carousel
@@ -76,7 +140,7 @@ export const allTruckImagesQuery = `*[_type == "truckModel" && defined(content)]
 }[count(images) > 0]`
 
 // Query to get all truck models for timeline (grouped by decade)
-export const timelineQuery = `*[_type == "truckModel" && defined(content)] | order(yearRange asc) {
+export const timelineQuery = `*[_type == "truckModel" && defined(content)] | order(coalesce(productionStart, 9999) asc, yearRange asc) {
   _id,
   title,
   yearRange,

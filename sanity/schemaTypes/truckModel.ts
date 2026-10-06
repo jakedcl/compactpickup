@@ -1,14 +1,17 @@
 import {defineField, defineType} from 'sanity'
+import {truckSpecFields, truckSpecGroups} from './truckSpecFields'
 
 export default defineType({
   name: 'truckModel',
   title: 'Truck Model',
   type: 'document',
+  groups: [{name: 'content', title: 'Content', default: true}, ...truckSpecGroups],
   fields: [
     defineField({
       name: 'title',
       title: 'Model Title',
       type: 'string',
+      group: 'content',
       description: 'e.g., "Tacoma 1995-2004 (1st Gen)"',
       validation: (Rule) => Rule.required(),
     }),
@@ -16,6 +19,7 @@ export default defineType({
       name: 'slug',
       title: 'Slug',
       type: 'slug',
+      group: 'content',
       options: {
         source: 'title',
         maxLength: 96,
@@ -26,6 +30,7 @@ export default defineType({
       name: 'manufacturer',
       title: 'Manufacturer',
       type: 'reference',
+      group: 'content',
       to: [{type: 'manufacturer'}],
       validation: (Rule) => Rule.required(),
     }),
@@ -33,12 +38,14 @@ export default defineType({
       name: 'yearRange',
       title: 'Year Range',
       type: 'string',
+      group: 'content',
       description: 'e.g., "1995-2004"',
     }),
     defineField({
       name: 'model3d',
       title: '3D Model',
       type: 'file',
+      group: 'content',
       options: {
         accept: '.glb',
       },
@@ -69,11 +76,13 @@ export default defineType({
         },
       ],
       description: 'Attribution information for the 3D model (required for proper crediting)',
+      group: 'content',
     }),
     defineField({
       name: 'content',
       title: 'Content',
       type: 'array',
+      group: 'content',
       of: [
         {
           type: 'block',
@@ -114,6 +123,7 @@ export default defineType({
         },
       ],
     }),
+    ...truckSpecFields,
   ],
   preview: {
     select: {

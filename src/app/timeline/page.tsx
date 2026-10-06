@@ -1,16 +1,19 @@
 'use client'
 // THIS IS NOT PART OF THE PROJECT. I AM NOT DONE WITH IT YET, BUT DON'T WANT TO REMOVE IT JUST FOR THE SUBMISSION.
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { client } from '@/lib/sanity'
 import { urlFor } from '@/lib/sanity'
+import { imageAlt } from '@/lib/imageAlt'
+import { truckSortYear } from '@/lib/truckDisplay'
 
 interface TimelineTruck {
   _id: string
   title: string
-  yearRange: string
+  yearRange?: string
+  productionStart?: number | null
   slug: { current: string }
   manufacturer: {
     name: string
@@ -37,10 +40,11 @@ export default function TimelinePage() {
   useEffect(() => {
     async function fetchTimelineData() {
       try {
-        const data: TimelineTruck[] = await client.fetch(`*[_type == "truckModel" && defined(content)] | order(yearRange asc) {
+        const data: TimelineTruck[] = await client.fetch(`*[_type == "truckModel" && defined(content)] | order(coalesce(productionStart, 9999) asc, yearRange asc) {
           _id,
           title,
           yearRange,
+          productionStart,
           slug,
           manufacturer->{name, slug},
           "images": content[_type == "image"] {
@@ -50,10 +54,11 @@ export default function TimelinePage() {
           }
         }[count(images) > 0]`)
 
+        const sorted = [...data].sort((a, b) => truckSortYear(a) - truckSortYear(b) || a.title.localeCompare(b.title))
+
         // Group trucks by decade using reduce method
-        const grouped = data.reduce((acc: { [key: string]: TimelineTruck[] }, truck) => {
-          const yearRange = truck.yearRange || truck.title
-          const decade = getDecadeFromYearRange(yearRange)
+        const grouped = sorted.reduce((acc: { [key: string]: TimelineTruck[] }, truck) => {
+          const decade = getDecadeFromYear(truck)
           if (!acc[decade]) {
             acc[decade] = []
           }
@@ -77,10 +82,9 @@ export default function TimelinePage() {
     fetchTimelineData()
   }, [])
 
-  const getDecadeFromYearRange = (yearRange: string): string => {
-    // Extract first year from range like "1995-2004" or single year "1995"
-    const firstYear = parseInt(yearRange.split('-')[0])
-    if (isNaN(firstYear)) return 'Unknown'
+  const getDecadeFromYear = (truck: TimelineTruck): string => {
+    const firstYear = truckSortYear(truck)
+    if (firstYear === 9999) return 'Unknown'
     
     const decade = Math.floor(firstYear / 10) * 10
     return `${decade}s`
@@ -173,7 +177,7 @@ function TruckTimelineCard({ truck }: { truck: TimelineTruck }) {
       <div className="relative">
          <Image
           src={urlFor({ asset: currentImage.asset }).width(400).height(300).url()}
-          alt={currentImage.alt || truck.title}
+          alt={imageAlt(currentImage.alt, truck.title)}
           width={400}
           height={300}
           className="w-full h-64 object-cover"
