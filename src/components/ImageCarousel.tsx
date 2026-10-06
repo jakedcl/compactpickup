@@ -7,7 +7,7 @@ import TruckQuiz, { type QuizImage } from '@/components/TruckQuiz'
 import { imageAlt } from '@/lib/imageAlt'
 import { prefersReducedMotion } from '@/lib/vhsSession'
 
-interface TruckImageData extends QuizImage {
+export interface TruckImageData extends QuizImage {
   yearRange?: string
   truckSlug: string
   manufacturerSlug: string

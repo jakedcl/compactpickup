@@ -2,31 +2,35 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import NameThatTruck from '@/components/NameThatTruck'
-import { client, allTruckImagesQuery } from '@/lib/sanity'
-import { buildDeck, type GameStill } from '@/lib/gameDeck'
+import type { GameStill } from '@/lib/gameDeck'
 import '@/components/home-game.css'
 
-export default function GameScreen() {
-  const [stills, setStills] = useState<GameStill[]>([])
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+export default function GameScreen({
+  stills,
+  status,
+  onRetry,
+}: {
+  stills: GameStill[]
+  status: 'ready' | 'error'
+  onRetry: () => Promise<void>
+}) {
+  const router = useRouter()
+  const [retrying, setRetrying] = useState(false)
 
-  const load = useCallback(() => {
-    setStatus('loading')
-    client
-      .fetch(allTruckImagesQuery)
-      .then((data: Array<{ images?: GameStill[] }>) => {
-        setStills(buildDeck(data))
-        setStatus('ready')
-      })
-      .catch(() => setStatus('error'))
-  }, [])
+  const retry = useCallback(() => {
+    setRetrying(true)
+    void onRetry()
+      .then(() => router.refresh())
+      .catch(() => setRetrying(false))
+  }, [onRetry, router])
 
   useEffect(() => {
-    load()
-  }, [load])
+    setRetrying(false)
+  }, [stills, status])
 
-  if (status === 'loading') {
+  if (retrying) {
     return (
       <main className="game-page">
         <p className="state">Loading the round...</p>
@@ -39,7 +43,7 @@ export default function GameScreen() {
       <main className="game-page">
         <p className="state" role="alert">Signal lost. Could not load the stills.</p>
         <div className="quiz-actions">
-          <button type="button" className="btn btn-accent" onClick={load}>Try again</button>
+          <button type="button" className="btn btn-accent" onClick={retry}>Try again</button>
           <Link href="/" className="btn">Exit</Link>
         </div>
       </main>
