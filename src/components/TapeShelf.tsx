@@ -75,7 +75,7 @@ export default function TapeShelf({
 
       {status === 'error' ? (
         <div className="tape-state" role="alert">
-          <p>Signal lost. Could not load the shelf.</p>
+          <p>Signal lost. Could not load the brands.</p>
           <button type="button" className="boot-skip tape-retry" onClick={onRetry}>
             Retry
           </button>

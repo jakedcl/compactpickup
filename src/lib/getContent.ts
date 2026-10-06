@@ -5,6 +5,7 @@ import type { TruckImageData } from '@/components/ImageCarousel'
 import type { ShelfManufacturer } from '@/components/TapeShelf'
 import type { TimelineTruck } from '@/components/TruckTimelineCard'
 import type { TruckModel } from '@/components/TruckModelView'
+import { buildDeck, type GameStill } from '@/lib/gameDeck'
 import { client } from '@/lib/sanityClient'
 import type { SanityImageValue } from '@/lib/sanityImage'
 import {
@@ -55,10 +56,13 @@ function sortManufacturers(data: ShelfManufacturer[]) {
   })
 }
 
-function flattenImages(trucks: Array<{ images?: TruckImageData[] | null }> | null) {
+function flattenImages(trucks: Array<{ images?: Array<GameStill | null> | null }> | null) {
   const flat: TruckImageData[] = []
   trucks?.forEach((truck) => {
-    truck.images?.forEach((image) => flat.push(image))
+    truck.images?.forEach((image) => {
+      if (!image?.truckSlug || !image.manufacturerSlug) return
+      flat.push(image as TruckImageData)
+    })
   })
   return flat
 }
@@ -72,14 +76,18 @@ const readManufacturers = unstable_cache(
   { ...hour, tags: ['home-shelf'] },
 )
 
-const readHomeImages = unstable_cache(
+const readTruckImageRows = unstable_cache(
   async () => {
-    const rows = await client.fetch<Array<{ images?: TruckImageData[] | null }> | null>(allTruckImagesQuery)
-    return flattenImages(rows)
+    const rows = await client.fetch<Array<{ images?: Array<GameStill | null> | null }> | null>(allTruckImagesQuery)
+    return rows ?? []
   },
-  ['home-images'],
+  ['truck-image-rows'],
   { ...hour, tags: ['home-shelf'] },
 )
+
+async function readHomeImages() {
+  return flattenImages(await readTruckImageRows())
+}
 
 export async function getHomePageData(): Promise<{
   manufacturers: ShelfManufacturer[]
@@ -91,6 +99,15 @@ export async function getHomePageData(): Promise<{
     manufacturers: makers.status === 'fulfilled' ? makers.value : [],
     makerStatus: makers.status === 'fulfilled' ? 'ready' : 'error',
     images: images.status === 'fulfilled' ? images.value : [],
+  }
+}
+
+export async function getGameDeck(): Promise<{ stills: GameStill[]; status: 'ready' | 'error' }> {
+  try {
+    const rows = await readTruckImageRows()
+    return { stills: buildDeck(rows), status: 'ready' }
+  } catch {
+    return { stills: [], status: 'error' }
   }
 }
 

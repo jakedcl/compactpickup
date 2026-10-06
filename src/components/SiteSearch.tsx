@@ -58,6 +58,7 @@ export default function SiteSearch() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey && !typingTarget(event.target)) {
+        if (window.location.pathname === '/game') return
         event.preventDefault()
         if (window.location.pathname === '/browse') {
           document.getElementById('truck-search')?.focus()
@@ -162,7 +163,7 @@ export default function SiteSearch() {
               onChange={(event) => setQ(event.target.value)}
               onKeyDown={onInputKey}
             />
-            {status === 'loading' || status === 'idle' ? <p className="find-empty">Loading the shelf...</p> : null}
+            {status === 'loading' || status === 'idle' ? <p className="find-empty">Loading trucks...</p> : null}
             {status === 'error' ? (
               <p className="find-empty">
                 Signal lost.{' '}
