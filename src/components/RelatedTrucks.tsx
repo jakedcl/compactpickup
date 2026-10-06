@@ -6,7 +6,7 @@ function RelatedList({title, links}: {title: string; links: Array<NonNullable<Tr
   if (!links.length) return null
 
   return (
-    <div>
+    <div className="related-group">
       <h3 className="kicker">{title}</h3>
       <ul className="link-list">
         {links.map((link, index) => {
@@ -40,9 +40,11 @@ export default function RelatedTrucks({truck}: {truck: TruckSpecData}) {
   return (
     <section className="section">
       <SectionHeading title="Related" />
-      <RelatedList title="Predecessor" links={predecessor} />
-      <RelatedList title="Successor" links={successor} />
-      <RelatedList title="Siblings" links={siblings} />
+      <div className="related-groups">
+        <RelatedList title="Predecessor" links={predecessor} />
+        <RelatedList title="Successor" links={successor} />
+        <RelatedList title="Siblings" links={siblings} />
+      </div>
     </section>
   )
 }

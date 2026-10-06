@@ -212,7 +212,7 @@ export default function NameThatTruck({ stills }: { stills: GameStill[] }) {
           <h2 className="game-reveal-title">{still?.manufacturerName} {still?.truckTitle}</h2>
           {years ? <p className="game-years">{years}</p> : null}
           <div className="quiz-actions">
-            {truckHref ? <Link href={truckHref} className="btn">Open the truck</Link> : null}
+            {truckHref ? <Link href={truckHref} className="btn">See more</Link> : null}
             <button type="button" className="btn btn-accent" onClick={goNext}>Next</button>
           </div>
         </div>

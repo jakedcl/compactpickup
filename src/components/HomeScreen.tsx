@@ -3,9 +3,9 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import LogoReel, { type ReelBrand } from '@/components/LogoReel'
 import SanityImage from '@/components/SanityImage'
 import VhsBoot from '@/components/VhsBoot'
+import type { ShelfManufacturer } from '@/components/TapeShelf'
 import type { GameStill } from '@/lib/gameDeck'
 import { hasSeenBoot, markBootSeen, prefersReducedMotion } from '@/lib/vhsSession'
 import '@/components/home-game.css'
@@ -18,7 +18,7 @@ export default function HomeScreen({
   stillStatus,
   onRetry,
 }: {
-  manufacturers: ReelBrand[]
+  manufacturers: ShelfManufacturer[]
   makerStatus: 'ready' | 'error'
   preview: GameStill | null
   stillStatus: 'ready' | 'error'
@@ -59,13 +59,41 @@ export default function HomeScreen({
 
   const brandStatus = retrying ? 'loading' : makerStatus
   const photoStatus = retrying ? 'loading' : stillStatus
+  const logos = manufacturers.filter((manufacturer) => manufacturer.logo?.asset?._ref && manufacturer.slug?.current)
 
   return (
     <main className="screen">
       {boot === 'play' && <VhsBoot onDone={finishBoot} />}
       <div className={boot === 'unknown' ? 'home-hold' : 'home-live'} inert={boot !== 'menu'}>
+        {brandStatus === 'error' ? (
+          <div className="home-logos-fallback">
+            <p>Could not load the brands.</p>
+            <button type="button" className="btn" onClick={retry}>Retry</button>
+          </div>
+        ) : brandStatus === 'loading' ? (
+          <p className="home-logos-fallback">Loading brands</p>
+        ) : logos.length > 0 ? (
+          <div className="home-logos">
+            {logos.map((manufacturer) => (
+              <Link
+                key={manufacturer._id}
+                href={`/${manufacturer.slug.current}`}
+                className="vhs-logo-container hover:scale-110 transition-transform"
+              >
+                <SanityImage
+                  image={manufacturer.logo!}
+                  alt={manufacturer.name}
+                  sizes="80px"
+                  width={120}
+                  height={60}
+                  eager
+                  className="vhs-logo"
+                />
+              </Link>
+            ))}
+          </div>
+        ) : null}
         <div className="wrap home-intro">
-          <p className="kicker">U.S. truck market</p>
           <p className="lede">Compact and mid-size pickups.</p>
         </div>
         <form className="home-find" action="/browse" method="get">
@@ -75,10 +103,6 @@ export default function HomeScreen({
             <button type="submit" className="btn">Search</button>
           </div>
         </form>
-        <div className="home-routes">
-          <Link href="/browse" className="btn">Browse</Link>
-          <Link href="/timeline" className="btn">Timeline</Link>
-        </div>
         <section className="home-play" aria-labelledby="name-that-truck-title">
           <p className="kicker" id="name-that-truck-title">Name that truck</p>
           <div className="home-still">
@@ -106,7 +130,10 @@ export default function HomeScreen({
             </Link>
           )}
         </section>
-        <LogoReel brands={manufacturers} status={brandStatus} onRetry={retry} />
+        <div className="home-routes">
+          <Link href="/browse" className="btn">Browse</Link>
+          <Link href="/timeline" className="btn">Timeline</Link>
+        </div>
       </div>
     </main>
   )

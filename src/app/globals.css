@@ -897,6 +897,16 @@ button, input { font: inherit; color: inherit; }
   background: rgba(0, 0, 0, 0.4);
   border-color: #fff;
 }
+
+.related-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.related-group .kicker {
+  margin: 0 0 6px;
+}
 .source-list a { word-break: break-word; }
 
 .maker-list {
