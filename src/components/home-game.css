@@ -20,27 +20,39 @@
 .tape-stage {
   position: relative;
   width: min(100%, 560px);
+  aspect-ratio: 453 / 255;
+}
+
+.tape-stage picture,
+.tape-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .tape-photo {
   display: block;
-  width: 100%;
-  height: auto;
+  object-fit: fill;
 }
 
-.tape-window {
+.tape-stage .tape-window {
   position: absolute;
   left: 30%;
   top: 34%;
   width: 40%;
   height: 30%;
+  margin: 0;
   overflow: hidden;
   z-index: 2;
+  border-radius: 0;
+  box-shadow: none;
+  display: block;
   background: rgba(255, 255, 255, 0.22);
   touch-action: none;
 }
 
-.tape-window:focus-visible {
+.tape-stage .tape-window:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -180,6 +192,12 @@ img.reel-logo {
   width: min(860px, calc(100% - 32px));
   margin: 0 auto;
   padding: var(--space-4) 0 var(--space-7);
+}
+
+.game-page:has(#game-score) {
+  min-height: calc(100vh - 96px);
+  display: grid;
+  align-content: center;
 }
 
 .game-hud {
@@ -347,6 +365,10 @@ img.reel-logo {
   display: flex;
   justify-content: flex-start;
   padding-block: 8px;
+}
+
+@media (max-width: 799px) {
+  .home-play { order: -1; }
 }
 
 @media (min-width: 800px) {
