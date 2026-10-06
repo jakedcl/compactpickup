@@ -1,21 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { client, manufacturersQuery, urlFor, allTruckImagesQuery } from '@/lib/sanity'
-import { useState, useEffect } from 'react'
-import Image from 'next/image'
+import { client, manufacturersQuery, allTruckImagesQuery } from '@/lib/sanity'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ImageCarousel from '@/components/ImageCarousel'
-
-interface Manufacturer {
-  _id: string
-  name: string
-  slug: { current: string }
-  logo?: {
-    asset: {
-      _ref: string
-    }
-  }
-}
+import TapeShelf, { type ShelfManufacturer } from '@/components/TapeShelf'
+import VhsBoot from '@/components/VhsBoot'
+import { createVhsClick } from '@/lib/vhsClick'
+import { hasSeenBoot, markBootSeen, prefersReducedMotion } from '@/lib/vhsSession'
+import '@/components/vhs-hero.css'
 
 interface TruckImageData {
   alt?: string
@@ -29,169 +22,151 @@ interface TruckImageData {
   manufacturerSlug: string
 }
 
+function sortManufacturers(data: ShelfManufacturer[]) {
+  return [...data].sort((a, b) => {
+    if (a.name === "More..." || a.name === "One-Off's") return 1
+    if (b.name === "More..." || b.name === "One-Off's") return -1
+    return a.name.localeCompare(b.name)
+  })
+}
+
 export default function HomePage() {
-  // React useState hooks for component state management
-  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([])
+  const [manufacturers, setManufacturers] = useState<ShelfManufacturer[]>([])
+  const [makerStatus, setMakerStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [allImages, setAllImages] = useState<TruckImageData[]>([])
   const [currentTime, setCurrentTime] = useState('')
-  const [selectedIndex, setSelectedIndex] = useState(-1)
+  const [boot, setBoot] = useState<'unknown' | 'play' | 'menu'>('unknown')
+  const [clickOn, setClickOn] = useState(false)
+  const clicker = useRef(createVhsClick())
 
-      useEffect(() => {
-      // Get manufacturers and sort with special categories at the bottom
-      client.fetch(manufacturersQuery).then((data) => {
-        const sortedManufacturers = data.sort((a: Manufacturer, b: Manufacturer) => {
-          // Put "More..." and "One-Off's" at the bottom
-          if (a.name === "More..." || a.name === "One-Off's") return 1
-          if (b.name === "More..." || b.name === "One-Off's") return -1
-          // Regular alphabetical sort for everything else
-          return a.name.localeCompare(b.name)
-        })
-        setManufacturers(sortedManufacturers)
+  const loadManufacturers = useCallback(() => {
+    setMakerStatus('loading')
+    client.fetch(manufacturersQuery)
+      .then((data: ShelfManufacturer[]) => {
+        setManufacturers(sortManufacturers(data ?? []))
+        setMakerStatus('ready')
       })
+      .catch(() => setMakerStatus('error'))
+  }, [])
 
-      // Get all images from all truck models
-      client.fetch(allTruckImagesQuery).then((data: Array<{images: TruckImageData[]}>) => {
-        const allImagesFlattened: TruckImageData[] = []
+  useEffect(() => {
+    if (prefersReducedMotion() || hasSeenBoot()) {
+      markBootSeen()
+      setBoot('menu')
+    } else {
+      setBoot('play')
+    }
+  }, [])
+
+  useEffect(() => {
+    loadManufacturers()
+    client.fetch(allTruckImagesQuery)
+      .then((data: Array<{ images: TruckImageData[] }>) => {
+        const flat: TruckImageData[] = []
         data.forEach((truck) => {
-          truck.images.forEach((image) => {
-            allImagesFlattened.push(image)
-          })
+          truck.images?.forEach((image) => flat.push(image))
         })
-        setAllImages(allImagesFlattened)
+        setAllImages(flat)
       })
-    
-    // Update time every second
+      .catch(() => setAllImages([]))
+  }, [loadManufacturers])
+
+  useEffect(() => {
     const updateTime = () => {
       const now = new Date()
-      setCurrentTime(now.toLocaleTimeString('en-US', { 
-        hour12: false, 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit' 
+      setCurrentTime(now.toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
       }))
     }
-    
     updateTime()
     const interval = setInterval(updateTime, 1000)
-    
     return () => clearInterval(interval)
   }, [])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowUp' && selectedIndex > 0) {
-      setSelectedIndex(selectedIndex - 1)
-    } else if (e.key === 'ArrowDown' && selectedIndex < manufacturers.length - 1) {
-      setSelectedIndex(selectedIndex + 1)
-    }
-  }
+  const finishBoot = useCallback((viaKeyboard: boolean) => {
+    markBootSeen()
+    setBoot('menu')
+    if (!viaKeyboard) return
+    window.setTimeout(() => {
+      const shelf = document.getElementById('manufacturer-shelf')
+      const first = shelf?.querySelector<HTMLAnchorElement>('a')
+      if (first) first.focus({ focusVisible: true } as FocusOptions)
+      else shelf?.focus()
+    }, 0)
+  }, [])
 
   return (
-    <div className="vhs-screen" onKeyDown={handleKeyDown} tabIndex={0}>
-      {/* VHS Scan Line */}
-      <div className="vhs-scan-line"></div>
-      
-      <div className="vhs-content">
-        {/* VHS Header */}
-        <div className="vhs-header">
-          <div className="flex justify-between items-center">
-            <span>Compact and Mid-Size Pickups</span>
-            <Link 
-              href="/timeline" 
-              className="text-yellow-400 hover:text-yellow-300 transition-colors font-mono text-sm"
-            >
-              TIMELINE
-            </Link>
-          </div>
-        </div>
+    <main className="vhs-screen">
+      <div className="vhs-scan-line" aria-hidden="true" />
+      {boot === 'play' && <VhsBoot onDone={finishBoot} />}
 
-        {/* Manufacturer Logos Row - Only show manufacturers with logos */}
-        {manufacturers.filter(m => m.logo).length > 0 && (
-          <div className="flex justify-center items-center mb-8 mt-6 px-2 w-full max-w-4xl mx-auto">
-            {manufacturers
-              .filter((manufacturer) => manufacturer.logo) // Only include manufacturers with logos
-              .map((manufacturer) => (
-                <Link
-                  key={manufacturer._id}
-                  href={`/${manufacturer.slug.current}`}
-                  className="vhs-logo-container hover:scale-110 transition-transform"
-                >
-                  <Image
-                    src={urlFor(manufacturer.logo!).url()}
-                    alt={manufacturer.name}
-                    width={120}
-                    height={60}
-                    className="vhs-logo"
-                  />
-                </Link>
-              ))}
-          </div>
-        )}
-
-        {/* Menu Instructions */}
-        <div className="vhs-subtitle text-center text-white">
-          U.S. Truck Market
-        </div>
-
-        {/* Manufacturers Menu - Text Only */}
-        {manufacturers.length > 0 ? (
-          <div className="space-y-2 w-full flex flex-col items-center">
-            {manufacturers.map((manufacturer, index) => (
+      <div className={boot === 'unknown' ? 'home-hold' : 'home-live'} inert={boot !== 'menu'}>
+        <div className="vhs-content">
+          <div className="vhs-header">
+            <div className="flex justify-between items-center gap-4">
+              <h1 className="m-0 min-w-0 flex-1 text-left text-[16px] font-bold leading-snug tracking-[1px] sm:text-[20px] sm:tracking-[3px]">
+                Compact and Mid-Size Pickups
+              </h1>
               <Link
-                key={manufacturer._id}
-                href={`/${manufacturer.slug.current}`}
-                className={`vhs-menu-item flex items-center ${
-                  index === selectedIndex ? 'selected' : ''
-                }`}
-                onMouseEnter={() => setSelectedIndex(index)}
-                onMouseLeave={() => setSelectedIndex(-1)}
+                href="/timeline"
+                className="text-yellow-400 hover:text-yellow-300 transition-colors font-mono text-sm shrink-0"
               >
-                <span className="vhs-arrow">
-                  ▶
-                </span>
-                <span className="flex-1 capitalize">
-                  {manufacturer.name}
-                </span>
+                TIMELINE
               </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12 w-full flex flex-col items-center">
-            <div className="vhs-menu-item justify-center">
-              <span className="vhs-arrow"> </span>
-              <span className="uppercase tracking-wider">No manufacturers found</span>
-            </div>
-            <div className="mt-4 text-white opacity-60 text-sm">
-              ADD MANUFACTURERS IN STUDIO
             </div>
           </div>
-        )}
 
-        {/* Image Carousel */}
-        {allImages.length > 0 && (
-          <ImageCarousel images={allImages} className="mt-8" />
-        )}
-
-
-      </div>
-
-      {/* VHS Status Bar */}
-      <div className="vhs-status">
-        <div className="flex items-center gap-4">
-          <Link 
-            href="https://compactpickup.sanity.studio" 
-            target="_blank"
-            className="text-red-400 hover:text-red-300 font-bold"
-          >
-            ● REC
-          </Link>
-          <span>AUTO</span>
-          <span>PAL</span>
-          <span>NTSC</span>
+          <p className="vhs-subtitle text-center text-white">
+            U.S. Truck Market
+          </p>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="vhs-time">{currentTime}</span>
+
+        <TapeShelf
+          manufacturers={manufacturers}
+          status={makerStatus}
+          onRetry={loadManufacturers}
+          armed={clickOn}
+          onPress={() => clicker.current.blip()}
+        />
+
+        <div className="vhs-content">
+          {boot === 'menu' && allImages.length > 0 && (
+            <ImageCarousel images={allImages} className="mt-8" />
+          )}
+        </div>
+
+        <div className="vhs-status">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <Link
+              href="https://compactpickup.sanity.studio"
+              target="_blank"
+              className="text-red-400 hover:text-red-300 font-bold"
+            >
+              ● REC
+            </Link>
+            <span>AUTO</span>
+            <span>PAL</span>
+            <span>NTSC</span>
+            <button
+              type="button"
+              className={`vhs-click-toggle ${clickOn ? 'is-on' : ''}`}
+              aria-pressed={clickOn}
+              onClick={() => {
+                clicker.current.arm()
+                setClickOn((on) => !on)
+              }}
+            >
+              Click {clickOn ? 'on' : 'off'}
+            </button>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <span className="vhs-time">{currentTime}</span>
+          </div>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
