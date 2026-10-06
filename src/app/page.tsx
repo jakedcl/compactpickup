@@ -17,7 +17,7 @@ export default async function HomePage() {
     <HomeScreen
       manufacturers={shelf.manufacturers}
       makerStatus={shelf.makerStatus}
-      preview={deck.stills[0] ?? null}
+      stills={deck.stills}
       stillStatus={deck.status}
       onRetry={refreshHome}
     />

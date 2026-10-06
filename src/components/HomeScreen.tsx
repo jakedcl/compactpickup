@@ -11,22 +11,95 @@ import { hasSeenBoot, markBootSeen, prefersReducedMotion } from '@/lib/vhsSessio
 import '@/components/home-game.css'
 import '@/components/vhs-hero.css'
 
+const SLIDE_MS = 6500
+
+function TruckSlideshow({
+  stills,
+  status,
+  index,
+  onPause,
+  onRetry,
+}: {
+  stills: GameStill[]
+  status: 'loading' | 'ready' | 'error'
+  index: number
+  onPause: (paused: boolean) => void
+  onRetry: () => void
+}) {
+  const slides = stills.filter((still) => still.asset?._ref && still.manufacturerSlug && still.truckSlug)
+  const slide = slides[index % Math.max(slides.length, 1)]
+
+  return (
+    <section
+      className="home-reel"
+      aria-roledescription="carousel"
+      aria-label="Trucks"
+      onMouseEnter={() => onPause(true)}
+      onMouseLeave={() => onPause(false)}
+      onFocus={() => onPause(true)}
+      onBlur={(event) => {
+        const next = event.relatedTarget
+        if (next instanceof Node && event.currentTarget.contains(next)) return
+        onPause(false)
+      }}
+    >
+      {status === 'error' ? (
+        <>
+          <p>Signal lost. Could not load the trucks.</p>
+          <button type="button" className="btn" onClick={onRetry}>Retry</button>
+        </>
+      ) : status === 'loading' ? (
+        <p>Loading trucks</p>
+      ) : slide?.asset?._ref && slide.manufacturerSlug && slide.truckSlug ? (
+        <Link href={`/${slide.manufacturerSlug}/${slide.truckSlug}`} className="home-slide">
+          <span className="home-still">
+            <SanityImage
+              image={slide}
+              alt=""
+              sizes="(max-width: 800px) 100vw, 720px"
+              fill
+              cropRatio={0.625}
+              eager
+              className="sanity-cover"
+            />
+          </span>
+          <span className="home-slide-copy">
+            {slide.manufacturerName ? <span className="home-slide-make">{slide.manufacturerName}</span> : null}
+            <span className="home-slide-name">{slide.truckTitle}</span>
+            {slide.yearRange?.trim() ? <span className="home-slide-years">{slide.yearRange.trim()}</span> : null}
+          </span>
+        </Link>
+      ) : (
+        <p>No truck photos yet.</p>
+      )}
+      {status === 'ready' && slides.length > 0 ? (
+        <Link id="make-it-a-game" href="/game" className="btn btn-accent home-play-btn">
+          Make it a game
+        </Link>
+      ) : null}
+    </section>
+  )
+}
+
 export default function HomeScreen({
   manufacturers,
   makerStatus,
-  preview,
+  stills,
   stillStatus,
   onRetry,
 }: {
   manufacturers: ShelfManufacturer[]
   makerStatus: 'ready' | 'error'
-  preview: GameStill | null
+  stills: GameStill[]
   stillStatus: 'ready' | 'error'
   onRetry: () => Promise<void>
 }) {
   const router = useRouter()
   const [retrying, setRetrying] = useState(false)
   const [boot, setBoot] = useState<'unknown' | 'play' | 'menu'>('unknown')
+  const [slideIndex, setSlideIndex] = useState(0)
+  const [slidePaused, setSlidePaused] = useState(false)
+  const slides = stills.filter((still) => still.asset?._ref && still.manufacturerSlug && still.truckSlug)
 
   const retry = useCallback(() => {
     setRetrying(true)
@@ -37,7 +110,16 @@ export default function HomeScreen({
 
   useEffect(() => {
     setRetrying(false)
-  }, [manufacturers, makerStatus, preview, stillStatus])
+    setSlideIndex(0)
+  }, [manufacturers, makerStatus, stills, stillStatus])
+
+  useEffect(() => {
+    if (slidePaused || slides.length < 2 || prefersReducedMotion()) return
+    const timer = window.setInterval(() => {
+      setSlideIndex((current) => (current + 1) % slides.length)
+    }, SLIDE_MS)
+    return () => window.clearInterval(timer)
+  }, [slidePaused, slides.length])
 
   useEffect(() => {
     if (prefersReducedMotion() || hasSeenBoot()) {
@@ -53,7 +135,7 @@ export default function HomeScreen({
     setBoot('menu')
     if (!viaKeyboard) return
     window.setTimeout(() => {
-      document.getElementById('name-that-truck')?.focus({ focusVisible: true } as FocusOptions)
+      document.getElementById('make-it-a-game')?.focus({ focusVisible: true } as FocusOptions)
     }, 0)
   }, [])
 
@@ -103,33 +185,13 @@ export default function HomeScreen({
             <button type="submit" className="btn">Search</button>
           </div>
         </form>
-        <section className="home-play" aria-labelledby="name-that-truck-title">
-          <p className="kicker" id="name-that-truck-title">Name that truck</p>
-          <div className="home-still">
-            {photoStatus === 'ready' && preview?.asset?._ref ? (
-              <SanityImage
-                image={preview}
-                alt=""
-                sizes="(max-width: 800px) 100vw, 520px"
-                fill
-                cropRatio={0.625}
-                eager
-                className="sanity-cover"
-              />
-            ) : (
-              <p className="still-empty">
-                {photoStatus === 'error' ? 'Signal lost' : photoStatus === 'ready' ? 'No still for this round.' : 'Loading a still'}
-              </p>
-            )}
-          </div>
-          {photoStatus === 'error' ? (
-            <button type="button" className="btn" onClick={retry}>Retry</button>
-          ) : (
-            <Link id="name-that-truck" href="/game" className="btn btn-accent home-play-btn">
-              Name that truck
-            </Link>
-          )}
-        </section>
+        <TruckSlideshow
+          stills={slides}
+          status={photoStatus}
+          index={slideIndex}
+          onPause={setSlidePaused}
+          onRetry={retry}
+        />
       </div>
     </main>
   )
