@@ -282,6 +282,7 @@ button, input { font: inherit; color: inherit; }
 
 .btn,
 .chip {
+  min-width: 44px;
   min-height: 44px;
   border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: 2px;
