@@ -7,16 +7,30 @@
 }
 
 .find-back {
-  color: rgba(255, 255, 255, 0.8);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
   text-decoration: none;
-  font-size: 14px;
+  font-size: 13px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.find-back:hover,
-.find-back:focus-visible {
+.find-back:hover {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: rgba(255, 255, 255, 0.75);
   color: #fff;
+}
+
+.find-back:active {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: #fff;
 }
 
 .find-header {
@@ -90,11 +104,24 @@
 .find-filters-launch,
 .find-done {
   border: 1px solid #ffe14a;
+  border-radius: 2px;
   background: #ffe14a;
   color: #001166;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 10px 14px;
+}
+
+.find-filters-launch:hover,
+.find-done:hover {
+  background: #fff3a3;
+  border-color: #fff3a3;
+}
+
+.find-filters-launch:active,
+.find-done:active {
+  background: #e6c200;
+  border-color: #e6c200;
 }
 
 .find-filters-launch {
@@ -120,12 +147,26 @@
 }
 
 .find-text-button {
-  border: 0;
-  background: transparent;
-  color: #ffe14a;
-  letter-spacing: 0.12em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 8px 4px;
+  padding: 8px 14px;
+}
+
+.find-text-button:hover {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: rgba(255, 255, 255, 0.75);
+}
+
+.find-text-button:active {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: #fff;
 }
 
 .find-filters {
@@ -156,8 +197,10 @@
 }
 
 .find-chip {
+  min-width: 44px;
   border: 1px solid rgba(255, 255, 255, 0.45);
-  background: rgba(0, 0, 0, 0.28);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
   color: #fff;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -165,10 +208,33 @@
   font-size: 13px;
 }
 
-.find-chip.is-on {
+.find-chip:hover {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: rgba(255, 255, 255, 0.75);
+}
+
+.find-chip:active {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: #fff;
+}
+
+.find-chip.is-on,
+.find-chip.is-on:hover {
   background: #ffe14a;
   border-color: #ffe14a;
   color: #001166;
+}
+
+.find-chip.is-on:active {
+  background: #e6c200;
+  border-color: #e6c200;
+  color: #001166;
+}
+
+.find-chip.is-on:focus-visible,
+.find-filters-launch:focus-visible,
+.find-done:focus-visible {
+  outline-color: #fff;
 }
 
 .find-grid {
@@ -392,6 +458,8 @@
 
 .find-hits {
   list-style: none;
+  display: grid;
+  gap: 8px;
   margin: 12px 0 0;
   padding: 0;
 }
@@ -405,13 +473,20 @@
   padding: 6px;
   color: #fff;
   text-decoration: none;
-  border: 1px solid transparent;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .find-hit.is-active,
 .find-hit:hover {
   border-color: #ffe14a;
-  background: rgba(0, 0, 0, 0.28);
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.find-hit:active {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: #fff;
 }
 
 .find-hit-still {
@@ -430,14 +505,30 @@
 }
 
 .find-more {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-top: 12px;
-  color: #ffe14a;
-  letter-spacing: 0.1em;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid #ffe14a;
+  border-radius: 2px;
+  background: #ffe14a;
+  color: #001166;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   text-decoration: none;
-  min-height: 44px;
-  line-height: 44px;
+}
+
+.find-more:hover {
+  background: #fff3a3;
+  border-color: #fff3a3;
+  color: #001166;
+}
+
+.find-more:active {
+  background: #e6c200;
+  border-color: #e6c200;
 }
 
 @media (prefers-reduced-motion: reduce) {
