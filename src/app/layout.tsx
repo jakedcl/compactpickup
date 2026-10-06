@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import SiteSearch from "@/components/SiteSearch";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -40,6 +41,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        <SiteSearch />
         <footer className="text-center py-4 text-gray-500 text-sm">
           <a 
             href="https://jakedcl.com/compactpickup" 
