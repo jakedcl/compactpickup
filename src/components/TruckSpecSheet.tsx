@@ -42,6 +42,7 @@ export default function TruckSpecSheet({truck}: {truck: TruckSpecData}) {
               <dd>
                 {row.value ? <SpecValue value={row.value} /> : null}
                 {row.note ? <p className="spec-note">{row.note}</p> : null}
+                {row.detail ? <p className="spec-note">{row.detail}</p> : null}
               </dd>
             </div>
           ))}

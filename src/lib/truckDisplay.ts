@@ -40,6 +40,7 @@ export type TruckSpecData = {
   productionStart?: number | null
   productionEnd?: number | null
   yearBasis?: string | null
+  productionNotes?: string | null
   internalCodes?: Array<string | null> | null
   assemblyPlants?: Array<string | null> | null
   markets?: Array<string | null> | null
@@ -64,7 +65,10 @@ export type TruckSpecData = {
 export type SpecRow = {
   label: string
   value: string | string[]
+  /** Year-basis qualifier. Omitted when the basis is the site default. */
   note?: string | null
+  /** Extra production dates and facts. Omitted when unset. */
+  detail?: string | null
 }
 
 export type ContentFlags = {
@@ -183,8 +187,10 @@ export function specRows(truck: TruckSpecData): SpecRow[] {
   push('Nameplate', cleanText(truck.nameplate))
   const production = formatProduction(truck.productionStart, truck.productionEnd)
   const note = yearBasisNote(truck.yearBasis)
-  if (production) rows.push({label: 'Production', value: production, note})
-  else if (note) rows.push({label: 'Production', value: note})
+  const detail = cleanText(truck.productionNotes)
+  if (production) rows.push({label: 'Production', value: production, note, detail})
+  else if (note) rows.push({label: 'Production', value: note, detail})
+  else if (detail) rows.push({label: 'Production', value: '', detail})
   push('Assembly', cleanList(truck.assemblyPlants))
   push('Sold in', cleanList(truck.markets))
   push('Codes', cleanList(truck.internalCodes))
