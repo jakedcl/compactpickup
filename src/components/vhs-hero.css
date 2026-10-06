@@ -433,25 +433,50 @@
 }
 
 .vhs-click-toggle {
-  background: transparent;
-  border: 0;
-  color: rgba(255, 255, 255, 0.55);
-  font-family: inherit;
-  font-size: inherit;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 2px;
+  color: #fff;
+  font-family: 'VCR OSD Mono', 'Courier New', monospace;
+  font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 4px 2px;
-  min-height: 24px;
+  padding: 8px 12px;
+  min-height: 44px;
   cursor: pointer;
 }
 
-.vhs-click-toggle.is-on {
-  color: #ffe14a;
+.vhs-click-toggle:hover {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: rgba(255, 255, 255, 0.75);
+  color: #fff;
+}
+
+.vhs-click-toggle:active {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: #fff;
+}
+
+.vhs-click-toggle.is-on,
+.vhs-click-toggle.is-on:hover {
+  background: #ffe14a;
+  border-color: #ffe14a;
+  color: #161300;
+}
+
+.vhs-click-toggle.is-on:active {
+  background: #e6c200;
+  border-color: #e6c200;
+  color: #161300;
 }
 
 .vhs-click-toggle:focus-visible {
-  outline: 1px solid #ffe14a;
-  outline-offset: 2px;
+  outline: 2px solid #ffe14a;
+  outline-offset: 3px;
+}
+
+.vhs-click-toggle.is-on:focus-visible {
+  outline-color: #fff;
 }
 
 .home-live .vhs-header,

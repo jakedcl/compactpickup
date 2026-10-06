@@ -82,7 +82,7 @@ export type ContentFlags = {
 const SPECIFICATION_LABELS = new Set([
   'Production',
   'Assembly',
-  'Markets',
+  'Sold in',
   'Codes',
   'Wheelbase',
   'Length',
@@ -192,7 +192,7 @@ export function specRows(truck: TruckSpecData): SpecRow[] {
   else if (note) rows.push({label: 'Production', value: note, detail})
   else if (detail) rows.push({label: 'Production', value: '', detail})
   push('Assembly', cleanList(truck.assemblyPlants))
-  push('Markets', cleanList(truck.markets))
+  push('Sold in', cleanList(truck.markets))
   push('Codes', cleanList(truck.internalCodes))
   push('Body styles', cleanList(truck.bodyStyles))
   push('Bed lengths', cleanList(truck.bedLengths))
@@ -224,7 +224,7 @@ export function glanceFacts(truck: TruckSpecData, yearRange?: string | null): Ar
   if (years) facts.push({label: 'Years', value: years})
   if (drives?.length) facts.push({label: 'Drivetrain', value: drives.join(' · ')})
   if (engineNames.length) facts.push({label: 'Engines', value: engineNames.slice(0, 3).join(' · ')})
-  if (markets?.length) facts.push({label: 'Markets', value: markets.slice(0, 3).join(' · ')})
+  if (markets?.length) facts.push({label: 'Sold in', value: markets.slice(0, 3).join(' · ')})
   return facts
 }
 
