@@ -1,6 +1,6 @@
-import Image from 'next/image'
+import SanityImage from '@/components/SanityImage'
 import {cleanText} from '@/lib/truckDisplay'
-import {urlFor} from '@/lib/sanity'
+import type {SanityImageValue} from '@/lib/sanityImage'
 
 type ManufacturerProfileData = {
   name: string
@@ -10,11 +10,7 @@ type ManufacturerProfileData = {
   website?: string | null
   description?: string | null
   compactPickupHistory?: string | null
-  logo?: {
-    asset?: {
-      _ref: string
-    }
-  } | null
+  logo?: SanityImageValue | null
 }
 
 function siteLabel(url: string): string {
@@ -41,11 +37,13 @@ export default function ManufacturerProfile({manufacturer}: {manufacturer: Manuf
   return (
     <section className="w-full bg-black/20 border border-white/20 p-6 mb-6">
       {logo?.asset?._ref && (
-        <Image
-          src={urlFor({asset: {_ref: logo.asset._ref}}).height(80).url()}
+        <SanityImage
+          image={logo}
           alt={manufacturer.name}
+          sizes="80px"
           width={160}
           height={80}
+          eager
           className="vhs-logo mb-4"
         />
       )}

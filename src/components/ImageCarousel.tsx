@@ -1,14 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
+import SanityImage from '@/components/SanityImage'
 import { imageAlt } from '@/lib/imageAlt'
-import { urlFor } from '@/lib/sanity'
+import type { SanityImageValue } from '@/lib/sanityImage'
 
-interface TruckImageData {
-  alt?: string
-  caption?: string
+interface TruckImageData extends SanityImageValue {
   asset: {
     _ref: string
   }
@@ -319,19 +317,13 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
             className="block"
           >
             <div className="vhs-carousel-container">
-              <Image
-                src={urlFor(images[currentIndex]).quality(85).url()}
+              <SanityImage
+                key={images[currentIndex].asset._ref}
+                image={images[currentIndex]}
                 alt={imageAlt(images[currentIndex].alt, images[currentIndex].truckTitle)}
-                width={800}
-                height={600}
-                className="vhs-carousel-image"
-                style={{
-                  objectFit: 'contain',
-                  width: '100%',
-                  height: 'auto',
-                  maxHeight: '400px',
-                }}
-                priority={currentIndex === 0}
+                fill
+                sizes="(max-width: 768px) 100vw, 800px"
+                className="vhs-carousel-image sanity-cover"
                 onLoad={handleImageLoad}
               />
             </div>
@@ -446,12 +438,13 @@ export default function ImageCarousel({ images: allImages, className = '' }: Ima
                 onMouseEnter={() => setIsAutoPlaying(false)}
                 onMouseLeave={() => setIsAutoPlaying(true)}
               >
-                <Image
-                  src={urlFor(image).width(80).height(60).quality(70).url()}
+                <SanityImage
+                  image={image}
                   alt={imageAlt(image.alt, image.truckTitle)}
-                  width={80}
-                  height={60}
-                  className="w-full h-full object-cover"
+                  fill
+                  cropRatio={0.75}
+                  sizes="80px"
+                  className="sanity-cover"
                 />
               </button>
             ))}
