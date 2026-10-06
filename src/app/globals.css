@@ -118,10 +118,7 @@ button, input { font: inherit; color: inherit; }
   position: sticky;
   top: 0;
   z-index: 30;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: 'mark find' 'nav nav';
-  gap: var(--space-2) var(--space-3);
+  display: flex;
   align-items: center;
   padding: 10px 16px;
   background: rgba(0, 17, 90, 0.94);
@@ -129,13 +126,31 @@ button, input { font: inherit; color: inherit; }
 }
 
 .site-mark {
-  grid-area: mark;
   min-width: 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
   font-family: var(--font-display);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   text-decoration: none;
   font-size: 14px;
+}
+
+.site-mark:hover {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: rgba(255, 255, 255, 0.75);
+  color: #fff;
+}
+
+.site-mark:active {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: #fff;
 }
 
 .site-nav {

@@ -13,6 +13,7 @@
 
 .tape-hero {
   width: min(100%, 720px);
+  margin-inline: auto;
   display: grid;
   justify-items: center;
   gap: var(--space-3);
@@ -22,6 +23,8 @@
   position: relative;
   width: 100%;
   aspect-ratio: 438 / 240;
+  margin-block: clamp(48px, 12vw, 88px);
+  z-index: 1;
 }
 
 .tape-stage picture,
@@ -39,18 +42,22 @@
 
 .tape-stage .tape-window {
   position: absolute;
-  left: 27%;
-  top: 33%;
-  width: 46%;
-  height: 28%;
+  left: 12%;
+  width: 76%;
+  top: -18%;
+  height: 136%;
   margin: 0;
   overflow: hidden;
-  z-index: 2;
+  z-index: 3;
+  border: 0;
   border-radius: 0;
   box-shadow: none;
   display: block;
-  background: rgba(255, 255, 255, 0.22);
+  background: none;
   touch-action: none;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 82%, transparent 100%);
 }
 
 .tape-stage .tape-window:focus-visible {
@@ -73,12 +80,13 @@
 .tape-slot img,
 img.reel-logo {
   width: auto !important;
-  height: 68% !important;
-  max-width: 86% !important;
+  height: 62% !important;
+  max-width: 70% !important;
   max-height: 70% !important;
   object-fit: contain !important;
   margin: 0 !important;
-  opacity: 0.92;
+  opacity: 1;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.55));
 }
 
 .reel-fallback,
@@ -96,7 +104,7 @@ img.reel-logo {
 .tape-hit {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 4;
 }
 
 .tape-brand {
@@ -126,6 +134,7 @@ img.reel-logo {
 
 .home-play {
   width: min(100%, 720px);
+  margin: var(--space-6) auto 0;
   display: grid;
   gap: var(--space-3);
 }
@@ -145,7 +154,7 @@ img.reel-logo {
 
 .home-find {
   width: min(var(--page), calc(100% - 32px));
-  margin: var(--space-6) auto 0;
+  margin: var(--space-4) auto 0;
   display: grid;
   gap: var(--space-2);
 }

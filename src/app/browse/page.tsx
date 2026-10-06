@@ -11,7 +11,7 @@ export const metadata = {
   description: 'Search and filter compact and mid-size pickups by year, drivetrain, engine, and market.',
 }
 
-function ShelfMessage({ message }: { message: string }) {
+function BrowseMessage({ message }: { message: string }) {
   return (
     <main className="screen">
       <div className="find-wrap">
@@ -27,11 +27,11 @@ export default async function BrowsePage() {
   try {
     const trucks = await getCatalog()
     return (
-      <Suspense fallback={<ShelfMessage message="Loading the shelf..." />}>
+      <Suspense fallback={<BrowseMessage message="Loading trucks..." />}>
         <BrowseDeck trucks={trucks} />
       </Suspense>
     )
   } catch {
-    return <ShelfMessage message="Signal lost. Could not load the shelf." />
+    return <BrowseMessage message="Signal lost. Could not load the trucks." />
   }
 }

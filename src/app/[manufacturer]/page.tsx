@@ -45,7 +45,7 @@ function signalLost() {
     <main className="screen">
       <div className="wrap narrow">
         <PageHeader kicker="Signal lost" title="Could not load this maker" />
-        <Link href="/" className="btn">Back to the shelf</Link>
+        <Link href="/" className="btn">Home</Link>
       </div>
     </main>
   )

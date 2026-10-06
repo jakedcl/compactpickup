@@ -57,8 +57,11 @@ export default function LogoReel({
 
   const paint = useCallback((pos: number, blur: number, opacity = 1) => {
     const node = trackRef.current
-    if (!node) return
-    node.style.transform = `translate3d(0, ${-pos * slotRef.current}px, 0)`
+    const frame = windowRef.current
+    if (!node || !frame) return
+    const slotHeight = slotRef.current
+    const center = (frame.clientHeight - slotHeight) / 2
+    node.style.transform = `translate3d(0, ${-pos * slotHeight + center}px, 0)`
     node.style.filter = blur > 0.4 ? `blur(${blur}px)` : 'none'
     node.style.opacity = String(opacity)
   }, [])
@@ -128,7 +131,7 @@ export default function LogoReel({
   useEffect(() => {
     const node = windowRef.current
     if (!node) return
-    const measure = () => setSlot(Math.max(48, node.clientHeight || 72))
+    const measure = () => setSlot(Math.max(56, (node.clientHeight || 216) / 3))
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(node)

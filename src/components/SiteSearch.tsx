@@ -163,7 +163,7 @@ export default function SiteSearch() {
               onChange={(event) => setQ(event.target.value)}
               onKeyDown={onInputKey}
             />
-            {status === 'loading' || status === 'idle' ? <p className="find-empty">Loading the shelf...</p> : null}
+            {status === 'loading' || status === 'idle' ? <p className="find-empty">Loading trucks...</p> : null}
             {status === 'error' ? (
               <p className="find-empty">
                 Signal lost.{' '}

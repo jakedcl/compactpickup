@@ -68,36 +68,6 @@ export default function HomeScreen({
           <p className="kicker">U.S. truck market</p>
           <p className="lede">Compact and mid-size pickups.</p>
         </div>
-        <div className="home-grid">
-          <LogoReel brands={manufacturers} status={brandStatus} onRetry={retry} />
-          <section className="home-play" aria-labelledby="name-that-truck-title">
-            <p className="kicker" id="name-that-truck-title">Name that truck</p>
-            <div className="home-still">
-              {photoStatus === 'ready' && preview?.asset?._ref ? (
-                <SanityImage
-                  image={preview}
-                  alt=""
-                  sizes="(max-width: 800px) 100vw, 520px"
-                  fill
-                  cropRatio={0.625}
-                  eager
-                  className="sanity-cover"
-                />
-              ) : (
-                <p className="still-empty">
-                  {photoStatus === 'error' ? 'Signal lost' : photoStatus === 'ready' ? 'No still for this round.' : 'Loading a still'}
-                </p>
-              )}
-            </div>
-            {photoStatus === 'error' ? (
-              <button type="button" className="btn" onClick={retry}>Retry</button>
-            ) : (
-              <Link id="name-that-truck" href="/game" className="btn btn-accent home-play-btn">
-                Name that truck
-              </Link>
-            )}
-          </section>
-        </div>
         <form className="home-find" action="/browse" method="get">
           <label htmlFor="home-q">What truck are you looking at?</label>
           <div className="home-find-row">
@@ -109,6 +79,34 @@ export default function HomeScreen({
           <Link href="/browse" className="btn">Browse</Link>
           <Link href="/timeline" className="btn">Timeline</Link>
         </div>
+        <section className="home-play" aria-labelledby="name-that-truck-title">
+          <p className="kicker" id="name-that-truck-title">Name that truck</p>
+          <div className="home-still">
+            {photoStatus === 'ready' && preview?.asset?._ref ? (
+              <SanityImage
+                image={preview}
+                alt=""
+                sizes="(max-width: 800px) 100vw, 520px"
+                fill
+                cropRatio={0.625}
+                eager
+                className="sanity-cover"
+              />
+            ) : (
+              <p className="still-empty">
+                {photoStatus === 'error' ? 'Signal lost' : photoStatus === 'ready' ? 'No still for this round.' : 'Loading a still'}
+              </p>
+            )}
+          </div>
+          {photoStatus === 'error' ? (
+            <button type="button" className="btn" onClick={retry}>Retry</button>
+          ) : (
+            <Link id="name-that-truck" href="/game" className="btn btn-accent home-play-btn">
+              Name that truck
+            </Link>
+          )}
+        </section>
+        <LogoReel brands={manufacturers} status={brandStatus} onRetry={retry} />
       </div>
     </main>
   )
