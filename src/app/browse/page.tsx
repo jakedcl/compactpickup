@@ -13,7 +13,7 @@ export const metadata = {
 
 function ShelfMessage({ message }: { message: string }) {
   return (
-    <main className="vhs-screen">
+    <main className="screen">
       <div className="find-wrap">
         <Link href="/" className="find-back">Main Menu</Link>
         <h1 className="find-header">Find a truck</h1>

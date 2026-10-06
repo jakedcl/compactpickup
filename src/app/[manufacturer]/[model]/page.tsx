@@ -8,9 +8,13 @@ import {useEffect, useMemo, useState} from 'react'
 import RelatedTrucks from '@/components/RelatedTrucks'
 import SourceList from '@/components/SourceList'
 import TruckSpecSheet from '@/components/TruckSpecSheet'
+import PageHeader from '@/components/ui/PageHeader'
+import Lightbox, {type GalleryImage} from '@/components/ui/Lightbox'
+import SanityImage from '@/components/SanityImage'
 import {createVhsPortableTextComponents} from '@/components/vhsPortableText'
 import {visibleContentBlocks} from '@/lib/contentSections'
-import {cleanText, contentFlags, type TruckSpecData} from '@/lib/truckDisplay'
+import {cleanText, contentFlags, glanceFacts, type TruckSpecData} from '@/lib/truckDisplay'
+import {imageAlt} from '@/lib/imageAlt'
 
 interface TruckModel extends TruckSpecData {
   _id: string
@@ -29,11 +33,18 @@ interface Props {
   params: Promise<{manufacturer: string; model: string}>
 }
 
+function articleImages(content?: PortableTextBlock[]): GalleryImage[] {
+  if (!Array.isArray(content)) return []
+  return content.filter((block): block is PortableTextBlock & GalleryImage => {
+    return block._type === 'image' && Boolean((block as GalleryImage).asset?._ref)
+  })
+}
+
 export default function TruckModelPage({params}: Props) {
   const [truckModel, setTruckModel] = useState<TruckModel | null>(null)
   const [manufacturerSlug, setManufacturerSlug] = useState('')
-  const [currentTime, setCurrentTime] = useState('')
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading')
+  const [photo, setPhoto] = useState<number | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -59,22 +70,8 @@ export default function TruckModelPage({params}: Props) {
         })
     })
 
-    const updateTime = () => {
-      const now = new Date()
-      setCurrentTime(now.toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }))
-    }
-
-    updateTime()
-    const interval = setInterval(updateTime, 1000)
-
     return () => {
       cancelled = true
-      clearInterval(interval)
     }
   }, [params])
 
@@ -84,136 +81,109 @@ export default function TruckModelPage({params}: Props) {
     () => (truckModel && flags ? visibleContentBlocks(truckModel.content, flags) : []),
     [truckModel, flags],
   )
+  const photos = useMemo(() => articleImages(truckModel?.content), [truckModel])
+  const hero = photos[0]
   const portableTextComponents = useMemo(
-    () => createVhsPortableTextComponents(truckModel?.title || 'Truck photo'),
-    [truckModel?.title],
+    () => createVhsPortableTextComponents(truckModel?.title || 'Truck photo', {
+      hideRef: hero?.asset?._ref,
+      onOpen: (image) => {
+        const index = photos.findIndex((item) => item.asset?._ref === image.asset?._ref)
+        setPhoto(index >= 0 ? index : 0)
+      },
+    }),
+    [truckModel?.title, hero?.asset?._ref, photos],
   )
+  const glance = truckModel ? glanceFacts(truckModel, truckModel.yearRange) : []
 
-  if (status === 'missing') {
-    notFound()
-  }
+  if (status === 'missing') notFound()
 
   if (status === 'error') {
     return (
-      <div className="vhs-screen">
-        <div className="vhs-content">
-          <div className="vhs-header mb-6">Signal lost</div>
-          <p className="text-white/80 text-sm uppercase tracking-wider">Could not load this truck.</p>
+      <main className="screen">
+        <div className="wrap narrow">
+          <PageHeader kicker="Signal lost" title="Could not load this truck" />
+          <Link href="/" className="btn">Back to the shelf</Link>
         </div>
-      </div>
+      </main>
     )
   }
 
   if (!truckModel || !flags) {
-    return <div className="vhs-screen">Loading...</div>
+    return (
+      <main className="screen">
+        <div className="wrap"><p className="state">Loading the entry...</p></div>
+      </main>
+    )
   }
 
+  const years = cleanText(truckModel.yearRange)
+
   return (
-    <div className="vhs-screen">
-      <div className="vhs-scan-line"></div>
+    <main className="screen">
+      <article className="wrap">
+        {hero?.asset?._ref ? (
+          <figure className="hero">
+            <button type="button" onClick={() => setPhoto(0)} aria-label="Open the lead photo">
+              <SanityImage
+                image={hero}
+                alt={imageAlt(hero.alt, truckModel.title)}
+                sizes="(max-width: 800px) 100vw, 1120px"
+                fill
+                cropRatio={0.625}
+                eager
+                className="sanity-cover"
+              />
+            </button>
+            {hero.caption ? <figcaption>{hero.caption}</figcaption> : null}
+          </figure>
+        ) : null}
 
-      <div className="vhs-content">
-        <div className="mb-6 text-sm text-center">
-          <Link
-            href="/"
-            className="text-white/60 hover:text-white uppercase tracking-wider"
-          >
-            MAIN
-          </Link>
-          <span className="text-white/40 mx-2">&gt;</span>
-          <Link
-            href={`/${manufacturerSlug}`}
-            className="text-white/60 hover:text-white uppercase tracking-wider"
-          >
-            {truckModel.manufacturer.name}
-          </Link>
-          <span className="text-white/40 mx-2">&gt;</span>
-          <span className="text-white uppercase tracking-wider">
-            {truckModel.title}
-          </span>
-        </div>
+        <PageHeader
+          kicker={
+            <>
+              <Link href={`/${manufacturerSlug}`}>{truckModel.manufacturer.name}</Link>
+              {years ? ` · ${years}` : null}
+            </>
+          }
+          title={truckModel.title}
+          lede={summary}
+        />
 
-        <div className="vhs-header mb-6">
-          {truckModel.title}
-        </div>
-
-        <div className="bg-black/40 border border-white/30 p-4 mb-6 w-full">
-          <div className="flex justify-between items-center text-sm gap-4">
-            <div>
-              <span className="text-yellow-400 uppercase tracking-wider">Model:</span>
-              <span className="text-white ml-2">{truckModel.title}</span>
-            </div>
-            {truckModel.yearRange && (
-              <div>
-                <span className="text-yellow-400 uppercase tracking-wider">Years:</span>
-                <span className="text-white ml-2">{truckModel.yearRange}</span>
+        {glance.length > 0 ? (
+          <dl className="glance">
+            {glance.map((fact) => (
+              <div key={fact.label}>
+                <dt>{fact.label}</dt>
+                <dd>{fact.value}</dd>
               </div>
-            )}
-          </div>
-        </div>
-
-        {summary && (
-          <p className="w-full bg-black/40 border border-white/30 p-4 mb-6 text-sm text-white/90 leading-relaxed">
-            {summary}
-          </p>
-        )}
-
-        {/* 3D model viewer stays off until attribution is filled in. */}
+            ))}
+          </dl>
+        ) : null}
 
         <TruckSpecSheet truck={truckModel} />
         <RelatedTrucks truck={truckModel} />
 
         {visibleContent.length > 0 ? (
-          <div className="bg-black/20 border border-white/20 p-6 min-h-96 w-full">
-            <div className="prose prose-white max-w-none">
-              <PortableText
-                value={visibleContent}
-                components={portableTextComponents}
-              />
-            </div>
+          <div className="section prose">
+            <PortableText value={visibleContent} components={portableTextComponents} />
           </div>
         ) : !truckModel.content?.length ? (
-          <div className="bg-black/20 border border-white/20 p-6 min-h-96 w-full">
-            <div className="text-center py-12">
-              <div className="text-white text-lg mb-4 uppercase tracking-wider">
-                No Content Found
-              </div>
-              <div className="text-white/60 text-sm mb-6 uppercase tracking-wide">
-                Add content for {truckModel.title} in Studio
-              </div>
-              <Link
-                href="https://compactpickup.sanity.studio"
-                target="_blank"
-                className="vhs-button"
-              >
-                Open Studio
-              </Link>
-            </div>
+          <div className="section">
+            <p className="state">No article yet for {truckModel.title}.</p>
+            <a className="btn" href="https://compactpickup.sanity.studio" target="_blank" rel="noreferrer">Open Studio</a>
           </div>
         ) : null}
 
-        <div className="mt-6 w-full">
-          <SourceList sources={truckModel.sources} />
-        </div>
-      </div>
-
-      <div className="vhs-status">
-        <div className="flex items-center gap-4">
-          <Link
-            href="https://compactpickup.sanity.studio"
-            target="_blank"
-            className="text-red-400 hover:text-red-300 font-bold"
-          >
-            ● REC
-          </Link>
-          <span>AUTO</span>
-          <span>PAL</span>
-          <span>NTSC</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="vhs-time">{currentTime}</span>
-        </div>
-      </div>
-    </div>
+        <SourceList sources={truckModel.sources} />
+      </article>
+      {photo !== null && photos.length > 0 ? (
+        <Lightbox
+          images={photos}
+          index={photo}
+          onClose={() => setPhoto(null)}
+          onIndex={setPhoto}
+        />
+      ) : null}
+    </main>
   )
 }

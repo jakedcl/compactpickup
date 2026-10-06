@@ -4,86 +4,58 @@ import SanityImage from '@/components/SanityImage'
 import {imageAlt} from '@/lib/imageAlt'
 import type {SanityImageValue} from '@/lib/sanityImage'
 
-export function createVhsPortableTextComponents(fallbackAlt: string): PortableTextComponents {
+type ArticleImage = SanityImageValue & {alt?: string | null; caption?: string | null}
+
+export function createVhsPortableTextComponents(
+  fallbackAlt: string,
+  options?: {
+    hideRef?: string | null
+    onOpen?: (image: ArticleImage) => void
+  },
+): PortableTextComponents {
   return {
     types: {
-      image: ({value}: {value: SanityImageValue}) => (
-        <div className="my-6 border border-white/30 p-3 bg-black/20">
-          <SanityImage
-            image={value}
-            alt={imageAlt(value.alt, fallbackAlt)}
-            sizes="(max-width: 800px) 100vw, 760px"
-            className="w-full h-auto"
-          />
-          {value.caption && (
-            <p className="text-white/80 text-xs mt-2 text-center uppercase tracking-wider">
-              {value.caption}
-            </p>
-          )}
-        </div>
-      ),
+      image: ({value}: {value: ArticleImage}) => {
+        if (!value?.asset?._ref) return null
+        if (options?.hideRef && value.asset._ref === options.hideRef) return null
+        const figure = (
+          <figure className="prose-figure">
+            <SanityImage
+              image={value}
+              alt={imageAlt(value.alt, fallbackAlt)}
+              sizes="(max-width: 800px) 100vw, 720px"
+              className="lightbox-photo"
+            />
+            {value.caption ? <figcaption className="meta">{value.caption}</figcaption> : null}
+          </figure>
+        )
+        if (!options?.onOpen) return figure
+        return (
+          <button type="button" className="prose-shot" onClick={() => options.onOpen?.(value)}>
+            {figure}
+          </button>
+        )
+      },
     },
     block: {
-      h1: ({children}: {children?: ReactNode}) => (
-        <div className="vhs-header mb-4">
-          {children}
-        </div>
-      ),
-      h2: ({children}: {children?: ReactNode}) => (
-        <h2 className="text-lg font-bold text-white mb-3 uppercase tracking-wider border-b border-white/20 pb-2">
-          {children}
-        </h2>
-      ),
-      h3: ({children}: {children?: ReactNode}) => (
-        <h3 className="text-base font-bold text-white mb-2 uppercase tracking-wide">
-          {children}
-        </h3>
-      ),
-      normal: ({children}: {children?: ReactNode}) => (
-        <p className="text-white/90 mb-3 text-sm leading-relaxed">
-          {children}
-        </p>
-      ),
-      blockquote: ({children}: {children?: ReactNode}) => (
-        <div className="border-l-2 border-white/40 pl-4 my-4 text-white/80 italic bg-black/20 p-3">
-          {children}
-        </div>
-      ),
+      h1: ({children}: {children?: ReactNode}) => <h2 className="section-heading">{children}</h2>,
+      h2: ({children}: {children?: ReactNode}) => <h2 className="section-heading">{children}</h2>,
+      h3: ({children}: {children?: ReactNode}) => <h3>{children}</h3>,
+      normal: ({children}: {children?: ReactNode}) => <p>{children}</p>,
+      blockquote: ({children}: {children?: ReactNode}) => <blockquote>{children}</blockquote>,
     },
     list: {
-      bullet: ({children}: {children?: ReactNode}) => (
-        <ul className="list-none text-white/90 mb-4 space-y-1">
-          {Array.isArray(children) && children?.map((child: ReactNode, index: number) => (
-            <li key={index} className="flex items-start">
-              <span className="text-yellow-400 mr-2">▶</span>
-              <span className="text-sm">{child}</span>
-            </li>
-          ))}
-        </ul>
-      ),
-      number: ({children}: {children?: ReactNode}) => (
-        <ol className="list-none text-white/90 mb-4 space-y-1">
-          {Array.isArray(children) && children?.map((child: ReactNode, index: number) => (
-            <li key={index} className="flex items-start">
-              <span className="text-yellow-400 mr-2">{index + 1}.</span>
-              <span className="text-sm">{child}</span>
-            </li>
-          ))}
-        </ol>
-      ),
+      bullet: ({children}: {children?: ReactNode}) => <ul>{children}</ul>,
+      number: ({children}: {children?: ReactNode}) => <ol>{children}</ol>,
+    },
+    listItem: {
+      bullet: ({children}: {children?: ReactNode}) => <li>{children}</li>,
+      number: ({children}: {children?: ReactNode}) => <li>{children}</li>,
     },
     marks: {
-      strong: ({children}: {children?: ReactNode}) => (
-        <strong className="text-white font-bold uppercase">{children}</strong>
-      ),
-      em: ({children}: {children?: ReactNode}) => (
-        <em className="text-yellow-400">{children}</em>
-      ),
-      code: ({children}: {children?: ReactNode}) => (
-        <code className="bg-white/20 px-1 py-0.5 text-yellow-400 text-xs">
-          {children}
-        </code>
-      ),
+      strong: ({children}: {children?: ReactNode}) => <strong>{children}</strong>,
+      em: ({children}: {children?: ReactNode}) => <em>{children}</em>,
+      code: ({children}: {children?: ReactNode}) => <code>{children}</code>,
     },
   }
 }

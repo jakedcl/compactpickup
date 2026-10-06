@@ -13,13 +13,12 @@ import '@/components/vhs-hero.css'
 interface TruckImageData {
   alt?: string
   caption?: string
-  asset: {
-    _ref: string
-  }
+  asset: { _ref: string }
   truckTitle: string
   manufacturerName: string
   truckSlug: string
   manufacturerSlug: string
+  yearRange?: string
 }
 
 function sortManufacturers(data: ShelfManufacturer[]) {
@@ -99,31 +98,13 @@ export default function HomePage() {
   }, [])
 
   return (
-    <main className="vhs-screen">
-      <div className="vhs-scan-line" aria-hidden="true" />
+    <main className="screen">
       {boot === 'play' && <VhsBoot onDone={finishBoot} />}
-
       <div className={boot === 'unknown' ? 'home-hold' : 'home-live'} inert={boot !== 'menu'}>
-        <div className="vhs-content">
-          <div className="vhs-header">
-            <div className="flex justify-between items-center gap-4">
-              <h1 className="m-0 min-w-0 flex-1 text-left text-[16px] font-bold leading-snug tracking-[1px] sm:text-[20px] sm:tracking-[3px]">
-                Compact and Mid-Size Pickups
-              </h1>
-              <Link
-                href="/timeline"
-                className="text-yellow-400 hover:text-yellow-300 transition-colors font-mono text-sm shrink-0"
-              >
-                TIMELINE
-              </Link>
-            </div>
-          </div>
-
-          <p className="vhs-subtitle text-center text-white">
-            U.S. Truck Market
-          </p>
+        <div className="wrap home-intro">
+          <p className="kicker">U.S. truck market</p>
+          <p className="lede">Compact and mid-size pickups, on tape.</p>
         </div>
-
         <TapeShelf
           manufacturers={manufacturers}
           status={makerStatus}
@@ -131,40 +112,21 @@ export default function HomePage() {
           armed={clickOn}
           onPress={() => clicker.current.blip()}
         />
-
-        <div className="vhs-content">
-          {boot === 'menu' && allImages.length > 0 && (
-            <ImageCarousel images={allImages} className="mt-8" />
-          )}
-        </div>
-
-        <div className="vhs-status">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Link
-              href="https://compactpickup.sanity.studio"
-              target="_blank"
-              className="text-red-400 hover:text-red-300 font-bold"
-            >
-              ● REC
-            </Link>
-            <span>AUTO</span>
-            <span>PAL</span>
-            <span>NTSC</span>
-            <button
-              type="button"
-              className={`vhs-click-toggle ${clickOn ? 'is-on' : ''}`}
-              aria-pressed={clickOn}
-              onClick={() => {
-                clicker.current.arm()
-                setClickOn((on) => !on)
-              }}
-            >
-              Click {clickOn ? 'on' : 'off'}
-            </button>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <span className="vhs-time">{currentTime}</span>
-          </div>
+        {boot === 'menu' && allImages.length > 0 ? <ImageCarousel images={allImages} /> : null}
+        <div className="deck-status">
+          <span className="vhs-time">{currentTime}</span>
+          <button
+            type="button"
+            className={`vhs-click-toggle ${clickOn ? 'is-on' : ''}`}
+            aria-pressed={clickOn}
+            onClick={() => {
+              clicker.current.arm()
+              setClickOn((on) => !on)
+            }}
+          >
+            Click {clickOn ? 'on' : 'off'}
+          </button>
+          <Link href="https://compactpickup.sanity.studio" target="_blank">Studio</Link>
         </div>
       </div>
     </main>

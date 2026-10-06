@@ -147,7 +147,7 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
   const countLabel = results.length === 1 ? '1 truck' : `${results.length} trucks`
 
   return (
-    <main className="vhs-screen">
+    <main className="screen">
       <div className="find-wrap">
         <Link href="/" className="find-back">Main Menu</Link>
         <h1 className="find-header">Find a truck</h1>
