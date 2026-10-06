@@ -214,7 +214,7 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
             options={choices.engines.map((engine) => ({ value: engine, label: engine }))}
           />
           <ChipGroup
-            legend="Market"
+            legend="Sold in"
             selected={filters.market}
             onToggle={(value) => flip('market', value)}
             options={choices.markets.map((market) => ({ value: market, label: market }))}
