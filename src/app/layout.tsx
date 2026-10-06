@@ -4,6 +4,7 @@ import SiteSearch from "@/components/SiteSearch";
 import SiteFooter from "@/components/ui/SiteFooter";
 import SiteHeader from "@/components/ui/SiteHeader";
 import "./globals.css";
+import "@/components/home-game.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

@@ -20,6 +20,14 @@ export default function SiteHeader() {
     window.dispatchEvent(new Event('cp-open-search'))
   }
 
+  if (pathname === '/game') {
+    return (
+      <header className="site-header is-game">
+        <Link href="/" className="btn">Exit</Link>
+      </header>
+    )
+  }
+
   return (
     <header className="site-header">
       <Link href="/" className="site-mark">Compact Pickup</Link>

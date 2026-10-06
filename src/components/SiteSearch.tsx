@@ -58,6 +58,7 @@ export default function SiteSearch() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey && !typingTarget(event.target)) {
+        if (window.location.pathname === '/game') return
         event.preventDefault()
         if (window.location.pathname === '/browse') {
           document.getElementById('truck-search')?.focus()
