@@ -181,7 +181,7 @@ export default function HomeScreen({
         <form className="home-find" action="/browse" method="get">
           <label htmlFor="home-q">What truck are you looking at?</label>
           <div className="home-find-row">
-            <input id="home-q" name="q" placeholder="Hilux, 22R, N10" autoComplete="off" enterKeyHint="search" />
+            <input id="home-q" name="q" placeholder="Hilux, 4x4, 22R" autoComplete="off" enterKeyHint="search" />
             <button type="submit" className="btn">Search</button>
           </div>
         </form>

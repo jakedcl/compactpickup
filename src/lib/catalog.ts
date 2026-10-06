@@ -12,7 +12,18 @@ export type CatalogTruck = {
   engines: string[]
   markets: string[]
   gears: string[]
-  search: string
+  start: number | null
+  end: number | null
+  rank: {
+    title: string
+    maker: string
+    years: string
+    engine: string
+    drive: string
+    body: string
+    names: string
+    notes: string
+  }
   image: SanityImageValue | null
   alt: string
 }
@@ -38,6 +49,12 @@ export const EMPTY_FILTERS: TruckFilters = {
 }
 
 const DRIVE_ORDER = ['RWD', '4WD', 'AWD', 'FWD']
+const DRIVE_WORDS: Record<string, string> = {
+  '4WD': '4wd 4x4 four-wheel four wheel',
+  RWD: 'rwd 2wd 4x2 rear-wheel',
+  AWD: 'awd all-wheel all wheel',
+  FWD: 'fwd front-wheel front wheel',
+}
 const ENGINE_ORDER = ['I4', 'I5', 'I6', 'V6', 'V8', 'H4', 'V4', 'Rotary', 'Diesel']
 const MARKET_ORDER = ['US', 'Canada', 'Mexico', 'Japan', 'Europe', 'Australia / NZ', 'South America', 'Asia', 'Global']
 const GEAR_ORDER = ['Manual', 'Automatic']
@@ -145,9 +162,84 @@ function intersects(selected: string[], values: string[]): boolean {
   return selected.some((item) => values.includes(item))
 }
 
+export function foldSearch(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9.]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export function searchBlob(parts: Array<string | number | null | undefined>): string {
+  const text = foldSearch(parts.filter((part) => part != null && String(part).trim() !== '').join(' '))
+  if (!text) return ''
+  const compact = text.replace(/ /g, '')
+  return compact === text ? text : `${text} ${compact}`
+}
+
+export function driveSearchText(raw: Array<string | null | undefined>, families: string[]): string {
+  return searchBlob([
+    ...raw,
+    ...families,
+    ...families.map((family) => DRIVE_WORDS[family] ?? ''),
+  ])
+}
+
+function yearToken(token: string): number | null {
+  if (!/^\d{4}$/.test(token)) return null
+  const year = Number(token)
+  return year >= 1930 && year <= 2100 ? year : null
+}
+
+function coversYear(start: number | null, end: number | null, year: number): boolean {
+  if (start == null) return false
+  const last = end ?? start
+  return year >= start && year <= last
+}
+
+const RANK_WEIGHT = {
+  title: 100,
+  maker: 80,
+  year: 70,
+  engine: 60,
+  drive: 55,
+  body: 40,
+  names: 35,
+  notes: 12,
+} as const
+
+function hit(haystack: string, token: string): boolean {
+  return Boolean(haystack) && haystack.includes(token)
+}
+
+export function matchScore(truck: CatalogTruck, query: string): number {
+  const tokens = foldSearch(query).split(' ').filter((token) => token.length > 1)
+  if (!tokens.length) return 0
+  let total = 0
+  for (const token of tokens) {
+    let best = 0
+    const year = yearToken(token)
+    if (hit(truck.rank.title, token)) best = Math.max(best, RANK_WEIGHT.title)
+    if (hit(truck.rank.maker, token)) best = Math.max(best, RANK_WEIGHT.maker)
+    if (year && coversYear(truck.start, truck.end, year)) best = Math.max(best, RANK_WEIGHT.year)
+    if (hit(truck.rank.years, token)) best = Math.max(best, RANK_WEIGHT.year)
+    if (hit(truck.rank.engine, token)) best = Math.max(best, RANK_WEIGHT.engine)
+    if (hit(truck.rank.drive, token)) best = Math.max(best, RANK_WEIGHT.drive)
+    if (hit(truck.rank.body, token)) best = Math.max(best, RANK_WEIGHT.body)
+    if (hit(truck.rank.names, token)) best = Math.max(best, RANK_WEIGHT.names)
+    if (hit(truck.rank.notes, token)) best = Math.max(best, RANK_WEIGHT.notes)
+    if (!best) return 0
+    total += best
+  }
+  const phrase = tokens.join(' ')
+  if (phrase.length > 2 && truck.rank.title.includes(phrase)) total += 30
+  if (truck.rank.title === phrase || truck.rank.maker === phrase) total += 40
+  return total
+}
+
 export function truckMatches(truck: CatalogTruck, filters: TruckFilters): boolean {
-  const tokens = filters.q.toLowerCase().split(/\s+/).filter(Boolean)
-  if (tokens.some((token) => !truck.search.includes(token))) return false
+  if (filters.q.trim() && matchScore(truck, filters.q) === 0) return false
   if (!intersects(filters.maker, [truck.makerSlug])) return false
   if (!intersects(filters.decade, truck.decades.map(String))) return false
   if (!intersects(filters.drive, truck.drives)) return false
@@ -158,7 +250,19 @@ export function truckMatches(truck: CatalogTruck, filters: TruckFilters): boolea
 }
 
 export function filterTrucks(trucks: CatalogTruck[], filters: TruckFilters): CatalogTruck[] {
-  return trucks.filter((truck) => truckMatches(truck, filters))
+  const matched = trucks.filter((truck) => truckMatches(truck, filters))
+  const query = filters.q.trim()
+  if (!query) return matched
+  return matched
+    .map((truck) => ({truck, score: matchScore(truck, query)}))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score
+      const aStart = a.truck.start ?? 9999
+      const bStart = b.truck.start ?? 9999
+      if (aStart !== bStart) return aStart - bStart
+      return a.truck.title.localeCompare(b.truck.title)
+    })
+    .map((item) => item.truck)
 }
 
 function uniqueInOrder(values: string[], order: string[]): string[] {

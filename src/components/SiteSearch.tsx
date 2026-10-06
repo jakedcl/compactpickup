@@ -153,7 +153,7 @@ export default function SiteSearch() {
             <input
               ref={inputRef}
               value={q}
-              placeholder="Hilux, 22R, N10"
+              placeholder="Hilux, 4x4, 22R"
               autoComplete="off"
               role="combobox"
               aria-expanded={hits.length > 0}
