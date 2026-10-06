@@ -39,11 +39,21 @@ export default function SiteSearch() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [attempt, setAttempt] = useState(0)
   const [active, setActive] = useState(0)
-  const onBrowse = pathname === '/browse'
-
   useEffect(() => {
     setOpen(false)
   }, [pathname])
+
+  useEffect(() => {
+    const openFind = () => {
+      if (window.location.pathname === '/browse') {
+        document.getElementById('truck-search')?.focus()
+        return
+      }
+      setOpen(true)
+    }
+    window.addEventListener('cp-open-search', openFind)
+    return () => window.removeEventListener('cp-open-search', openFind)
+  }, [])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -129,11 +139,6 @@ export default function SiteSearch() {
 
   return (
     <>
-      {onBrowse ? null : (
-        <button type="button" className="find-launch" aria-keyshortcuts="/" onClick={() => setOpen(true)}>
-          Find <kbd>/</kbd>
-        </button>
-      )}
       {open ? (
         <div className="find-dialog-backdrop" onMouseDown={close}>
           <div

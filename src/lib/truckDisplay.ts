@@ -64,6 +64,7 @@ export type TruckSpecData = {
 export type SpecRow = {
   label: string
   value: string | string[]
+  note?: string | null
 }
 
 export type ContentFlags = {
@@ -76,7 +77,6 @@ export type ContentFlags = {
 /** Labels whose data replaces the portable-text "Specifications" section. */
 const SPECIFICATION_LABELS = new Set([
   'Production',
-  'Year basis',
   'Assembly',
   'Markets',
   'Codes',
@@ -118,6 +118,13 @@ function formatInches(value: unknown): string | null {
   const nums = asNumbers(value)
   if (!nums.length) return null
   return `${nums.join(' / ')} in`
+}
+
+/** US model years are the site default, so that phrase is not repeated on each truck. */
+export function yearBasisNote(yearBasis?: string | null): string | null {
+  const basis = cleanText(yearBasis)
+  if (!basis || basis.toLowerCase() === 'us model years') return null
+  return basis
 }
 
 export function formatProduction(start?: number | null, end?: number | null): string | null {
@@ -174,8 +181,10 @@ export function specRows(truck: TruckSpecData): SpecRow[] {
 
   push('Generation', cleanText(truck.generation))
   push('Nameplate', cleanText(truck.nameplate))
-  push('Production', formatProduction(truck.productionStart, truck.productionEnd))
-  push('Year basis', cleanText(truck.yearBasis))
+  const production = formatProduction(truck.productionStart, truck.productionEnd)
+  const note = yearBasisNote(truck.yearBasis)
+  if (production) rows.push({label: 'Production', value: production, note})
+  else if (note) rows.push({label: 'Production', value: note})
   push('Assembly', cleanList(truck.assemblyPlants))
   push('Markets', cleanList(truck.markets))
   push('Codes', cleanList(truck.internalCodes))
@@ -194,6 +203,23 @@ export function specRows(truck: TruckSpecData): SpecRow[] {
   push('Launch MSRP', cleanText(truck.launchMSRP))
 
   return rows
+}
+
+export function glanceFacts(truck: TruckSpecData, yearRange?: string | null): Array<{label: string; value: string}> {
+  const facts: Array<{label: string; value: string}> = []
+  const years = cleanText(yearRange) || formatProduction(truck.productionStart, truck.productionEnd)
+  const drives = cleanList(truck.drivetrains)
+  const engineNames = [...new Set(
+    displayEngines(truck.engines)
+      .map((engine) => cleanText(engine.name) || cleanText(engine.config))
+      .filter((name): name is string => Boolean(name)),
+  )]
+  const markets = cleanList(truck.markets)
+  if (years) facts.push({label: 'Years', value: years})
+  if (drives?.length) facts.push({label: 'Drivetrain', value: drives.join(' · ')})
+  if (engineNames.length) facts.push({label: 'Engines', value: engineNames.slice(0, 3).join(' · ')})
+  if (markets?.length) facts.push({label: 'Markets', value: markets.slice(0, 3).join(' · ')})
+  return facts
 }
 
 export function linkLabel(link: TruckLink): string | null {
