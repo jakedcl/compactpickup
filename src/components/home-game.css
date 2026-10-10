@@ -255,6 +255,7 @@
 
 .home-find-field {
   position: relative;
+  z-index: 4;
 }
 
 .home-filters {

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import SanityImage from '@/components/SanityImage'
-import SearchSuggest from '@/components/SearchSuggest'
+import SearchSuggest, { suggestionPressing } from '@/components/SearchSuggest'
 import {
   decadeLabel,
   filterChoices,
@@ -232,9 +232,14 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
               setSuggestOpen(true)
             }}
             onBlur={(event) => {
+              const form = event.currentTarget.form
               const next = event.relatedTarget
-              if (next instanceof Node && event.currentTarget.form?.contains(next)) return
-              setSuggestOpen(false)
+              if (next instanceof Node && form?.contains(next)) return
+              window.setTimeout(() => {
+                if (suggestionPressing()) return
+                if (form?.contains(document.activeElement)) return
+                setSuggestOpen(false)
+              }, 0)
             }}
             onKeyDown={(event) => {
               if (event.key === 'Enter') commitSearch(event)

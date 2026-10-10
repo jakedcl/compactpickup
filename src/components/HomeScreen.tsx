@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import SanityImage from '@/components/SanityImage'
-import SearchSuggest from '@/components/SearchSuggest'
+import SearchSuggest, { suggestionPressing } from '@/components/SearchSuggest'
 import VhsBoot from '@/components/VhsBoot'
 import type { ShelfManufacturer } from '@/components/TapeShelf'
 import { EMPTY_FILTERS, filtersToQuery, searchSuggestions, suggestionHref, type CatalogTruck, type SearchSuggestion } from '@/lib/catalog'
@@ -222,9 +222,14 @@ export default function HomeScreen({
           <div
             className="home-find-field"
             onBlur={(event) => {
+              const field = event.currentTarget
               const next = event.relatedTarget
-              if (next instanceof Node && event.currentTarget.contains(next)) return
-              setSuggestOpen(false)
+              if (next instanceof Node && field.contains(next)) return
+              window.setTimeout(() => {
+                if (suggestionPressing()) return
+                if (field.contains(document.activeElement)) return
+                setSuggestOpen(false)
+              }, 0)
             }}
           >
             <div className="home-find-row">

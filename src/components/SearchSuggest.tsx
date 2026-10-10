@@ -4,6 +4,21 @@ import { useRef } from 'react'
 import SanityImage from '@/components/SanityImage'
 import type { SearchSuggestion } from '@/lib/catalog'
 
+let suggestionPresses = 0
+
+export function suggestionPressing() {
+  return suggestionPresses > 0
+}
+
+function shieldNextClick() {
+  const stop = (event: Event) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+  document.addEventListener('click', stop, { capture: true, once: true })
+  window.setTimeout(() => document.removeEventListener('click', stop, { capture: true }), 700)
+}
+
 export default function SearchSuggest({
   suggestions,
   listId,
@@ -48,9 +63,19 @@ export default function SearchSuggest({
               onMouseEnter={() => onHover?.(index)}
               onPointerDown={(event) => {
                 event.preventDefault()
+                event.stopPropagation()
+                suggestionPresses += 1
+                shieldNextClick()
+                pick(suggestion)
+                window.setTimeout(() => {
+                  suggestionPresses = Math.max(0, suggestionPresses - 1)
+                }, 700)
+              }}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
                 pick(suggestion)
               }}
-              onClick={() => pick(suggestion)}
             >
               {suggestion.kind === 'truck' ? (
                 <span className="find-hit-still">

@@ -47,6 +47,7 @@
 
 .find-search {
   position: relative;
+  z-index: 4;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -540,6 +541,7 @@
   padding: 8px;
   background: #00115a;
   border: 1px solid #ffe14a;
+  pointer-events: auto;
 }
 
 .find-suggest .find-hits,
