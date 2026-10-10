@@ -46,6 +46,7 @@
 }
 
 .find-search {
+  position: relative;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -484,13 +485,17 @@
   grid-template-columns: 64px 1fr;
   gap: 10px;
   align-items: center;
+  width: 100%;
   min-height: 64px;
   padding: 6px;
-  color: #fff;
-  text-decoration: none;
   border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .find-hit.is-active,
@@ -504,11 +509,47 @@
   border-color: #fff;
 }
 
-.find-hit-still {
+.find-hit-still,
+.find-hit-mark {
   position: relative;
   width: 64px;
   height: 48px;
   background: #000;
+}
+
+.find-hit-mark {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  color: #ffe14a;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.find-suggest {
+  position: absolute;
+  z-index: 6;
+  left: 0;
+  right: 0;
+  top: calc(100% + 8px);
+  max-height: min(42vh, 320px);
+  overflow: auto;
+  padding: 8px;
+  background: #00115a;
+  border: 1px solid #ffe14a;
+}
+
+.find-suggest .find-hits,
+.find-suggest .find-empty {
+  margin-top: 0;
+}
+
+.find-suggest .find-empty {
+  margin-bottom: 0;
+  padding: 12px 8px;
 }
 
 .find-hit small {

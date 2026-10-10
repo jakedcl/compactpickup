@@ -4,9 +4,10 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import SanityImage from '@/components/SanityImage'
+import SearchSuggest from '@/components/SearchSuggest'
 import VhsBoot from '@/components/VhsBoot'
 import type { ShelfManufacturer } from '@/components/TapeShelf'
-import { EMPTY_FILTERS, filterTrucks, filtersToQuery, type CatalogTruck } from '@/lib/catalog'
+import { EMPTY_FILTERS, filtersToQuery, searchSuggestions, suggestionHref, type CatalogTruck, type SearchSuggestion } from '@/lib/catalog'
 import type { GameStill } from '@/lib/gameDeck'
 import { hasSeenBoot, markBootSeen, prefersReducedMotion } from '@/lib/vhsSession'
 import '@/components/find.css'
@@ -148,22 +149,32 @@ export default function HomeScreen({
     }, 0)
   }, [])
 
-  const hits = useMemo(() => {
+  const suggestions = useMemo(() => {
     if (catalogStatus !== 'ready' || !q.trim()) return []
-    return filterTrucks(trucks, { ...EMPTY_FILTERS, q }).slice(0, 6)
+    return searchSuggestions(trucks, q)
   }, [catalogStatus, q, trucks])
 
   const showSuggest = suggestOpen && q.trim().length > 0
   const browseHref = `/browse${filtersToQuery({ ...EMPTY_FILTERS, q })}`
   const filtersHref = `${browseHref}${browseHref.includes('?') ? '&' : '?'}filters=open`
 
-  function runSearch(event?: { preventDefault: () => void }) {
-    event?.preventDefault()
+  function blurSearch() {
     const input = searchRef.current
     input?.blur()
     window.setTimeout(() => input?.blur(), 0)
+  }
+
+  function runSearch(event?: { preventDefault: () => void }) {
+    event?.preventDefault()
+    blurSearch()
     setSuggestOpen(false)
     router.push(browseHref)
+  }
+
+  function pickSuggestion(suggestion: SearchSuggestion) {
+    blurSearch()
+    setSuggestOpen(false)
+    router.push(suggestionHref(suggestion))
   }
 
   const brandStatus = retrying ? 'loading' : makerStatus
@@ -242,7 +253,7 @@ export default function HomeScreen({
               <button type="submit" className="btn">Search</button>
             </div>
             {showSuggest ? (
-              <div id="home-hits" className="home-suggest">
+              <div className="find-suggest">
                 {fieldStatus === 'loading' ? <p className="find-empty">Loading trucks...</p> : null}
                 {fieldStatus === 'error' ? (
                   <p className="find-empty">
@@ -250,42 +261,8 @@ export default function HomeScreen({
                     <button type="button" className="find-text-button" onClick={retry}>Retry</button>
                   </p>
                 ) : null}
-                {fieldStatus === 'ready' && hits.length === 0 ? <p className="find-empty">No trucks match.</p> : null}
-                {hits.length > 0 ? (
-                  <ul className="find-hits" role="listbox">
-                    {hits.map((truck) => (
-                      <li key={truck.id} role="presentation">
-                        <Link
-                          href={truck.href}
-                          role="option"
-                          aria-selected={false}
-                          className="find-hit"
-                          onPointerDown={(event) => event.preventDefault()}
-                          onClick={() => setSuggestOpen(false)}
-                        >
-                          <span className="find-hit-still">
-                            {truck.image ? (
-                              <SanityImage
-                                image={truck.image}
-                                alt=""
-                                sizes="64px"
-                                fill
-                                cropRatio={0.75}
-                                className="sanity-cover"
-                              />
-                            ) : (
-                              <span className="find-still-empty">No still</span>
-                            )}
-                          </span>
-                          <span>
-                            {truck.title}
-                            <small>{[truck.maker, truck.years].filter(Boolean).join(' · ')}</small>
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
+                {fieldStatus === 'ready' && suggestions.length === 0 ? <p className="find-empty">No trucks match.</p> : null}
+                <SearchSuggest listId="home-hits" suggestions={suggestions} onPick={pickSuggestion} />
               </div>
             ) : null}
           </div>
