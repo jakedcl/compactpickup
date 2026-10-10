@@ -257,28 +257,6 @@
   position: relative;
 }
 
-.home-suggest {
-  position: absolute;
-  z-index: 6;
-  left: 0;
-  right: 0;
-  top: calc(100% + 8px);
-  max-height: min(42vh, 280px);
-  overflow: auto;
-  padding: 8px;
-  background: var(--osd-deep);
-  border: 1px solid var(--accent);
-}
-
-.home-suggest .find-hits {
-  margin-top: 0;
-}
-
-.home-suggest .find-empty {
-  margin: 0;
-  padding: 12px 8px;
-}
-
 .home-filters {
   width: 100%;
 }

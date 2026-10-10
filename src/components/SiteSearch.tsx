@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import SanityImage from '@/components/SanityImage'
-import { EMPTY_FILTERS, filterTrucks, filtersToQuery, type CatalogTruck } from '@/lib/catalog'
+import SearchSuggest from '@/components/SearchSuggest'
+import { EMPTY_FILTERS, filtersToQuery, searchSuggestions, suggestionHref, type CatalogTruck, type SearchSuggestion } from '@/lib/catalog'
 import '@/components/find.css'
 
 let catalogPromise: Promise<CatalogTruck[]> | null = null
@@ -98,9 +98,9 @@ export default function SiteSearch() {
     }
   }, [open, trucks, attempt])
 
-  const hits = useMemo(() => {
+  const suggestions = useMemo(() => {
     if (!trucks || !q.trim()) return []
-    return filterTrucks(trucks, { ...EMPTY_FILTERS, q }).slice(0, 8)
+    return searchSuggestions(trucks, q, 8)
   }, [trucks, q])
 
   useEffect(() => {
@@ -118,10 +118,22 @@ export default function SiteSearch() {
     setOpen(false)
   }
 
+  function go(href: string) {
+    const input = inputRef.current
+    input?.blur()
+    window.setTimeout(() => input?.blur(), 0)
+    close()
+    router.push(href)
+  }
+
+  function pick(suggestion: SearchSuggestion) {
+    go(suggestionHref(suggestion))
+  }
+
   function onInputKey(event: ReactKeyboardEvent<HTMLInputElement>) {
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      setActive((index) => Math.min(index + 1, Math.max(hits.length - 1, 0)))
+      setActive((index) => Math.min(index + 1, Math.max(suggestions.length - 1, 0)))
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault()
@@ -129,10 +141,9 @@ export default function SiteSearch() {
     }
     if (event.key === 'Enter') {
       event.preventDefault()
-      const hit = hits[active]
-      close()
-      if (hit) router.push(hit.href)
-      else router.push(`/browse${filtersToQuery({ ...EMPTY_FILTERS, q })}`)
+      const hit = suggestions[active]
+      if (hit) pick(hit)
+      else go(`/browse${filtersToQuery({ ...EMPTY_FILTERS, q })}`)
     }
   }
 
@@ -155,11 +166,12 @@ export default function SiteSearch() {
               value={q}
               placeholder="Hilux, 4x4, 22R"
               autoComplete="off"
+              enterKeyHint="search"
               role="combobox"
-              aria-expanded={hits.length > 0}
+              aria-expanded={suggestions.length > 0}
               aria-controls="find-hits"
               aria-autocomplete="list"
-              aria-activedescendant={hits[active] ? `find-hit-${hits[active].id}` : undefined}
+              aria-activedescendant={suggestions[active] ? `find-hits-${suggestions[active].id}` : undefined}
               onChange={(event) => setQ(event.target.value)}
               onKeyDown={onInputKey}
             />
@@ -173,47 +185,27 @@ export default function SiteSearch() {
             {status === 'ready' && !q.trim() ? (
               <p className="find-empty">Search trucks, engines, and chassis codes.</p>
             ) : null}
-            {status === 'ready' && q.trim() && hits.length === 0 ? (
+            {status === 'ready' && q.trim() && suggestions.length === 0 ? (
               <p className="find-empty">No trucks match.</p>
             ) : null}
-            {hits.length > 0 ? (
-              <ul id="find-hits" className="find-hits" role="listbox">
-                {hits.map((truck, index) => (
-                  <li key={truck.id} role="presentation">
-                    <Link
-                      id={`find-hit-${truck.id}`}
-                      href={truck.href}
-                      role="option"
-                      aria-selected={index === active}
-                      className={index === active ? 'find-hit is-active' : 'find-hit'}
-                      onMouseEnter={() => setActive(index)}
-                      onClick={close}
-                    >
-                      <span className="find-hit-still">
-                        {truck.image ? (
-                          <SanityImage
-                            image={truck.image}
-                            alt=""
-                            sizes="64px"
-                            fill
-                            cropRatio={0.75}
-                            className="sanity-cover"
-                          />
-                        ) : (
-                          <span className="find-still-empty">No still</span>
-                        )}
-                      </span>
-                      <span>
-                        {truck.title}
-                        <small>{[truck.maker, truck.years].filter(Boolean).join(' · ')}</small>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+            <SearchSuggest
+              listId="find-hits"
+              suggestions={suggestions}
+              activeIndex={active}
+              onPick={pick}
+              onHover={setActive}
+            />
             {status === 'ready' && q.trim() ? (
-              <Link href={browseHref} className="find-more" onClick={close}>See all</Link>
+              <Link
+                href={browseHref}
+                className="find-more"
+                onClick={(event) => {
+                  event.preventDefault()
+                  go(browseHref)
+                }}
+              >
+                See all
+              </Link>
             ) : null}
           </div>
         </div>

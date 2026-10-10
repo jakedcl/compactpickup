@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import SanityImage from '@/components/SanityImage'
+import SearchSuggest from '@/components/SearchSuggest'
 import {
   decadeLabel,
   filterChoices,
@@ -11,7 +12,9 @@ import {
   filtersActive,
   filtersToQuery,
   readFilters,
+  searchSuggestions,
   type CatalogTruck,
+  type SearchSuggestion,
   type TruckFilters,
 } from '@/lib/catalog'
 import '@/components/find.css'
@@ -70,6 +73,7 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
   const filters = useMemo(() => readFilters(params), [params])
   const [q, setQ] = useState(filters.q)
   const [sheet, setSheet] = useState(false)
+  const [suggestOpen, setSuggestOpen] = useState(false)
   const [narrow, setNarrow] = useState(false)
   const skipQuery = useRef(false)
   const wantsFilters = useRef(params.get('filters') === 'open')
@@ -80,6 +84,8 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
   const choices = useMemo(() => filterChoices(trucks), [trucks])
   const applied = useMemo(() => ({ ...filters, q }), [filters, q])
   const results = useMemo(() => filterTrucks(trucks, applied), [trucks, applied])
+  const suggestions = useMemo(() => (q.trim() ? searchSuggestions(trucks, q) : []), [trucks, q])
+  const showSuggest = suggestOpen && q.trim().length > 0
   const selectedCount = filters.maker.length + filters.decade.length + filters.drive.length + filters.engine.length + filters.market.length + filters.gear.length
   const sheetOpen = sheet && narrow
 
@@ -161,18 +167,39 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
     launchRef.current?.focus()
   }
 
-  function commitSearch(event?: { preventDefault: () => void }) {
-    event?.preventDefault()
+  function blurSearch() {
     const input = searchRef.current
     input?.blur()
     window.setTimeout(() => input?.blur(), 0)
+  }
+
+  function commitQuery(nextQ: string, hold: boolean) {
     if (queryTimer.current) {
       window.clearTimeout(queryTimer.current)
       queryTimer.current = null
     }
     const latest = readFilters(new URLSearchParams(window.location.search))
-    if (q.trim() === latest.q.trim()) return
-    router.replace(`${pathname}${filtersToQuery({ ...latest, q })}`, { scroll: false })
+    if (nextQ.trim() === latest.q.trim()) return
+    if (hold) skipQuery.current = true
+    router.replace(`${pathname}${filtersToQuery({ ...latest, q: nextQ })}`, { scroll: false })
+  }
+
+  function commitSearch(event?: { preventDefault: () => void }) {
+    event?.preventDefault()
+    blurSearch()
+    setSuggestOpen(false)
+    commitQuery(q, false)
+  }
+
+  function pickSuggestion(suggestion: SearchSuggestion) {
+    blurSearch()
+    setSuggestOpen(false)
+    if (suggestion.kind === 'truck') {
+      router.push(suggestion.truck.href)
+      return
+    }
+    setQ(suggestion.query)
+    commitQuery(suggestion.query, true)
   }
 
   const countLabel = results.length === 1 ? '1 truck' : `${results.length} trucks`
@@ -192,12 +219,34 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
             placeholder="Hilux, 4x4, 22R"
             autoComplete="off"
             enterKeyHint="search"
-            onChange={(event) => setQ(event.target.value)}
-            onFocus={() => setSheet(false)}
+            role="combobox"
+            aria-expanded={showSuggest}
+            aria-controls="browse-hits"
+            aria-autocomplete="list"
+            onChange={(event) => {
+              setQ(event.target.value)
+              setSuggestOpen(true)
+            }}
+            onFocus={() => {
+              setSheet(false)
+              setSuggestOpen(true)
+            }}
+            onBlur={(event) => {
+              const next = event.relatedTarget
+              if (next instanceof Node && event.currentTarget.form?.contains(next)) return
+              setSuggestOpen(false)
+            }}
             onKeyDown={(event) => {
               if (event.key === 'Enter') commitSearch(event)
+              if (event.key === 'Escape') setSuggestOpen(false)
             }}
           />
+          {showSuggest ? (
+            <div className="find-suggest">
+              {suggestions.length === 0 ? <p className="find-empty">No trucks match.</p> : null}
+              <SearchSuggest listId="browse-hits" suggestions={suggestions} onPick={pickSuggestion} />
+            </div>
+          ) : null}
         </form>
         <div className="find-layout">
         <button

@@ -265,6 +265,67 @@ export function filterTrucks(trucks: CatalogTruck[], filters: TruckFilters): Cat
     .map((item) => item.truck)
 }
 
+export type SearchSuggestion =
+  | { kind: 'truck'; id: string; truck: CatalogTruck }
+  | { kind: 'search'; id: string; query: string; label: string; detail: string }
+
+function termHit(label: string, folded: string, aliases = ''): string | null {
+  if (folded.length < 2) return null
+  const foldedLabel = foldSearch(label)
+  if (foldedLabel.startsWith(folded) || folded.startsWith(foldedLabel)) return label
+  const alias = aliases.split(' ').find((word) => word.length > 1 && (word.startsWith(folded) || folded.startsWith(word)))
+  return alias ?? null
+}
+
+export function searchSuggestions(trucks: CatalogTruck[], query: string, limit = 6): SearchSuggestion[] {
+  const folded = foldSearch(query)
+  if (folded.length < 2) return []
+  const searches: SearchSuggestion[] = []
+  const seen = new Set<string>()
+  const addSearch = (id: string, label: string, searchQuery: string, detail: string) => {
+    const key = foldSearch(searchQuery)
+    if (!key || seen.has(key)) return
+    seen.add(key)
+    searches.push({ kind: 'search', id, query: searchQuery, label, detail })
+  }
+
+  const makers = new Map<string, string>()
+  for (const truck of trucks) makers.set(truck.makerSlug, truck.maker)
+  for (const [slug, name] of makers) {
+    if (!termHit(name, folded)) continue
+    addSearch(`maker-${slug}`, name, name, 'Make')
+  }
+
+  const choices = filterChoices(trucks)
+  for (const drive of choices.drives) {
+    const label = termHit(drive, folded, foldSearch(DRIVE_WORDS[drive] ?? ''))
+    if (!label) continue
+    addSearch(`drive-${drive}`, label === drive ? drive : label, label === drive ? drive : label, 'Drive')
+  }
+  for (const engine of choices.engines) {
+    if (!termHit(engine, folded)) continue
+    addSearch(`engine-${engine}`, engine, engine, 'Engine')
+  }
+  for (const decade of choices.decades) {
+    if (folded.length < 3) continue
+    const label = decadeLabel(decade)
+    if (!termHit(label, folded) && !String(decade).startsWith(folded)) continue
+    addSearch(`decade-${decade}`, label, String(decade), 'Years')
+  }
+
+  const searchHits = searches.slice(0, 2)
+  const truckHits = filterTrucks(trucks, { ...EMPTY_FILTERS, q: query })
+    .slice(0, Math.max(limit - searchHits.length, 4))
+    .map((truck): SearchSuggestion => ({ kind: 'truck', id: truck.id, truck }))
+
+  return [...truckHits, ...searchHits]
+}
+
+export function suggestionHref(suggestion: SearchSuggestion): string {
+  if (suggestion.kind === 'truck') return suggestion.truck.href
+  return `/browse${filtersToQuery({ ...EMPTY_FILTERS, q: suggestion.query })}`
+}
+
 function uniqueInOrder(values: string[], order: string[]): string[] {
   const present = new Set(values)
   const known = order.filter((item) => present.has(item))
