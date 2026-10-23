@@ -1,8 +1,8 @@
-import imageUrlBuilder from '@sanity/image-url'
+import { createImageUrlBuilder } from '@sanity/image-url'
 import type { ImageLoader } from 'next/image'
 import { dataset, projectId } from '@/lib/sanityConfig'
 
-const builder = imageUrlBuilder({ projectId, dataset })
+const builder = createImageUrlBuilder({ projectId, dataset })
 
 export function urlFor(source: {
   asset?: { _ref?: string } | null
