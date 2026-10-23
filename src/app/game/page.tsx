@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 import GameScreen from '@/components/GameScreen'
 import { getGameDeck } from '@/lib/getContent'
 
@@ -12,7 +12,7 @@ export const revalidate = 3600
 
 async function refreshGame() {
   'use server'
-  revalidateTag('home-shelf')
+  updateTag('home-shelf')
   revalidatePath('/game')
   revalidatePath('/')
 }
