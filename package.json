@@ -16,8 +16,8 @@
   },
   "dependencies": {
     "@portabletext/react": "^4.0.3",
-    "@react-three/drei": "^10.7.4",
-    "@react-three/fiber": "^9.3.0",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
     "@sanity/client": "^7.11.0",
     "@sanity/image-url": "^2.1.1",
     "@sanity/vision": "^6.20.0",
@@ -27,7 +27,7 @@
     "react-dom": "^19.3.1",
     "sanity": "^6.20.0",
     "server-only": "^0.0.1",
-    "three": "^0.180.0"
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
