@@ -12,7 +12,7 @@ Live at [compactpickup.vercel.app](https://compactpickup.vercel.app).
 - `/[manufacturer]` lists a maker's trucks and `/[manufacturer]/[model]` shows a single model.
 - `/timeline` walks through the models by year.
 - Model pages include a 3D model viewer built with React Three Fiber.
-- Manufacturers and truck models are stored in Sanity. The studio is in `sanity/` and is separate from the site.
+- Manufacturers and truck models are stored in Sanity. The studio is embedded at `/studio` (config in `sanity/`).
 
 ## Stack
 
@@ -27,7 +27,7 @@ npm run dev
 
 Open http://localhost:3000. The Sanity project id and dataset are set in `src/lib/sanity.ts` and the data is public, so the site runs without any environment variables.
 
-To work on the content models, run the studio with `npm run studio:dev`. `npm run studio:build` and `npm run studio:deploy` build and deploy it. Other scripts are `npm run build`, `npm run start` and `npm run lint`.
+To work on content locally, use the site at `/studio` (`npm run dev`) or run `npm run studio:dev` for a standalone dev server. Other scripts are `npm run build`, `npm run start` and `npm run lint`.
 
 ## Layout
 

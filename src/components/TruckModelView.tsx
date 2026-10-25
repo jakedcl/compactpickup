@@ -116,7 +116,7 @@ export default function TruckModelView({
         ) : !truckModel.content?.length ? (
           <div className="section">
             <p className="state">No article yet for {truckModel.title}.</p>
-            <a className="btn" href="https://compactpickup.sanity.studio" target="_blank" rel="noreferrer">Open Studio</a>
+            <a className="btn" href="/studio">Open Studio</a>
           </div>
         ) : null}
 
