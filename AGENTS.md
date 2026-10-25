@@ -6,7 +6,7 @@ Catalog of compact and mid-size pickup trucks sold in the U.S., styled like an o
 - Next.js 15.5 (App Router), React 19.1, TypeScript, Tailwind CSS 4.
 - 3D model viewer: three 0.180, @react-three/fiber 9, drei 10.
 - Sanity project `xbw6uf6e`, dataset `production`, public data (no env needed). Client and queries are in `src/lib/sanity.ts`.
-- Studio lives in `sanity/` (Sanity 4), hosted as `compactpickup` (compactpickup.sanity.studio). Not embedded in the site.
+- Studio config and schemas live in `sanity/`; the editor is embedded at `/studio` via `next-sanity`.
 - Vercel (`vercel.json` is just the Next.js framework preset).
 
 ## Layout
@@ -17,7 +17,7 @@ Catalog of compact and mid-size pickup trucks sold in the U.S., styled like an o
 
 ## Commands
 - `npm run dev`, `npm run build`, `npm run start`, `npm run lint`.
-- `npm run studio:dev`, `studio:build`, `studio:deploy` (all use `--dir ./sanity`).
+- `npm run studio:dev` and `studio:build` (both use `--dir ./sanity`). Production Studio is `/studio` on the site.
 
 ## Gotchas
 - `sanity/` has its own package.json. Run Studio through the root `studio:*` scripts.

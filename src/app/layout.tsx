@@ -1,10 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import SiteSearch from "@/components/SiteSearch";
-import SiteFooter from "@/components/ui/SiteFooter";
-import SiteHeader from "@/components/ui/SiteHeader";
 import "./globals.css";
-import "@/components/home-game.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,11 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <a className="skip" href="#content">Skip to content</a>
-        <SiteHeader />
-        <div id="content">{children}</div>
-        <SiteFooter />
-        <SiteSearch />
+        {children}
       </body>
     </html>
   );

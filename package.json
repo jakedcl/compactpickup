@@ -11,8 +11,7 @@
     "start": "next start",
     "lint": "eslint .",
     "studio:dev": "sanity dev --dir ./sanity",
-    "studio:build": "sanity build --dir ./sanity",
-    "studio:deploy": "sanity deploy --dir ./sanity"
+    "studio:build": "sanity build --dir ./sanity"
   },
   "dependencies": {
     "@portabletext/react": "^4.0.3",
