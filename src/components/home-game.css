@@ -262,6 +262,11 @@
   width: 100%;
 }
 
+.home-scan-row .home-filters {
+  width: auto;
+  flex: 1;
+}
+
 .game-page {
   width: min(860px, calc(100% - 32px));
   margin: var(--space-4) auto var(--space-7);

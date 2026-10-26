@@ -1,0 +1,134 @@
+.scan-page {
+  width: min(720px, calc(100% - 32px));
+  margin: var(--space-4) auto var(--space-7);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.scan-lede {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+}
+
+.scan-stage {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(0, 8, 40, 0.35);
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.scan-video,
+.scan-preview img {
+  width: 100%;
+  max-height: 55vh;
+  object-fit: contain;
+  background: var(--osd-deep);
+}
+
+.scan-preview {
+  width: 100%;
+}
+
+.scan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.scan-actions .btn {
+  flex: 1 1 140px;
+  min-height: 52px;
+  font-size: 15px;
+}
+
+.scan-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scan-status {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+}
+
+.scan-error {
+  color: #ffb4b4;
+  font-size: 14px;
+  margin: 0;
+}
+
+.scan-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.scan-result {
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.scan-result a {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-3);
+  text-decoration: none;
+  color: var(--ink);
+  min-height: 44px;
+}
+
+.scan-result a:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.scan-result-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 3vw, 1.45rem);
+  letter-spacing: 0.04em;
+}
+
+.scan-result-meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.scan-confidence {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.scan-alt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.home-scan-row {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.home-scan-row .btn {
+  flex: 1;
+  min-height: 48px;
+  font-size: 15px;
+}
