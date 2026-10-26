@@ -271,9 +271,14 @@ export default function HomeScreen({
               </div>
             ) : null}
           </div>
-          <Link href={filtersHref} className="btn btn-accent home-filters" onClick={() => searchRef.current?.blur()}>
-            Filters
-          </Link>
+          <div className="home-scan-row">
+            <Link href="/scan" className="btn btn-accent" onClick={() => searchRef.current?.blur()}>
+              Scan / Identify
+            </Link>
+            <Link href={filtersHref} className="btn home-filters" onClick={() => searchRef.current?.blur()}>
+              Filters
+            </Link>
+          </div>
         </form>
         <TruckSlideshow
           stills={slides}

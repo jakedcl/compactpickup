@@ -10,23 +10,30 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "scan:build-index": "node scripts/build-scan-index.mjs",
+    "scan:eval": "node scripts/scan-eval.mjs",
     "studio:dev": "sanity dev --dir ./sanity",
     "studio:build": "sanity build --dir ./sanity"
   },
   "dependencies": {
+    "@ai-sdk/gateway": "^4.0.126",
     "@portabletext/react": "^4.0.3",
     "@react-three/drei": "^10.7.4",
     "@react-three/fiber": "^9.3.0",
     "@sanity/client": "^7.11.0",
     "@sanity/image-url": "^2.1.1",
     "@sanity/vision": "^6.20.0",
+    "ai": "^7.0.153",
     "next": "^16.4.3",
     "next-sanity": "^13.3.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "sanity": "^6.20.0",
     "server-only": "^0.0.1",
-    "three": "^0.180.0"
+    "sharp": "^0.35.5",
+    "three": "^0.180.0",
+    "zod": "^4.6.7",
+    "@xenova/transformers": "^2.17.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -37,6 +44,7 @@
     "eslint": "^9",
     "eslint-config-next": "^16.4.3",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
