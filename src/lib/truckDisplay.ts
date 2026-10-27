@@ -156,6 +156,41 @@ export function displayEngines(engines: TruckSpecData['engines']): EngineSpec[] 
   })
 }
 
+export function formatHorsepower(hp?: number | null): string | null {
+  if (typeof hp !== 'number' || !Number.isFinite(hp)) return null
+  return `${hp} hp`
+}
+
+export function engineHeaderSummary(engine: EngineSpec): string | null {
+  const parts: string[] = []
+  const displacement = cleanText(engine.displacement)
+  if (displacement) parts.push(displacement)
+  const config = cleanText(engine.config)
+  if (config) parts.push(config)
+  const hp = formatHorsepower(engine.hp)
+  if (hp) parts.push(hp)
+  const torque = cleanText(engine.torque)
+  if (torque) parts.push(torque)
+  const years = cleanText(engine.years)
+  if (years) parts.push(years)
+  return parts.length ? parts.join(' · ') : null
+}
+
+export function engineDetailRows(engine: EngineSpec): Array<{label: string; value: string}> {
+  const rows: Array<{label: string; value: string}> = []
+  const push = (label: string, value: string | null) => {
+    if (value) rows.push({label, value})
+  }
+  push('Displacement', cleanText(engine.displacement))
+  push('Config', cleanText(engine.config))
+  const hp = formatHorsepower(engine.hp)
+  if (hp) push('HP', hp)
+  push('Torque', cleanText(engine.torque))
+  push('Years', cleanText(engine.years))
+  push('Notes', cleanText(engine.notes))
+  return rows
+}
+
 export function engineColumns(engines: EngineSpec[]) {
   const columns: Array<{key: keyof EngineSpec; label: string}> = [
     {key: 'name', label: 'Engine'},
@@ -266,7 +301,7 @@ export function contentFlags(truck: TruckSpecData): ContentFlags {
 }
 
 export function hasSpecSheet(truck: TruckSpecData): boolean {
-  return specRows(truck).length > 0 || displayEngines(truck.engines).length > 0
+  return specRows(truck).length > 0
 }
 
 export function truckSortYear(truck: {
