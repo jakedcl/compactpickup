@@ -2,6 +2,10 @@
 
 Catalog of compact and mid-size pickup trucks sold in the U.S., styled like an old VHS recording. Started as a CSC436 React class project. Live at compactpickup.vercel.app.
 
+## Dev framework
+
+This repo follows Jake's dev framework: [jakedcl/dev-framework](https://github.com/jakedcl/dev-framework) (start at its `AGENTS.md`). The framework is the source of truth; if anything in this file conflicts with it, the framework wins.
+
 ## Stack
 - Next.js 15.5 (App Router), React 19.1, TypeScript, Tailwind CSS 4.
 - 3D model viewer: three 0.180, @react-three/fiber 9, drei 10.
