@@ -5,12 +5,19 @@ import {PortableText, type PortableTextBlock} from '@portabletext/react'
 import {useMemo, useState} from 'react'
 import RelatedTrucks from '@/components/RelatedTrucks'
 import SourceList from '@/components/SourceList'
+import TruckArticlePanels from '@/components/TruckArticlePanels'
+import TruckEnginePanels from '@/components/TruckEnginePanels'
 import TruckSpecSheet from '@/components/TruckSpecSheet'
 import PageHeader from '@/components/ui/PageHeader'
-import Lightbox, {type GalleryImage} from '@/components/ui/Lightbox'
+import SectionHeading from '@/components/ui/SectionHeading'
+import Lightbox from '@/components/ui/Lightbox'
 import SanityImage from '@/components/SanityImage'
 import {createVhsPortableTextComponents} from '@/components/vhsPortableText'
-import {visibleContentBlocks} from '@/lib/contentSections'
+import {
+  extractContentImages,
+  parseArticleSections,
+  visibleContentBlocks,
+} from '@/lib/contentSections'
 import {cleanText, contentFlags, glanceFacts, type TruckSpecData} from '@/lib/truckDisplay'
 import {imageAlt} from '@/lib/imageAlt'
 
@@ -25,13 +32,6 @@ export interface TruckModel extends TruckSpecData {
     name: string
     slug: {current: string}
   }
-}
-
-function articleImages(content?: PortableTextBlock[]): GalleryImage[] {
-  if (!Array.isArray(content)) return []
-  return content.filter((block): block is PortableTextBlock & GalleryImage => {
-    return block._type === 'image' && Boolean((block as GalleryImage).asset?._ref)
-  })
 }
 
 export default function TruckModelView({
@@ -49,18 +49,10 @@ export default function TruckModelView({
     () => visibleContentBlocks(truckModel.content, flags),
     [truckModel, flags],
   )
-  const photos = useMemo(() => articleImages(truckModel.content), [truckModel])
+  const article = useMemo(() => parseArticleSections(visibleContent), [visibleContent])
+  const photos = useMemo(() => extractContentImages(truckModel.content), [truckModel.content])
   const hero = photos[0]
-  const portableTextComponents = useMemo(
-    () => createVhsPortableTextComponents(truckModel.title || 'Truck photo', {
-      hideRef: hero?.asset?._ref,
-      onOpen: (image) => {
-        const index = photos.findIndex((item) => item.asset?._ref === image.asset?._ref)
-        setPhoto(index >= 0 ? index : 0)
-      },
-    }),
-    [truckModel.title, hero?.asset?._ref, photos],
-  )
+  const portableTextComponents = useMemo(() => createVhsPortableTextComponents(), [])
   const glance = glanceFacts(truckModel, truckModel.yearRange)
   const years = cleanText(truckModel.yearRange)
 
@@ -107,16 +99,48 @@ export default function TruckModelView({
         ) : null}
 
         <TruckSpecSheet truck={truckModel} />
+        <TruckEnginePanels truck={truckModel} />
+        <TruckArticlePanels
+          trims={article.trims}
+          cabBed={article.cabBed}
+          drivetrain={article.drivetrain}
+          highlights={article.highlights}
+        />
+
+        {photos.length > 0 ? (
+          <section className="section">
+            <SectionHeading title="Photos" />
+            <ul className="gallery photo-grid">
+              {photos.map((image, index) => (
+                <li key={image.asset?._ref || `photo-${index}`}>
+                  <button type="button" onClick={() => setPhoto(index)} aria-label={`Open photo ${index + 1}`}>
+                    <SanityImage
+                      image={image}
+                      alt={imageAlt(image.alt, truckModel.title)}
+                      sizes="(max-width: 520px) 100vw, (max-width: 800px) 50vw, 33vw"
+                      fill
+                      cropRatio={4 / 3}
+                      className="sanity-cover"
+                    />
+                  </button>
+                  <p className="photo-caption">{image.caption || imageAlt(image.alt, truckModel.title)}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         <RelatedTrucks truck={truckModel} />
 
-        {visibleContent.length > 0 ? (
-          <div className="section prose">
-            <PortableText value={visibleContent} components={portableTextComponents} />
-          </div>
+        {article.overview.length > 0 ? (
+          <section className="section prose">
+            <SectionHeading title="Overview" />
+            <PortableText value={article.overview} components={portableTextComponents} />
+          </section>
         ) : !truckModel.content?.length ? (
           <div className="section">
             <p className="state">No article yet for {truckModel.title}.</p>
-            <a className="btn" href="/studio">Open Studio</a>
+            <Link className="btn" href="/studio">Open Studio</Link>
           </div>
         ) : null}
 

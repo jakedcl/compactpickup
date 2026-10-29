@@ -2,13 +2,13 @@ import Link from 'next/link'
 import SectionHeading from '@/components/ui/SectionHeading'
 import {cleanText, linkHref, linkLabel, visibleLinks, type TruckLink, type TruckSpecData} from '@/lib/truckDisplay'
 
-function RelatedList({title, links}: {title: string; links: Array<NonNullable<TruckLink>>}) {
+function RelatedChipGroup({title, links}: {title: string; links: Array<NonNullable<TruckLink>>}) {
   if (!links.length) return null
 
   return (
     <div className="related-group">
       <h3 className="kicker">{title}</h3>
-      <ul className="link-list">
+      <div className="related-chips">
         {links.map((link, index) => {
           const label = linkLabel(link)
           if (!label) return null
@@ -20,13 +20,20 @@ function RelatedList({title, links}: {title: string; links: Array<NonNullable<Tr
               {relation ? <span className="meta">{relation}</span> : null}
             </>
           )
+          if (href) {
+            return (
+              <Link key={link._key || `${title}-${label}-${index}`} href={href} className="btn related-chip">
+                {body}
+              </Link>
+            )
+          }
           return (
-            <li key={link._key || `${title}-${label}-${index}`}>
-              {href ? <Link href={href}>{body}</Link> : <span>{body}</span>}
-            </li>
+            <span key={link._key || `${title}-${label}-${index}`} className="btn related-chip is-static">
+              {body}
+            </span>
           )
         })}
-      </ul>
+      </div>
     </div>
   )
 }
@@ -41,9 +48,9 @@ export default function RelatedTrucks({truck}: {truck: TruckSpecData}) {
     <section className="section">
       <SectionHeading title="Related" />
       <div className="related-groups">
-        <RelatedList title="Predecessor" links={predecessor} />
-        <RelatedList title="Successor" links={successor} />
-        <RelatedList title="Siblings" links={siblings} />
+        <RelatedChipGroup title="Predecessor" links={predecessor} />
+        <RelatedChipGroup title="Successor" links={successor} />
+        <RelatedChipGroup title="Related" links={siblings} />
       </div>
     </section>
   )
