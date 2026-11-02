@@ -14,7 +14,7 @@
     "studio:build": "sanity build --dir ./sanity"
   },
   "dependencies": {
-    "@portabletext/react": "^4.0.3",
+    "@portabletext/react": "^8.0.1",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "@sanity/client": "^7.11.0",
