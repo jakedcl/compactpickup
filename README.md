@@ -16,7 +16,7 @@ Live at [compactpickup.vercel.app](https://compactpickup.vercel.app).
 
 ## Stack
 
-Next.js 15, React 19, TypeScript, Tailwind CSS 4, Sanity, React Three Fiber and drei, deployed on Vercel.
+Next.js 16, React 19, TypeScript, Tailwind CSS 4, Sanity, React Three Fiber and drei, deployed on Vercel.
 
 ## Running it locally
 
