@@ -13,7 +13,7 @@
     "sanity"
   ],
   "dependencies": {
-    "@sanity/vision": "^6.20.0",
+    "@sanity/vision": "^6.21.0",
     "react": "^19.1",
     "react-dom": "^19.1",
     "sanity": "^6.20.0",
