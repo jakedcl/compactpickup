@@ -1,41 +1,10 @@
 import {PortableTextComponents} from '@portabletext/react'
 import {ReactNode} from 'react'
-import SanityImage from '@/components/SanityImage'
-import {imageAlt} from '@/lib/imageAlt'
-import type {SanityImageValue} from '@/lib/sanityImage'
 
-type ArticleImage = SanityImageValue & {alt?: string | null; caption?: string | null}
-
-export function createVhsPortableTextComponents(
-  fallbackAlt: string,
-  options?: {
-    hideRef?: string | null
-    onOpen?: (image: ArticleImage) => void
-  },
-): PortableTextComponents {
+export function createVhsPortableTextComponents(): PortableTextComponents {
   return {
     types: {
-      image: ({value}: {value: ArticleImage}) => {
-        if (!value?.asset?._ref) return null
-        if (options?.hideRef && value.asset._ref === options.hideRef) return null
-        const figure = (
-          <figure className="prose-figure">
-            <SanityImage
-              image={value}
-              alt={imageAlt(value.alt, fallbackAlt)}
-              sizes="(max-width: 800px) 100vw, 720px"
-              className="lightbox-photo"
-            />
-            {value.caption ? <figcaption className="meta">{value.caption}</figcaption> : null}
-          </figure>
-        )
-        if (!options?.onOpen) return figure
-        return (
-          <button type="button" className="prose-shot" onClick={() => options.onOpen?.(value)}>
-            {figure}
-          </button>
-        )
-      },
+      image: () => null,
     },
     block: {
       h1: ({children}: {children?: ReactNode}) => <h2 className="section-heading">{children}</h2>,
