@@ -17,7 +17,7 @@
     "@portabletext/react": "^4.0.3",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
-    "@sanity/client": "^7.11.0",
+    "@sanity/client": "^8.14.1",
     "@sanity/image-url": "^2.1.1",
     "@sanity/vision": "^6.22.0",
     "next": "^16.4.5",
