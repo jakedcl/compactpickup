@@ -90,7 +90,7 @@ export default async function ManufacturerPage({ params }: Props) {
           ) : (
             <div>
               <p className="state">No models for {manufacturer.name} yet.</p>
-              <a className="btn" href="/studio">Open Studio</a>
+              <Link className="btn" href="/studio">Open Studio</Link>
             </div>
           )}
         </section>
