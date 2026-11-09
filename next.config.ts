@@ -13,6 +13,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      { source: "/admin", destination: "/studio", permanent: false },
+      { source: "/admin/:path*", destination: "/studio/:path*", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

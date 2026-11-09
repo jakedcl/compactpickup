@@ -14,28 +14,28 @@
     "studio:build": "sanity build --dir ./sanity"
   },
   "dependencies": {
-    "@portabletext/react": "^4.0.3",
-    "@react-three/drei": "^10.7.4",
-    "@react-three/fiber": "^9.3.0",
-    "@sanity/client": "^7.11.0",
+    "@portabletext/react": "^8.0.1",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
+    "@sanity/client": "^8.14.1",
     "@sanity/image-url": "^2.1.1",
-    "@sanity/vision": "^6.20.0",
-    "next": "^16.4.3",
-    "next-sanity": "^13.3.4",
+    "@sanity/vision": "^6.22.0",
+    "next": "^16.4.5",
+    "next-sanity": "^13.4.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "sanity": "^6.20.0",
     "server-only": "^0.0.1",
-    "three": "^0.180.0"
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint": "^9",
-    "eslint-config-next": "^16.4.3",
+    "eslint-config-next": "^16.4.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

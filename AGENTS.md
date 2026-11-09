@@ -2,9 +2,15 @@
 
 Catalog of compact and mid-size pickup trucks sold in the U.S., styled like an old VHS recording. Started as a CSC436 React class project. Live at compactpickup.vercel.app.
 
+## Dev framework
+
+This repo follows Jake's dev framework: [jakedcl/dev-framework](https://github.com/jakedcl/dev-framework) (start at its `AGENTS.md`). The framework is the source of truth; if anything in this file conflicts with it, the framework wins.
+
+The framework repo is private. Cloud agents open it with `git clone --depth 1 https://x-access-token:${DEV_FRAMEWORK_READ_TOKEN}@github.com/jakedcl/dev-framework /tmp/dev-framework` (the token is a Cursor secret; never print or commit it).
+
 ## Stack
-- Next.js 15.5 (App Router), React 19.1, TypeScript, Tailwind CSS 4.
-- 3D model viewer: three 0.180, @react-three/fiber 9, drei 10.
+- Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4.
+- 3D model viewer: three 0.186, @react-three/fiber 9, drei 10.
 - Sanity project `xbw6uf6e`, dataset `production`, public data (no env needed). Client and queries are in `src/lib/sanity.ts`.
 - Studio config and schemas live in `sanity/`; the editor is embedded at `/studio` via `next-sanity`.
 - Vercel (`vercel.json` is just the Next.js framework preset).
