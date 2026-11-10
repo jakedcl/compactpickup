@@ -411,44 +411,27 @@ export default function Scanner({
           <p>No photo yet</p>
         )}
       </div>
-      <div className={`scan-actions${device === 'desktop' ? ' is-single' : ''}`}>
-        {device === 'unknown' ? (
-          <p className="scan-device-wait" role="status">
-            Preparing camera controls
-          </p>
-        ) : device === 'mobile' ? (
-          <>
-            <button
-              type="button"
-              className="btn btn-accent"
-              disabled={busy}
-              onClick={() => cameraInputRef.current?.click()}
-            >
-              Take photo
-            </button>
-            <button type="button" className="btn" disabled={busy} onClick={() => libraryInputRef.current?.click()}>
-              Choose photo
-            </button>
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="scan-hidden-input"
-              tabIndex={-1}
-              onChange={onCameraChange}
-            />
-            <input
-              ref={libraryInputRef}
-              type="file"
-              accept="image/*"
-              className="scan-hidden-input"
-              tabIndex={-1}
-              onChange={onLibraryChange}
-            />
-          </>
-        ) : (
-          <>
+      {!file ? (
+        <div className={`scan-actions${device === 'desktop' ? ' is-single' : ''}`}>
+          {device === 'unknown' ? (
+            <p className="scan-device-wait" role="status">
+              Preparing camera controls
+            </p>
+          ) : device === 'mobile' ? (
+            <>
+              <button
+                type="button"
+                className="btn btn-accent"
+                disabled={busy}
+                onClick={() => cameraInputRef.current?.click()}
+              >
+                Take photo
+              </button>
+              <button type="button" className="btn" disabled={busy} onClick={() => libraryInputRef.current?.click()}>
+                Choose photo
+              </button>
+            </>
+          ) : (
             <button
               type="button"
               className="btn btn-accent"
@@ -457,17 +440,39 @@ export default function Scanner({
             >
               Choose photo
             </button>
-            <input
-              ref={chooseInputRef}
-              type="file"
-              accept="image/*"
-              className="scan-hidden-input"
-              tabIndex={-1}
-              onChange={onChooseChange}
-            />
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      ) : null}
+      {device === 'mobile' ? (
+        <>
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="scan-hidden-input"
+            tabIndex={-1}
+            onChange={onCameraChange}
+          />
+          <input
+            ref={libraryInputRef}
+            type="file"
+            accept="image/*"
+            className="scan-hidden-input"
+            tabIndex={-1}
+            onChange={onLibraryChange}
+          />
+        </>
+      ) : device === 'desktop' ? (
+        <input
+          ref={chooseInputRef}
+          type="file"
+          accept="image/*"
+          className="scan-hidden-input"
+          tabIndex={-1}
+          onChange={onChooseChange}
+        />
+      ) : null}
       {file ? (
         <div className="scan-preview-actions">
           <button type="button" className="btn btn-accent" disabled={busy} onClick={() => void scanPhoto()}>
