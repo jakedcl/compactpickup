@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  buildMakeMutations,
   displayModelTitle,
   isFeaturedMake,
+  makeDocumentId,
   modelTitle,
   planTruckMake,
   showsOnShelf,
 } from '@/lib/makes'
+import { TRUCK_OVERRIDES } from '../../../scripts/fix-makes'
 
 test('the shelf stays the seven makes plus More until featured is written', () => {
   assert.equal(showsOnShelf({ name: 'Ford', slug: 'ford' }), true)
@@ -28,7 +31,7 @@ test('titles do not repeat the make, and More... is not prefixed', () => {
   assert.equal(displayModelTitle('Ford', 'Ranger (1st Gen)'), 'Ford Ranger (1st Gen)')
 })
 
-test('title prefix assigns the make, a rebadge stays More, and a catalog make is kept', () => {
+test('title prefix assigns the make, overrides win, and a catalog make is kept', () => {
   const honda = planTruckMake({
     id: '1',
     slug: 'honda-ridgeline',
@@ -43,17 +46,22 @@ test('title prefix assigns the make, a rebadge stays More, and a catalog make is
   assert.equal(honda.source, 'title prefix')
   assert.equal(honda.flagged, false)
 
-  const mit = planTruckMake({
-    id: '2',
-    slug: 'mit',
-    title: 'Mitsubishi Compact Rebadge',
-    makeName: 'More...',
-    makeSlug: 'other',
-    summary: 'Reached the US under three badges.',
-  })
-  assert.equal(mit.newMake, 'More...')
-  assert.equal(mit.flagged, true)
-  assert.equal(mit.changed, false)
+  const mit = planTruckMake(
+    {
+      id: '2',
+      slug: 'mit',
+      title: 'Mitsubishi Compact Rebadge',
+      makeName: 'More...',
+      makeSlug: 'other',
+      summary: 'Reached the US under three badges.',
+    },
+    TRUCK_OVERRIDES,
+  )
+  assert.equal(mit.newMake, 'Mitsubishi')
+  assert.equal(mit.newMakeSlug, 'mitsubishi')
+  assert.equal(mit.newTitle, 'Mighty Max / Ram 50')
+  assert.equal(mit.flagged, false)
+  assert.equal(mit.changed, true)
 
   const ranger = planTruckMake({
     id: '3',
@@ -68,17 +76,24 @@ test('title prefix assigns the make, a rebadge stays More, and a catalog make is
   assert.equal(ranger.source, 'catalog make')
   assert.equal(ranger.changed, false)
 
-  const datsun = planTruckMake({
-    id: '4',
-    slug: 'datsun-3',
-    title: 'Datsun 620',
-    makeName: 'Nissan',
-    makeSlug: 'nissan',
-    summary: 'The Datsun 620.',
-  })
-  assert.equal(datsun.newMake, 'Datsun')
-  assert.equal(datsun.newTitle, '620')
-  assert.equal(datsun.source, 'title prefix')
+  const datsun = planTruckMake(
+    {
+      id: '4',
+      slug: 'datsun-3',
+      title: 'Datsun 620',
+      makeName: 'Nissan',
+      makeSlug: 'nissan',
+      summary: 'The Datsun 620.',
+    },
+    TRUCK_OVERRIDES,
+  )
+  assert.equal(datsun.newMake, 'Nissan')
+  assert.equal(datsun.newTitle, 'Datsun 620')
+  assert.equal(datsun.changed, false)
+  for (const slug of ['datsun-1', 'datsun-2', 'datsun-3', 'datsun-4']) {
+    assert.equal(TRUCK_OVERRIDES[slug]?.makeSlug, 'nissan')
+    assert.equal(TRUCK_OVERRIDES[slug]?.title, undefined)
+  }
 
   const chevy = planTruckMake({
     id: '5',
@@ -103,4 +118,34 @@ test('title prefix assigns the make, a rebadge stays More, and a catalog make is
   assert.equal(raider.newMake, 'Mitsubishi')
   assert.equal(raider.newTitle, 'Raider')
   assert.equal(raider.flagged, false)
+})
+
+test('new make ids have no dot, and a draft patch sets only the truck fields that change', () => {
+  assert.equal(makeDocumentId('dodge').includes('.'), false)
+  assert.equal(makeDocumentId('dodge'), 'make-dodge')
+  const plans = ['dodge', 'jeep', 'honda', 'hummer', 'mitsubishi', 'subaru', 'suzuki', 'volkswagen'].map((slug) =>
+    planTruckMake({
+      id: `truck-${slug}`,
+      slug: `${slug}-truck`,
+      title: `${slug} Truck`,
+      makeName: 'More...',
+      makeSlug: 'other',
+    }),
+  )
+  const { mutations, draftPatches } = buildMakeMutations(plans, [])
+  const creates = mutations.flatMap((mutation) => ('createIfNotExists' in mutation ? [mutation.createIfNotExists] : []))
+  assert.equal(creates.length, 8)
+  for (const doc of creates) {
+    assert.equal(doc._id.includes('.'), false)
+    assert.equal(doc.featured, false)
+  }
+  assert.equal(draftPatches.length, plans.length)
+  for (const patch of draftPatches) {
+    assert.equal('patch' in patch, true)
+    if (!('patch' in patch)) continue
+    assert.deepEqual(Object.keys(patch.patch.set).sort(), ['manufacturer', 'title'])
+    assert.equal(patch.patch.id.startsWith('drafts.'), true)
+    const ref = patch.patch.set.manufacturer as { _ref: string }
+    assert.equal(ref._ref.includes('.'), false)
+  }
 })

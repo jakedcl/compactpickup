@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import TruckModelView from '@/components/TruckModelView'
 import PageHeader from '@/components/ui/PageHeader'
 import { getTruckBySlug, getTruckParams } from '@/lib/getContent'
+import { displayModelTitle } from '@/lib/makes'
 import { cleanText } from '@/lib/truckDisplay'
 
 export const revalidate = 3600
@@ -26,8 +27,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const truck = await getTruckBySlug(model)
     if (!truck) return {}
     const description = cleanText(truck.summary)
+    const title = `${displayModelTitle(truck.manufacturer?.name, truck.title)} · Compact Pickup`
     return {
-      title: `${truck.title} · Compact Pickup`,
+      title,
+      openGraph: { title, ...(description ? { description } : {}) },
       ...(description ? { description } : {}),
     }
   } catch {

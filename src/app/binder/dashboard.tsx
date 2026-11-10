@@ -204,27 +204,32 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
     setBusy(true)
     setNotice(null)
     try {
+      const approvedIds: string[] = []
       for (let index = 0; index < ids.length; index += MAX_STATUS_IDS) {
         const chunk = ids.slice(index, index + MAX_STATUS_IDS)
-        await binderApi('/api/admin/photos/status', {
+        const result = await binderApi<{ updated: number; ids: string[]; status: PhotoStatus }>('/api/admin/photos/status', {
           method: 'POST',
           body: JSON.stringify({ ids: chunk, status }),
         })
+        if (status === 'approved') approvedIds.push(...result.ids)
       }
-      if (status === 'approved') {
+      if (status === 'approved' && approvedIds.length > 0) {
         try {
-          await fingerprint(ids)
+          await fingerprint(approvedIds)
         } catch {
-        setPhotos((current) =>
-            current.map((item) => (ids.includes(item.id) ? { ...item, status: 'approved' } : item)),
+          setPhotos((current) =>
+            current.map((item) => (approvedIds.includes(item.id) ? { ...item, status: 'approved' } : item)),
           )
           throw new Error('Approved. The fingerprint did not save. Use Finish missing fingerprints to retry.')
         }
       }
+      const stayed = ids.length - approvedIds.length
       setSelected(new Set())
       setNotice(
         status === 'approved'
-          ? 'Approved.'
+          ? stayed > 0
+            ? `Approved ${approvedIds.length}. ${stayed} stayed pending (no model yet).`
+            : `Approved ${approvedIds.length}.`
           : status === 'rejected'
             ? 'Rejected. The photo stays in Rejected.'
             : 'Moved back to pending.',

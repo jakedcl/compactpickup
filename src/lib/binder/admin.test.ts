@@ -102,8 +102,9 @@ test('status changes are validated and never delete a photo', async () => {
       { session: signedIn, db },
     )
     assert.equal(response.status, 200)
-    const body = (await response.json()) as { updated: number; status: string }
+    const body = (await response.json()) as { updated: number; ids: string[]; status: string }
     assert.equal(body.updated, 1)
+    assert.deepEqual(body.ids, [ID])
     assert.equal(body.status, status)
     const call = db.calls[0]
     assert.match(call.sql, /reviewed_at = case when \$1::text = 'pending' then null else now\(\) end/)

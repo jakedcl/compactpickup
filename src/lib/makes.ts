@@ -98,6 +98,14 @@ export function displayModelTitle(makeName: string | null | undefined, title: st
   return `${make} ${clean}`
 }
 
+/** A per-slug decision that wins over the title prefix. Title is omitted to keep the current title. */
+export type TruckMakeOverride = {
+  makeName: string
+  makeSlug: string
+  title?: string
+  source: string
+}
+
 export type TruckMakeInput = {
   id: string
   slug: string
@@ -139,7 +147,10 @@ function uncertainBadge(title: string, summary: string): boolean {
  * Otherwise keep the catalog make. A catch-all truck with no clear make stays More... and is flagged.
  * A title that names one make but describes several badges stays More... and is flagged.
  */
-export function planTruckMake(truck: TruckMakeInput): TruckMakePlan {
+export function planTruckMake(
+  truck: TruckMakeInput,
+  overrides: Readonly<Record<string, TruckMakeOverride>> = {},
+): TruckMakePlan {
   const currentMake = truck.makeName.trim() || 'More...'
   const currentSlug = truck.makeSlug.trim() || CATCH_ALL_SLUG
   const catchAll = isCatchAllMake({ name: currentMake, slug: currentSlug })
@@ -151,6 +162,21 @@ export function planTruckMake(truck: TruckMakeInput): TruckMakePlan {
     currentTitle: truck.title,
     currentMake,
     currentMakeSlug: currentSlug,
+  }
+
+  const override = overrides[truck.slug]
+  if (override) {
+    const newTitle = override.title ?? truck.title
+    const changed = newTitle !== truck.title || override.makeSlug !== currentSlug || override.makeName !== currentMake
+    return {
+      ...base,
+      newTitle,
+      newMake: override.makeName,
+      newMakeSlug: override.makeSlug,
+      source: override.source,
+      flagged: false,
+      changed,
+    }
   }
 
   if (match && catchAll && uncertainBadge(truck.title, summary)) {
@@ -201,6 +227,100 @@ export function planTruckMake(truck: TruckMakeInput): TruckMakePlan {
     flagged: false,
     changed: newTitle !== truck.title,
   }
+}
+
+/** Public Sanity hides document ids that contain a dot from anonymous readers. */
+export function makeDocumentId(slug: string): string {
+  const id = `make-${slug}`
+  if (id.includes('.')) throw new Error('Make ids cannot contain a dot')
+  return id
+}
+
+export type SanityMakeMutation =
+  | {
+      createIfNotExists: {
+        _id: string
+        _type: 'manufacturer'
+        name: string
+        slug: { _type: 'slug'; current: string }
+        featured: false
+        isCatchAll: false
+      }
+    }
+  | { patch: { id: string; set: Record<string, unknown> } }
+
+type KnownMake = {
+  _id: string
+  slug?: string | null
+  name?: string | null
+  featured?: boolean | null
+  isCatchAll?: boolean | null
+}
+
+function referenceFor(slug: string, bySlug: ReadonlyMap<string, string>): string {
+  return bySlug.get(slug) ?? makeDocumentId(slug)
+}
+
+/**
+ * Published mutations, plus draft patches that set only the truck fields being changed.
+ * A draft patch must be skipped when that draft does not exist.
+ */
+export function buildMakeMutations(
+  plans: readonly TruckMakePlan[],
+  makes: readonly KnownMake[],
+): { mutations: SanityMakeMutation[]; draftPatches: SanityMakeMutation[] } {
+  const bySlug = new Map<string, string>()
+  for (const make of makes) {
+    if (!make.slug || !make._id || make._id.includes('.')) continue
+    bySlug.set(make.slug, make._id)
+  }
+
+  const mutations: SanityMakeMutation[] = []
+  const needed = new Map<string, string>()
+  for (const plan of plans) {
+    if (isCatchAllMake({ slug: plan.newMakeSlug, name: plan.newMake })) continue
+    if (!bySlug.has(plan.newMakeSlug)) needed.set(plan.newMakeSlug, plan.newMake)
+  }
+  for (const [slug, name] of [...needed.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    const _id = makeDocumentId(slug)
+    mutations.push({
+      createIfNotExists: {
+        _id,
+        _type: 'manufacturer',
+        name,
+        slug: { _type: 'slug', current: slug },
+        featured: false,
+        isCatchAll: false,
+      },
+    })
+    bySlug.set(slug, _id)
+  }
+
+  for (const make of makes) {
+    if (!make.slug || !make._id || make._id.includes('.')) continue
+    const catchAll = isCatchAllMake({ name: make.name, slug: make.slug, isCatchAll: make.isCatchAll })
+    const featured = catchAll ? false : (FEATURED_MAKE_SLUGS as readonly string[]).includes(make.slug)
+    const set: Record<string, unknown> = {}
+    if (make.featured !== featured) set.featured = featured
+    if (catchAll && make.isCatchAll !== true) set.isCatchAll = true
+    if (Object.keys(set).length === 0) continue
+    mutations.push({ patch: { id: make._id, set } })
+  }
+
+  const draftPatches: SanityMakeMutation[] = []
+  for (const plan of plans) {
+    if (!plan.changed) continue
+    const set: Record<string, unknown> = {}
+    if (plan.newTitle !== plan.currentTitle) set.title = plan.newTitle
+    if (plan.newMakeSlug !== plan.currentMakeSlug) {
+      set.manufacturer = { _type: 'reference', _ref: referenceFor(plan.newMakeSlug, bySlug) }
+    }
+    if (Object.keys(set).length === 0) continue
+    mutations.push({ patch: { id: plan.id, set } })
+    draftPatches.push({ patch: { id: `drafts.${plan.id}`, set } })
+  }
+
+  return { mutations, draftPatches }
 }
 
 export function makeOptions(names: readonly string[]): string[] {

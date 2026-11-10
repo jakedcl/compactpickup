@@ -261,7 +261,11 @@ export async function handlePhotoStatus(
   const statement = statusSql(parsed.ids)
   try {
     const result = await db.query<{ id: string }>(statement, [parsed.status, ...parsed.ids])
-    return json({ updated: result.rows.length, status: parsed.status })
+    return json({
+      updated: result.rows.length,
+      ids: result.rows.map((row) => row.id),
+      status: parsed.status,
+    })
   } catch (error) {
     console.error(`binder: status update failed (${error instanceof Error ? error.name : 'Error'})`)
     return json({ error: 'The photos were not updated.' }, 500)

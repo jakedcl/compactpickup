@@ -3,18 +3,25 @@
  *
  * Dry run (no Sanity writes):
  *   npm run fix:makes
- * Write published docs, and a matching draft when one exists:
+ * Write the mutation list, still with no Sanity writes:
+ *   npm run fix:makes -- --plan-json makes.json
+ * Write with a token. The read uses that same client, so a re-run sees docs it created:
  *   BINDER_CONFIRM=1 SANITY_API_TOKEN=... npm run fix:makes
  *
  * Slugs are never changed. Documents are never deleted.
+ * New make ids are `make-<slug>` with no dot, so anonymous readers can see them.
+ * A draft is patched with set() for title and the make reference only.
  */
+import { writeFileSync } from 'node:fs'
 import { createClient, type SanityClient } from '@sanity/client'
 import { writesEnabled } from '../src/lib/binder/confirm'
 import {
   CATCH_ALL_SLUG,
   FEATURED_MAKE_SLUGS,
+  buildMakeMutations,
   isCatchAllMake,
   planTruckMake,
+  type TruckMakeOverride,
   type TruckMakePlan,
 } from '../src/lib/makes'
 import { apiVersion, dataset, projectId } from '../src/lib/sanityConfig'
@@ -34,6 +41,20 @@ type TruckDoc = {
   summary?: string | null
   makeName?: string | null
   makeSlug?: string | null
+}
+
+/** Per-slug decisions. These win over the title prefix. */
+export const TRUCK_OVERRIDES: Record<string, TruckMakeOverride> = {
+  'datsun-1': { makeName: 'Nissan', makeSlug: 'nissan', source: 'override: stays Nissan' },
+  'datsun-2': { makeName: 'Nissan', makeSlug: 'nissan', source: 'override: stays Nissan' },
+  'datsun-3': { makeName: 'Nissan', makeSlug: 'nissan', source: 'override: stays Nissan' },
+  'datsun-4': { makeName: 'Nissan', makeSlug: 'nissan', source: 'override: stays Nissan' },
+  mit: {
+    makeName: 'Mitsubishi',
+    makeSlug: 'mitsubishi',
+    title: 'Mighty Max / Ram 50',
+    source: 'override: Mighty Max / Ram 50',
+  },
 }
 
 const TRUCKS = `*[_type == "truckModel" && !(_id in path("drafts.**"))] | order(slug.current asc) {
@@ -67,99 +88,118 @@ export function formatPlanTable(plans: TruckMakePlan[]): string {
   return [header, rule, ...rows].join('\n')
 }
 
-function makeIdFor(slug: string, existing: Map<string, MakeDoc>): string {
-  return existing.get(slug)?._id ?? `make.${slug}`
+function planJsonPath(argv: readonly string[]): string | null {
+  const index = argv.indexOf('--plan-json')
+  if (index === -1) return null
+  const file = argv[index + 1]
+  if (!file || file.startsWith('-')) {
+    console.error('--plan-json needs a file path')
+    process.exit(1)
+  }
+  return file
 }
 
-async function patchBoth(client: SanityClient, id: string, draftIds: Set<string>, set: Record<string, unknown>) {
-  await client.patch(id).set(set).commit()
-  const draftId = `drafts.${id}`
-  if (draftIds.has(draftId)) await client.patch(draftId).set(set).commit()
-}
-
-async function main() {
-  const client = createClient({ projectId, dataset, apiVersion, useCdn: false })
-  const [trucks, makes] = await Promise.all([
-    client.fetch<TruckDoc[]>(TRUCKS),
-    client.fetch<MakeDoc[]>(MAKES),
-  ])
-  const plans = trucks.flatMap((truck) => {
+function plansFrom(trucks: TruckDoc[]): TruckMakePlan[] {
+  return trucks.flatMap((truck) => {
     if (!truck._id || !truck.slug || !truck.title) return []
     return [
-      planTruckMake({
-        id: truck._id,
-        slug: truck.slug,
-        title: truck.title,
-        makeName: truck.makeName ?? '',
-        makeSlug: truck.makeSlug ?? '',
-        summary: truck.summary,
-      }),
+      planTruckMake(
+        {
+          id: truck._id,
+          slug: truck.slug,
+          title: truck.title,
+          makeName: truck.makeName ?? '',
+          makeSlug: truck.makeSlug ?? '',
+          summary: truck.summary,
+        },
+        TRUCK_OVERRIDES,
+      ),
     ]
   })
-  const bySlug = new Map(makes.flatMap((make) => (make.slug ? [[make.slug, make] as const] : [])))
+}
+
+async function loadCatalog(client: SanityClient) {
+  const [trucks, makes] = await Promise.all([client.fetch<TruckDoc[]>(TRUCKS), client.fetch<MakeDoc[]>(MAKES)])
+  return { trucks, makes }
+}
+
+function printPlan(plans: TruckMakePlan[], makes: MakeDoc[]) {
+  const bySlug = new Set(makes.flatMap((make) => (make.slug && !make._id.includes('.') ? [make.slug] : [])))
   const needed = new Map<string, string>()
   for (const plan of plans) {
     if (isCatchAllMake({ slug: plan.newMakeSlug, name: plan.newMake })) continue
     if (!bySlug.has(plan.newMakeSlug)) needed.set(plan.newMakeSlug, plan.newMake)
   }
-
   console.log(formatPlanTable(plans))
   console.log('')
   const flagged = plans.filter((plan) => plan.flagged)
   const changed = plans.filter((plan) => plan.changed)
   console.log(`${plans.length} trucks, ${changed.length} to change, ${flagged.length} flagged.`)
   if (needed.size > 0) {
-    console.log(`Create makes: ${[...needed.entries()].map(([slug, name]) => `${name} (${slug})`).join(', ')}`)
+    const names = [...needed.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([slug, name]) => `${name} (${slug})`)
+    console.log(`Create makes: ${names.join(', ')}`)
   } else {
     console.log('Create makes: none')
   }
   console.log(
-    `Homepage featured flags: ${FEATURED_MAKE_SLUGS.join(', ')}. More... stays the catch-all (${CATCH_ALL_SLUG}).`,
+    `Homepage featured flags: ${FEATURED_MAKE_SLUGS.join(', ')}. More... stays the catch-all (${CATCH_ALL_SLUG}). New makes are not featured.`,
   )
+}
 
-  if (!writesEnabled()) {
-    console.log('Dry run. Set BINDER_CONFIRM=1 and SANITY_API_TOKEN to patch Sanity.')
+async function main() {
+  const jsonPath = planJsonPath(process.argv)
+  const writing = writesEnabled() && !jsonPath
+  let client = createClient({ projectId, dataset, apiVersion, useCdn: false })
+  if (writing) {
+    const token = process.env.SANITY_API_TOKEN
+    if (!token) {
+      console.error('SANITY_API_TOKEN is not set')
+      process.exit(1)
+    }
+    client = createClient({ projectId, dataset, apiVersion, token, useCdn: false })
+  }
+
+  const { trucks, makes } = await loadCatalog(client)
+  const plans = plansFrom(trucks)
+  printPlan(plans, makes)
+  const { mutations, draftPatches } = buildMakeMutations(plans, makes)
+
+  if (jsonPath) {
+    writeFileSync(
+      jsonPath,
+      `${JSON.stringify(
+        {
+          note: 'Apply mutations in one transaction. Apply each draftPatches entry only when that draft exists. Draft sets are title and the make reference, and nothing else.',
+          mutations,
+          draftPatches,
+        },
+        null,
+        2,
+      )}\n`,
+    )
+    console.log(`Wrote ${jsonPath}. No Sanity writes.`)
     return
   }
 
-  const token = process.env.SANITY_API_TOKEN
-  if (!token) {
-    console.error('SANITY_API_TOKEN is not set')
-    process.exit(1)
+  if (!writing) {
+    console.log('Dry run. No Sanity writes.')
+    console.log('Write the mutations with: npm run fix:makes -- --plan-json makes.json')
+    console.log('Or patch Sanity with: BINDER_CONFIRM=1 SANITY_API_TOKEN=... npm run fix:makes')
+    return
   }
-  const writer = createClient({ projectId, dataset, apiVersion, token, useCdn: false })
+
+  for (const mutation of mutations) {
+    if ('createIfNotExists' in mutation) await client.createIfNotExists(mutation.createIfNotExists)
+    else await client.patch(mutation.patch.id).set(mutation.patch.set).commit()
+  }
   const draftIds = new Set(
-    await writer.fetch<string[]>(`*[_id in path("drafts.**") && _type in ["truckModel", "manufacturer"]]._id`),
+    await client.fetch<string[]>(`*[_id in path("drafts.**") && _type == "truckModel"]._id`),
   )
-
-  for (const [slug, name] of needed) {
-    const _id = `make.${slug}`
-    await writer.createIfNotExists({
-      _id,
-      _type: 'manufacturer',
-      name,
-      slug: { _type: 'slug', current: slug },
-      featured: false,
-      isCatchAll: false,
-    })
-    bySlug.set(slug, { _id, name, slug, featured: false, isCatchAll: false })
-  }
-
-  for (const make of makes) {
-    if (!make.slug || !make._id) continue
-    const catchAll = isCatchAllMake({ name: make.name, slug: make.slug, isCatchAll: make.isCatchAll })
-    const featured = catchAll ? false : (FEATURED_MAKE_SLUGS as readonly string[]).includes(make.slug)
-    await patchBoth(writer, make._id, draftIds, { featured, ...(catchAll ? { isCatchAll: true } : {}) })
-  }
-
-  for (const plan of plans) {
-    if (!plan.changed) continue
-    const ref = makeIdFor(plan.newMakeSlug, bySlug)
-    await patchBoth(writer, plan.id, draftIds, {
-      title: plan.newTitle,
-      manufacturer: { _type: 'reference', _ref: ref },
-    })
-    console.log(`patched ${plan.slug}`)
+  for (const mutation of draftPatches) {
+    if (!('patch' in mutation) || !draftIds.has(mutation.patch.id)) continue
+    await client.patch(mutation.patch.id).set(mutation.patch.set).commit()
   }
   console.log('Sanity patches committed.')
 }

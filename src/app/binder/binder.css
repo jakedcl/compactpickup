@@ -215,7 +215,6 @@
 }
 
 .binder-filters select,
-.binder-detail select,
 .binder-upload select,
 .binder-upload input,
 .binder-form input {
@@ -223,7 +222,6 @@
 }
 
 .binder-filters select,
-.binder-detail select,
 .binder-upload select {
   min-height: 44px;
   max-width: 100%;
@@ -294,7 +292,6 @@
 }
 
 .binder-card-copy,
-.binder-detail p,
 .binder-coverage li p {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -328,19 +325,6 @@
   border-top: 1px solid rgba(255, 255, 255, 0.45);
 }
 
-.binder-dialog {
-  width: min(560px, 100%);
-  max-width: 100%;
-  max-height: 100%;
-  margin: auto;
-  padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  background: var(--osd);
-  color: var(--ink);
-}
-
-.binder-dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
-
 .binder-progress {
   position: sticky;
   top: 0;
@@ -348,29 +332,6 @@
   margin: 0;
   padding: 8px 0;
   background: var(--osd);
-}
-
-.binder-detail {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-}
-
-.binder-detail img {
-  width: 100%;
-  max-height: 50vh;
-  object-fit: contain;
-  background: var(--osd-deep);
-}
-
-.binder-detail label {
-  display: grid;
-  gap: 6px;
-  font-family: var(--font-display);
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent);
 }
 
 .binder-upload {
@@ -432,10 +393,6 @@
 
 @media (min-width: 800px) {
   .binder-grid { grid-template-columns: repeat(4, 1fr); }
-  .binder-dialog {
-    width: min(720px, calc(100% - 48px));
-    padding: 24px;
-  }
 }
 
 .review-screen {
