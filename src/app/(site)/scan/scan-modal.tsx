@@ -72,7 +72,12 @@ export default function ScanModal({
   }, [onClose])
 
   return (
-    <div className="scan-modal-backdrop">
+    <div
+      className="scan-modal-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <div
         ref={dialogRef}
         className="scan-modal"

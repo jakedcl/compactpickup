@@ -126,6 +126,7 @@ export default function Scanner({
   const [submitPhase, setSubmitPhase] = useState<SubmitPhase>('idle')
   const [submitMessage, setSubmitMessage] = useState('')
   const [dragging, setDragging] = useState(false)
+  const [chosenTruck, setChosenTruck] = useState<ScanCatalogTruck | null>(null)
 
   const busy = phase === 'working' || submitPhase === 'sending'
   const top = result?.matches[0] ?? null
@@ -155,6 +156,7 @@ export default function Scanner({
     setCorrection(null)
     setSubmitPhase('idle')
     setSubmitMessage('')
+    setChosenTruck(null)
     setStatus('Pick a photo, then press Scan when you are ready.')
   }, [clearPreviewUrl])
 
@@ -177,8 +179,23 @@ export default function Scanner({
     setCorrection(null)
     setSubmitPhase('idle')
     setSubmitMessage('')
+    setChosenTruck(null)
     setStatus('Press Scan when you are ready, or replace the photo.')
   }, [clearPreviewUrl])
+
+  function pickGuess(match: ScanMatch, index: number) {
+    if (!top) return
+    if (index === 0) {
+      setVerdict('right')
+      setCorrection(null)
+      setChosenTruck(match)
+    } else {
+      setVerdict('wrong')
+      setCorrection({ kind: 'catalog', truck: match })
+      setChosenTruck(match)
+    }
+    setModalStep('consent')
+  }
 
   const scanPhoto = useCallback(async () => {
     if (!file) return
@@ -365,9 +382,8 @@ export default function Scanner({
     }
   }
 
-  function closeModal() {
-    setModalOpen(false)
-    setModalStep('results')
+  function dismissModal() {
+    resetSession()
   }
 
   const modalTitle =
@@ -395,7 +411,7 @@ export default function Scanner({
           <p>No photo yet</p>
         )}
       </div>
-      <div className="scan-actions">
+      <div className={`scan-actions${device === 'desktop' ? ' is-single' : ''}`}>
         {device === 'unknown' ? (
           <p className="scan-device-wait" role="status">
             Preparing camera controls
@@ -457,15 +473,7 @@ export default function Scanner({
           <button type="button" className="btn btn-accent" disabled={busy} onClick={() => void scanPhoto()}>
             {phase === 'working' ? 'Scanning…' : 'Scan'}
           </button>
-          <button
-            type="button"
-            className="btn"
-            disabled={busy}
-            onClick={() => {
-              if (device === 'mobile') libraryInputRef.current?.click()
-              else chooseInputRef.current?.click()
-            }}
-          >
+          <button type="button" className="btn" disabled={busy} onClick={resetSession}>
             Replace photo
           </button>
         </div>
@@ -483,7 +491,7 @@ export default function Scanner({
       ) : null}
 
       {modalOpen ? (
-        <ScanModal title={modalTitle} onClose={closeModal}>
+        <ScanModal title={modalTitle} onClose={dismissModal}>
           {modalStep === 'results' && result ? (
             <div className="scan-modal-panel">
               {result.state === 'guess' && result.matches.length > 0 ? (
@@ -495,17 +503,19 @@ export default function Scanner({
                 <ol className="scan-results">
                   {result.matches.slice(0, 2).map((match, index) => (
                     <li key={match.id}>
-                      <Link href={match.href} className="card scan-hit">
-                        <span className="card-copy">
-                          <span className="card-label">
-                            {index === 0 ? (result.state === 'match' ? 'Closest' : 'Closest guess') : 'Next closest'}
+                      <button type="button" className="scan-guess" onClick={() => pickGuess(match, index)}>
+                        <span className="card scan-hit">
+                          <span className="card-copy">
+                            <span className="card-label">
+                              {index === 0 ? (result.state === 'match' ? 'Closest' : 'Closest guess') : 'Next closest'}
+                            </span>
+                            <span className="card-label">{match.maker}</span>
+                            <span className="card-title">{match.title}</span>
+                            {match.years ? <span>{match.years}</span> : null}
+                            <span className="meta">Match {formatScanScorePercent(match.score)}</span>
                           </span>
-                          <span className="card-label">{match.maker}</span>
-                          <span className="card-title">{match.title}</span>
-                          {match.years ? <span>{match.years}</span> : null}
-                          <span className="meta">Match {formatScanScorePercent(match.score)}</span>
                         </span>
-                      </Link>
+                      </button>
                     </li>
                   ))}
                 </ol>
@@ -514,37 +524,31 @@ export default function Scanner({
               )}
               {canFeedback ? (
                 <>
-                  <h2 className="scan-modal-heading">Is this correct?</h2>
-                  <div className="scan-choice scan-choice-triple">
-                    <button
-                      type="button"
-                      className="btn btn-accent"
-                      onClick={() => {
-                        setVerdict('right')
-                        setModalStep('consent')
-                      }}
-                    >
-                      Yes
-                    </button>
+                  <p className="scan-pick-prompt">Tap the right truck, or:</p>
+                  <div className="scan-choice">
                     <button
                       type="button"
                       className="btn"
                       onClick={() => {
                         setVerdict('wrong')
+                        setCorrection(null)
+                        setChosenTruck(null)
                         setModalStep('correction')
                       }}
                     >
-                      No
+                      Wrong
                     </button>
                     <button
                       type="button"
                       className="btn"
                       onClick={() => {
                         setVerdict('idk')
+                        setCorrection(null)
+                        setChosenTruck(top)
                         setModalStep('consent')
                       }}
                     >
-                      IDK
+                      Not sure
                     </button>
                   </div>
                 </>
@@ -565,8 +569,13 @@ export default function Scanner({
                   trucks={trucks}
                   disabled={busy}
                   onPick={(pick) => {
-                    if (pick.kind === 'catalog') setCorrection({ kind: 'catalog', truck: pick.truck })
-                    else setCorrection({ kind: 'custom', text: pick.text })
+                    if (pick.kind === 'catalog') {
+                      setCorrection({ kind: 'catalog', truck: pick.truck })
+                      setChosenTruck(pick.truck)
+                    } else {
+                      setCorrection({ kind: 'custom', text: pick.text })
+                      setChosenTruck(null)
+                    }
                     setModalStep('consent')
                   }}
                 />
@@ -610,6 +619,14 @@ export default function Scanner({
               <p role="status">
                 {submitMessage || (submitPhase === 'sent' ? 'Photo saved to Pending.' : 'Thanks for the report.')}
               </p>
+              {chosenTruck ? (
+                <Link href={chosenTruck.href} className="btn">
+                  {chosenTruck.maker} {chosenTruck.title}
+                  {chosenTruck.years ? ` · ${chosenTruck.years}` : ''}
+                </Link>
+              ) : correction?.kind === 'custom' ? (
+                <p className="scan-consent-copy">Noted: {correction.text}</p>
+              ) : null}
               <button type="button" className="btn btn-accent" onClick={resetSession}>
                 Scan another
               </button>
