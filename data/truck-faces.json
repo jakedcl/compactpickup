@@ -1,0 +1,35 @@
+{
+  "note": "Optional coverage labels. The seed script matches Sanity slug.current and looks up the truckModel _id. Face tags never affect matching. Add confirmed trucks to this list later. Do not invent faces. Removing a label here does not delete a row that was already seeded.",
+  "trucks": [
+    {
+      "slug": "b-5",
+      "title": "B-Series (5th Gen)",
+      "labels": ["1994-97", "1998-2000", "2001-09"]
+    },
+    {
+      "slug": "hombre",
+      "title": "Hombre",
+      "labels": ["1996-98", "1999-2000"]
+    },
+    {
+      "slug": "volks-rabbit",
+      "title": "Volkswagen Rabbit (Caddy Mk1)",
+      "labels": ["1980", "1981-83"]
+    },
+    {
+      "slug": "hardbody-d21",
+      "title": "Hardbody D21",
+      "labels": ["1986-92", "1993-97"]
+    },
+    {
+      "slug": "frontier-2",
+      "title": "Frontier (2nd Gen, D40)",
+      "labels": ["2005-08", "2009-21"]
+    },
+    {
+      "slug": "dodge-rampage",
+      "title": "Dodge Rampage",
+      "labels": ["1982-83", "1984"]
+    }
+  ]
+}

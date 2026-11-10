@@ -27,7 +27,18 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The Sanity project id and dataset are set in `src/lib/sanity.ts` and the data is public, so the site runs without any environment variables.
+Open http://localhost:3000. The Sanity project id and dataset are set in `src/lib/sanity.ts` and the data is public, so the public site runs without any environment variables.
+
+The binder (admin photo library at `/admin`, not linked in the nav) needs the variables in `.env.example`. Sign-in allows only `ADMIN_EMAIL` (jakedcl73@gmail.com) via a one-time email code. Migrations and imports use the direct Neon URL and stay a dry run until `BINDER_CONFIRM=1`:
+
+```sh
+npm run db:migrate
+BINDER_CONFIRM=1 npm run db:migrate
+npm run import:sanity
+BINDER_CONFIRM=1 npm run import:sanity
+npm run import:folder -- ./path/to/folder
+npm run seed:faces
+```
 
 To work on content locally, use the site at `/studio` (`npm run dev`) or run `npm run studio:dev` for a standalone dev server. Other scripts are `npm run build`, `npm run start` and `npm run lint`.
 
@@ -35,8 +46,13 @@ To work on content locally, use the site at `/studio` (`npm run dev`) or run `np
 
 ```
 src/app/(site)/       pages (home, [manufacturer], timeline, browse, game)
-src/app/api/          catalog API
+src/app/admin/        binder sign-in and photo counts
+src/app/api/          catalog API, auth, admin photo bytes
 src/components/       ImageCarousel and the 3D truck viewer
 src/lib/sanity.ts     Sanity client and queries
+src/lib/binder/       database, R2, image compress, session
+db/migrations/        binder SQL
+data/truck-faces.json optional face labels
+scripts/              migrate, import, seed
 sanity/               studio and schemas
 ```

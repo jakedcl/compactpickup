@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // /admin is the binder. Studio stays at /studio.
+  serverExternalPackages: ['pg', 'sharp'],
   images: {
     deviceSizes: [640, 750, 828, 1080, 1200, 1600],
     imageSizes: [48, 64, 96, 128, 160, 256, 384],
@@ -12,12 +14,6 @@ const nextConfig: NextConfig = {
         pathname: '/images/**',
       },
     ],
-  },
-  async redirects() {
-    return [
-      { source: "/admin", destination: "/studio", permanent: false },
-      { source: "/admin/:path*", destination: "/studio/:path*", permanent: false },
-    ];
   },
 };
 
