@@ -37,6 +37,15 @@ const ANGLE_LABEL: Record<PhotoAngle, string> = {
   other: 'Other',
 }
 
+const ANGLE_SHORT: Record<PhotoAngle, string> = {
+  front: 'Front',
+  'front-3q': '3/4 front',
+  side: 'Side',
+  'rear-3q': '3/4 rear',
+  rear: 'Rear',
+  other: 'Other',
+}
+
 function messageFrom(error: unknown, fallback: string) {
   return error instanceof BinderApiError || error instanceof Error ? error.message : fallback
 }
@@ -219,8 +228,17 @@ export function ReviewMode({
 
   useEffect(() => {
     closeRef.current?.focus()
-    const previous = document.body.style.overflow
+    const scrollY = window.scrollY
+    const previousBody = document.body.style.overflow
+    const previousHtml = document.documentElement.style.overflow
+    const previousPosition = document.body.style.position
+    const previousTop = document.body.style.top
+    const previousWidth = document.body.style.width
+    document.documentElement.style.overflow = 'hidden'
     document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
     const root = dialogRef.current
     function onTab(event: KeyboardEvent) {
       if (event.key !== 'Tab' || !root) return
@@ -254,7 +272,12 @@ export function ReviewMode({
     }
     document.addEventListener('keydown', onTab, true)
     return () => {
-      document.body.style.overflow = previous
+      document.body.style.overflow = previousBody
+      document.documentElement.style.overflow = previousHtml
+      document.body.style.position = previousPosition
+      document.body.style.top = previousTop
+      document.body.style.width = previousWidth
+      window.scrollTo(0, scrollY)
       document.removeEventListener('keydown', onTab, true)
     }
   }, [])
@@ -433,94 +456,118 @@ export function ReviewMode({
           </button>
           <p>{photo ? `${left} of ${session.total} remaining` : 'Review'}</p>
         </div>
-        {photo && listed ? (
-          <>
-            {/* Private bytes. next/image would send them through the paid optimizer. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+        <div className="review-stage">
+          {photo && listed ? (
+            // Private bytes. next/image would send them through the paid optimizer.
+            // eslint-disable-next-line @next/next/no-img-element
             <img className="review-photo" src={photoImagePath(photo.id, photo.sha256)} alt={truckTitle(trucks, photo)} />
+          ) : (
+            <div className="review-empty">
+              {!photo && cursor && loading ? <p role="status">Loading more photos…</p> : null}
+              {!photo && cursor && !loading ? (
+                <p className="binder-note is-bad" role="alert">
+                  {listError ?? 'More photos did not load.'}{' '}
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      asked.current = null
+                      onLoadMore()
+                    }}
+                  >
+                    Try again
+                  </button>
+                </p>
+              ) : null}
+              {!photo && !cursor ? <p role="status">All caught up.</p> : null}
+            </div>
+          )}
+        </div>
+        {photo && listed ? (
+          <div className="review-controls">
             <p className="review-title">
               {truckTitle(trucks, photo)} <span>{photo.truckSlug}</span>
             </p>
-            {sourceLine ? <p className="binder-meta">{sourceLine}</p> : null}
-            <div className="review-row">
-              <ModelCombobox
-                id="review-model"
-                label="Model"
-                hint="/"
-                trucks={trucks}
-                make=""
-                value={photo.truckId ?? ''}
-                disabled={truckBusy}
-                inputRef={modelRef}
-                onChange={(nextId) => void changeTruck(nextId)}
-              />
-            </div>
+            {sourceLine ? <p className="binder-meta review-source">{sourceLine}</p> : null}
+            <ModelCombobox
+              id="review-model"
+              label="Model"
+              hint="/"
+              trucks={trucks}
+              make=""
+              value={photo.truckId ?? ''}
+              disabled={truckBusy}
+              inputRef={modelRef}
+              placement="up"
+              onChange={(nextId) => void changeTruck(nextId)}
+            />
             <div className="review-row">
               <p className="review-label">Angle</p>
-            <div className="review-grid" role="group" aria-label="Angle">
-              {PHOTO_ANGLES.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={angle === value ? 'btn btn-accent' : 'btn'}
-                  aria-pressed={angle === value}
-                  onClick={() => setAngle(value)}
-                >
-                  {ANGLE_LABEL[value]}
-                  <span className="review-key">{angleShortcut(value)}</span>
-                </button>
-              ))}
-            </div>
+              <div className="review-grid review-angles" role="group" aria-label="Angle">
+                {PHOTO_ANGLES.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={angle === value ? 'btn btn-accent' : 'btn'}
+                    aria-pressed={angle === value}
+                    aria-label={`${ANGLE_LABEL[value]} ${angleShortcut(value)}`}
+                    onClick={() => setAngle(value)}
+                  >
+                    {ANGLE_SHORT[value]}
+                    <span className="review-key">{angleShortcut(value)}</span>
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="review-row">
               <p className="review-label">Facelift</p>
-            {truckFaces.length > 0 ? (
-              <div className="review-grid" role="group" aria-label="Facelift">
-                <button
-                  type="button"
-                  className={faceId === null ? 'btn btn-accent' : 'btn'}
-                  aria-pressed={faceId === null}
-                  onClick={() => setFaceId(null)}
-                >
-                  None
-                  <span className="review-key">0</span>
-                </button>
-                {truckFaces.map((face, index) => {
-                  const shortcut = faceShortcut(index)
-                  return (
-                    <button
-                      key={face.id}
-                      type="button"
-                      className={faceId === face.id ? 'btn btn-accent' : 'btn'}
-                      aria-pressed={faceId === face.id}
-                      onClick={() => setFaceId(face.id)}
-                    >
-                      {face.label}
-                      {shortcut ? <span className="review-key">{shortcut}</span> : null}
-                    </button>
-                  )
-                })}
-              </div>
-            ) : (
-              <p>No facelift tags for this truck.</p>
-            )}
+              {truckFaces.length > 0 ? (
+                <div className="review-grid review-faces" role="group" aria-label="Facelift">
+                  <button
+                    type="button"
+                    className={faceId === null ? 'btn btn-accent' : 'btn'}
+                    aria-pressed={faceId === null}
+                    onClick={() => setFaceId(null)}
+                  >
+                    None
+                    <span className="review-key">0</span>
+                  </button>
+                  {truckFaces.map((face, index) => {
+                    const shortcut = faceShortcut(index)
+                    return (
+                      <button
+                        key={face.id}
+                        type="button"
+                        className={faceId === face.id ? 'btn btn-accent' : 'btn'}
+                        aria-pressed={faceId === face.id}
+                        onClick={() => setFaceId(face.id)}
+                      >
+                        {face.label}
+                        {shortcut ? <span className="review-key">{shortcut}</span> : null}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p>No facelift tags for this truck.</p>
+              )}
             </div>
             <div className="review-row review-decide">
               <p className="review-label">Decision</p>
-            <div className="review-grid">
-              <button type="button" className="btn btn-accent" onClick={() => act('approved')} disabled={!photo.truckId}>
-                Approve
-                <span className="review-key">A</span>
-              </button>
-              <button type="button" className="btn" onClick={() => act('rejected')}>
-                Reject
-                <span className="review-key">R</span>
-              </button>
-              <button type="button" className="btn" onClick={skipPhoto}>
-                Skip
-                <span className="review-key">S</span>
-              </button>
-            </div>
+              <div className="review-grid review-choices">
+                <button type="button" className="btn btn-accent" onClick={() => act('approved')} disabled={!photo.truckId}>
+                  Approve
+                  <span className="review-key">A</span>
+                </button>
+                <button type="button" className="btn" onClick={() => act('rejected')}>
+                  Reject
+                  <span className="review-key">R</span>
+                </button>
+                <button type="button" className="btn" onClick={skipPhoto}>
+                  Skip
+                  <span className="review-key">S</span>
+                </button>
+              </div>
             </div>
             <div className="review-row">
               <p className="review-label">Fix</p>
@@ -536,25 +583,8 @@ export function ReviewMode({
                 {truckError}
               </p>
             ) : null}
-          </>
+          </div>
         ) : null}
-        {!photo && cursor && loading ? <p role="status">Loading more photos…</p> : null}
-        {!photo && cursor && !loading ? (
-          <p className="binder-note is-bad" role="alert">
-            {listError ?? 'More photos did not load.'}{' '}
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                asked.current = null
-                onLoadMore()
-              }}
-            >
-              Try again
-            </button>
-          </p>
-        ) : null}
-        {!photo && !cursor ? <p role="status">All caught up.</p> : null}
         {toast ? (
           <p className="binder-note is-bad" role="alert">
             {toast}{' '}
@@ -566,7 +596,7 @@ export function ReviewMode({
           </p>
         ) : null}
       </div>
-      <FingerprintPanel runner={runner} />
+      <FingerprintPanel runner={runner} variant="review" />
     </div>
   )
 }

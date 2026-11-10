@@ -14,6 +14,7 @@ export function ModelCombobox({
   id,
   inputRef,
   disabled,
+  placement = 'down',
 }: {
   trucks: readonly ModelChoice[]
   make: string
@@ -24,6 +25,8 @@ export function ModelCombobox({
   id: string
   inputRef?: { current: HTMLInputElement | null }
   disabled?: boolean
+  /** Up overlays the rows above the field. Down overlays whatever follows it. */
+  placement?: 'down' | 'up'
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -42,7 +45,7 @@ export function ModelCombobox({
 
   return (
     <div
-      className="model-combo"
+      className={`model-combo${placement === 'up' ? ' is-up' : ''}${open ? ' is-open' : ''}`}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
       }}

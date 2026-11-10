@@ -189,7 +189,13 @@ export function useFingerprintRunner() {
 
 export type FingerprintRunner = ReturnType<typeof useFingerprintRunner>
 
-export function FingerprintPanel({ runner }: { runner: FingerprintRunner }) {
+export function FingerprintPanel({
+  runner,
+  variant = 'dock',
+}: {
+  runner: FingerprintRunner
+  variant?: 'dock' | 'review'
+}) {
   const [open, setOpen] = useState(false)
   const [catching, setCatching] = useState(false)
   const [note, setNote] = useState<string | null>(null)
@@ -210,6 +216,31 @@ export function FingerprintPanel({ runner }: { runner: FingerprintRunner }) {
     } finally {
       setCatching(false)
     }
+  }
+
+  if (variant === 'review') {
+    return (
+      <aside className="fp-panel fp-review" aria-label="Fingerprints">
+        <p className="fp-strip">
+          Fingerprints
+          <span className="review-key">
+            {counts.waiting} waiting · {counts.done} done · {counts.failed} failed
+            {modelLine ? ` · ${modelLine}` : ''}
+            {running ? ' · fingerprinting' : ''}
+          </span>
+        </p>
+        <div className="fp-strip-actions">
+          <button type="button" className="btn" onClick={() => runner.retry()} disabled={counts.failed === 0}>
+            Retry
+          </button>
+          <button type="button" className="btn" onClick={() => void catchUp()} disabled={catching} aria-label="Finish missing fingerprints">
+            {catching ? 'Looking' : 'Finish'}
+          </button>
+        </div>
+        {failed?.error ? <p className="fp-strip">{failed.error}</p> : null}
+        {note ? <p className="fp-strip">{note}</p> : null}
+      </aside>
+    )
   }
 
   return (

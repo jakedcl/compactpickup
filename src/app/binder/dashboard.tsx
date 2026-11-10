@@ -339,6 +339,12 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
     setSelected((current) => applySelection(current, 'toggle', [], id))
   }
 
+  function startReview() {
+    const first = photos[0]
+    if (!photoTab || !first) return
+    setReviewId(first.id)
+  }
+
   function chooseMake(next: string) {
     setMakeFilter(next)
     setModelFilter((current) => {
@@ -381,6 +387,12 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
       <section className="binder-section" aria-label="Tools">
         <h2>Tools</h2>
         <div className="binder-tools">
+          <div className="binder-tool">
+            <button type="button" className="btn" onClick={() => startReview()} disabled={!photoTab || photos.length === 0}>
+              Start review
+            </button>
+            <p>Go through photos one at a time.</p>
+          </div>
           <div className="binder-tool">
             <button type="button" className={adding ? 'btn btn-accent' : 'btn'} aria-pressed={adding} onClick={() => setAdding((value) => !value)}>
               Add photos
@@ -502,6 +514,13 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
                   ? 'No approved photos yet.'
                   : 'No rejected photos.'}
             </p>
+          ) : null}
+          {photos.length > 0 ? (
+            <div className="binder-actions binder-review-start">
+              <button type="button" className="btn btn-accent" onClick={() => startReview()}>
+                Start review
+              </button>
+            </div>
           ) : null}
           <ul className="binder-grid">
             {photos.map((photo) => {
