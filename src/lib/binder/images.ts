@@ -10,11 +10,19 @@ export const WEBP_QUALITY = 80
 export const MAX_ORIGINAL_BYTES = 25 * 1024 * 1024
 /** Rejects decompression bombs before sharp allocates the pixels. */
 export const SHARP_PIXEL_LIMIT = 40_000_000
+export const MAX_INPUT_PIXELS = SHARP_PIXEL_LIMIT
 
 const UPLOAD_FORMATS = new Set(['jpeg', 'png', 'webp', 'heif', 'avif'])
 
 function decode(input: Buffer) {
   return sharp(input, { failOn: 'none', limitInputPixels: SHARP_PIXEL_LIMIT })
+}
+
+export function pixelCountAllowed(width: number | undefined, height: number | undefined): boolean {
+  if (width == null || height == null) return false
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return false
+  if (width < 1 || height < 1) return false
+  return width * height <= SHARP_PIXEL_LIMIT
 }
 
 export function sha256Hex(bytes: Buffer): string {
@@ -30,6 +38,8 @@ export async function assertUploadFormat(input: Buffer): Promise<void> {
 export async function compressToWebp(
   input: Buffer,
 ): Promise<{ data: Buffer; width: number; height: number }> {
+  const meta = await decode(input).metadata()
+  if (!pixelCountAllowed(meta.width, meta.height)) throw new Error('image has too many pixels')
   const { data, info } = await decode(input)
     .rotate()
     .resize({
