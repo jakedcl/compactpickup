@@ -7,6 +7,7 @@ export type CoverageItem = {
   title: string
   maker: string
   approved: number
+  fingerprinted: number
   needsFront: boolean
   needsSide: boolean
   missingFaces: string[]
@@ -65,7 +66,7 @@ export function CoverageList({
               <h2>{truck.title}</h2>
               <p>
                 {truck.maker ? `${truck.maker} · ` : ''}
-                {truck.approved} approved
+                {truck.approved} approved, {truck.fingerprinted} fingerprinted
               </p>
               {!truck.caughtUp ? (
                 <ul className="binder-chips">

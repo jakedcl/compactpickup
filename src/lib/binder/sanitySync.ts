@@ -73,7 +73,7 @@ export function plannedFromImage(
 
 export async function downloadSanityDerivative(url: string): Promise<Buffer> {
   assertSanityCdnUrl(url)
-  const response = await fetch(url, { signal: AbortSignal.timeout(30_000) })
+  const response = await fetch(url, { signal: AbortSignal.timeout(8_000) })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   const type = response.headers.get('content-type') ?? ''
   if (type.startsWith('text/')) throw new Error('not an image')

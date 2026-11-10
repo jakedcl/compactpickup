@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import PageHeader from '@/components/ui/PageHeader'
-import { Dashboard } from '@/app/binder/dashboard'
+import { BinderDashboard } from '@/app/binder/dashboard-client'
 import { LoginForm } from '@/app/binder/login-form'
 import { BinderShell } from '@/app/binder/shell'
 import { photoCounts, type PhotoCounts } from '@/lib/binder/photos'
@@ -41,7 +41,7 @@ export default async function BinderPage() {
         title="Photo library"
         lede={`Signed in as ${session.email}. Nothing matches until you approve it.`}
       />
-      <Dashboard initialCounts={counts} />
+      <BinderDashboard initialCounts={counts} />
     </BinderShell>
   )
 }

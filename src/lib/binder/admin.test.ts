@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import sharp from 'sharp'
 import { POST as embeddingsPost } from '../../app/api/admin/photos/embeddings/route'
 import { GET as imageGet, PATCH as imagePatch } from '../../app/api/admin/photos/[id]/route'
 import { POST as statusPost } from '../../app/api/admin/photos/status/route'
@@ -7,12 +8,15 @@ import { POST as uploadPost } from '../../app/api/admin/uploads/route'
 import { CLIP_EMBEDDING_DIM } from './clip'
 import { normalizeEmbedding, vectorLiteral } from './embedding'
 import {
+  bytesForStoredPhoto,
+  handleCoverage,
   handleEmbeddings,
   handlePhotoImage,
   handlePhotoList,
   handlePhotoPatch,
   handlePhotoStatus,
   handleSanitySync,
+  handleTrucks,
   handleUpload,
   type AdminSql,
 } from './admin-handlers'
@@ -95,6 +99,7 @@ test('status changes are validated and never delete a photo', async () => {
     assert.equal(body.status, status)
     const call = db.calls[0]
     assert.match(call.sql, /reviewed_at = case when \$1::text = 'pending' then null else now\(\) end/)
+    assert.match(call.sql, /embedding = case when \$1::text = 'approved' then embedding else null end/)
     assert.equal(call.params[0], status)
     assert.equal(call.params[1], ID)
     assert.equal(/delete\s+from\s+photos/i.test(call.sql), false)
@@ -189,6 +194,21 @@ test('photo edits reject a bad angle and a face tag from another truck', async (
   assert.equal(saved.status, 200)
   const update = editing.calls.find((call) => call.sql.startsWith('update'))
   assert.equal(update?.params[2], 'rear')
+  assert.match(update?.sql ?? '', /truck_id = \$6/)
+  assert.equal(update?.params[5], 'truck-1')
+
+  const raced = fakeDb((sql) => {
+    if (sql.startsWith('select truck_id')) {
+      return { rows: [{ truck_id: 'truck-1', truck_slug: 'b-5', angle: null, face_tag_id: null }] }
+    }
+    return { rows: [] }
+  })
+  const conflict = await handlePhotoPatch(
+    post(`https://compactpickup.local/api/admin/photos/${ID}`, { angle: 'side' }),
+    ID,
+    { session: signedIn, db: raced },
+  )
+  assert.equal(conflict.status, 409)
 })
 
 test('list and image routes validate the query before reading a photo', async () => {
@@ -214,6 +234,23 @@ test('list and image routes validate the query before reading a photo', async ()
   )
   assert.equal(image.status, 400)
   assert.equal(reads, 0)
+
+  const payload = new Uint8Array([9, 8, 7, 6])
+  const full = await handlePhotoImage(new Request(`https://compactpickup.local/api/admin/photos/${ID}`), ID, {
+    session: signedIn,
+    readImage: async () => payload,
+  })
+  assert.equal(full.status, 200)
+  assert.equal(full.headers.get('cache-control'), 'private, no-cache')
+  const etag = full.headers.get('etag')
+  assert.ok(etag)
+  const cached = await handlePhotoImage(
+    new Request(`https://compactpickup.local/api/admin/photos/${ID}`, { headers: { 'if-none-match': etag ?? '' } }),
+    ID,
+    { session: signedIn, readImage: async () => payload },
+  )
+  assert.equal(cached.status, 304)
+  assert.equal(cached.headers.get('cache-control'), 'private, no-cache')
 })
 
 test('upload requires a catalog truck and marks the photo as an owner upload', async () => {
@@ -226,9 +263,14 @@ test('upload requires a catalog truck and marks the photo as an owner upload', a
   )
   assert.equal(invalid.status, 400)
 
+  const png = await sharp({
+    create: { width: 8, height: 8, channels: 3, background: { r: 10, g: 20, b: 30 } },
+  })
+    .png()
+    .toBuffer()
   const good = new FormData()
   good.set('truckId', 'truck-1')
-  good.set('file', new File([Uint8Array.from([1, 2, 3, 4])], 'b.jpg', { type: 'image/jpeg' }))
+  good.set('file', new File([new Uint8Array(png)], 'b.png', { type: 'image/png' }))
   let source = ''
   const response = await handleUpload(
     new Request('https://compactpickup.local/api/admin/uploads', { method: 'POST', headers: { origin: ORIGIN }, body: good }),
@@ -246,6 +288,114 @@ test('upload requires a catalog truck and marks the photo as an owner upload', a
   assert.equal(source, 'jake-upload')
   const body = (await response.json()) as { outcome: string }
   assert.equal(body.outcome, 'inserted')
+
+  const junk = new FormData()
+  junk.set('truckId', 'truck-1')
+  junk.set('file', new File([Uint8Array.from([1, 2, 3, 4])], 'notes.txt', { type: 'text/plain' }))
+  let stored = false
+  const rejected = await handleUpload(
+    new Request('https://compactpickup.local/api/admin/uploads', { method: 'POST', headers: { origin: ORIGIN }, body: junk }),
+    {
+      session: signedIn,
+      trucks: async () => [{ id: 'truck-1', slug: 'b-5', title: 'B-Series', maker: 'Mazda' }],
+      store: async () => {
+        stored = true
+        return 'inserted'
+      },
+    },
+  )
+  assert.equal(rejected.status, 400)
+  assert.equal(stored, false)
+})
+
+test('coverage and the truck list require a session and return the catalog', async () => {
+  assert.equal((await handleCoverage(new Request('https://compactpickup.local/api/admin/coverage'))).status, 401)
+  assert.equal((await handleTrucks(new Request('https://compactpickup.local/api/admin/trucks'))).status, 401)
+
+  const catalog = async () => [{ id: 'truck-1', slug: 'b-5', title: 'B-Series', maker: 'Mazda' }]
+  const trucks = await handleTrucks(new Request('https://compactpickup.local/api/admin/trucks'), {
+    session: signedIn,
+    trucks: catalog,
+    db: fakeDb(() => ({ rows: [{ id: FACE, truck_id: 'truck-1', label: '1988' }] })),
+  })
+  assert.equal(trucks.status, 200)
+  const truckBody = (await trucks.json()) as { trucks: { slug: string }[]; faces: { label: string }[] }
+  assert.equal(truckBody.trucks[0]?.slug, 'b-5')
+  assert.equal(truckBody.faces[0]?.label, '1988')
+
+  const coverageDb = fakeDb((sql) => {
+    if (sql.includes('group by face_tag_id')) return { rows: [{ face_tag_id: FACE, n: 0 }] }
+    if (sql.includes('from truck_faces')) return { rows: [{ id: FACE, truck_id: 'truck-1', label: '1988' }] }
+    if (sql.includes('as fingerprinted')) {
+      return { rows: [{ truck_id: 'truck-1', approved: 3, fingerprinted: 1, fronts: 0, sides: 1 }] }
+    }
+    return { rows: [] }
+  })
+  const coverage = await handleCoverage(new Request('https://compactpickup.local/api/admin/coverage'), {
+    session: signedIn,
+    trucks: catalog,
+    db: coverageDb,
+  })
+  assert.equal(coverage.status, 200)
+  const coverageBody = (await coverage.json()) as {
+    trucks: { slug: string; approved: number; fingerprinted: number; needsFront: boolean; needsSide: boolean }[]
+  }
+  assert.equal(coverageBody.trucks[0]?.slug, 'b-5')
+  assert.equal(coverageBody.trucks[0]?.approved, 3)
+  assert.equal(coverageBody.trucks[0]?.fingerprinted, 1)
+  assert.equal(coverageBody.trucks[0]?.needsFront, true)
+  assert.equal(coverageBody.trucks[0]?.needsSide, false)
+})
+
+test('a missing thumbnail is built from the full photo', async () => {
+  const sha = 'a'.repeat(64)
+  const puts: string[] = []
+  const built = await bytesForStoredPhoto(
+    { r2Key: `photos/${sha}.webp`, sha256: sha },
+    'thumb',
+    {
+      read: async () => new Uint8Array([1, 2, 3]),
+      readIfExists: async () => null,
+      put: async (key) => {
+        puts.push(key)
+      },
+      thumb: async () => Buffer.from([9]),
+    },
+  )
+  assert.deepEqual(puts, [`thumbs/${sha}.webp`])
+  assert.deepEqual([...built], [9])
+
+  const cached = await bytesForStoredPhoto(
+    { r2Key: `photos/${sha}.webp`, sha256: sha },
+    'thumb',
+    {
+      read: async () => {
+        throw new Error('full')
+      },
+      readIfExists: async () => new Uint8Array([4]),
+      put: async () => {
+        throw new Error('put')
+      },
+      thumb: async () => {
+        throw new Error('thumb')
+      },
+    },
+  )
+  assert.deepEqual([...cached], [4])
+
+  const kept = await bytesForStoredPhoto(
+    { r2Key: `photos/${sha}.webp`, sha256: sha },
+    'thumb',
+    {
+      read: async () => new Uint8Array([1]),
+      readIfExists: async () => null,
+      put: async () => {
+        throw new Error('put')
+      },
+      thumb: async () => Buffer.from([7]),
+    },
+  )
+  assert.deepEqual([...kept], [7])
 })
 
 test('sanity sync ignores a bad skip list and reports the batch', async () => {

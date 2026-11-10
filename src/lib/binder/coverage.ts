@@ -13,6 +13,7 @@ export type CoverageTruck = {
   title: string
   maker: string
   approved: number
+  fingerprinted: number
   front: number
   side: number
   faces: CoverageFace[]

@@ -6,7 +6,7 @@
  *   commons/<slug>/*.webp
  *   manifest.jsonl with source URL, license, author, and title.
  * source defaults to commons when the folder has a commons/ directory and the line omits it.
- * truckId is optional; a missing id is looked up from the Sanity slug.
+ * The truck id always comes from the Sanity slug. A truckId in the manifest is ignored.
  *
  *   npm run import:folder -- ./path/to/folder
  *   BINDER_CONFIRM=1 npm run import:folder -- /workspace/cp-photo-pull
@@ -20,7 +20,7 @@ import { writesEnabled } from '../src/lib/binder/confirm'
 import { withDirectClient } from '../src/lib/binder/db'
 import { BINDER_WRITE_ENV, requireEnvs } from '../src/lib/binder/env'
 import { MAX_ORIGINAL_BYTES } from '../src/lib/binder/images'
-import { manifestFileCandidates, parseManifestLine, type ManifestRow } from '../src/lib/binder/manifest'
+import { manifestFileCandidates, parseManifestLine, truckIdFromSlug, type ManifestRow } from '../src/lib/binder/manifest'
 import { storeOriginalPhoto } from '../src/lib/binder/store-photo'
 import { apiVersion, dataset, projectId } from '../src/lib/sanityConfig'
 
@@ -119,14 +119,17 @@ async function main() {
     }
   }
 
-  const lookup = await truckIdsBySlug(rows.filter((item) => !item.row.truckId).map((item) => item.row.slug))
+  const lookup = await truckIdsBySlug(rows.map((item) => item.row.slug))
   for (const item of rows) {
-    if (item.row.truckId) continue
-    const truckId = lookup.get(item.row.slug)
+    const truckId = truckIdFromSlug(item.row.slug, lookup)
     if (!truckId) {
       missing += 1
+      item.row.truckId = ''
       console.log(`fail line ${item.line} unknown slug ${item.row.slug}`)
       continue
+    }
+    if (item.row.truckId && item.row.truckId !== truckId) {
+      console.log(`line ${item.line} slug ${item.row.slug} replaces the manifest truck id`)
     }
     item.row.truckId = truckId
   }

@@ -67,6 +67,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
   const [selectingAll, setSelectingAll] = useState(false)
   const requestId = useRef(0)
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const staleList = useRef(false)
 
   const photoTab: PhotoStatus | null = tab === 'pending' || tab === 'approved' || tab === 'rejected' ? tab : null
 
@@ -160,8 +161,11 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
       if (!response.ok) throw new Error('A photo did not load for fingerprinting.')
       const blob = await response.blob()
       const onProgress: EmbedProgress = (update) => {
+        const percent = Math.round(Math.max(0, Math.min(1, update.ratio)) * 100)
         if (update.ratio > 0 && update.ratio < 1) {
-          setProgress(`Loading the fingerprint model ${Math.round(update.ratio * 100)}%`)
+          setProgress(`Downloading the fingerprint model ${percent}%. This happens once.`)
+        } else if (update.status === 'initiate' || update.status === 'download') {
+          setProgress('Downloading the fingerprint model. This happens once.')
         }
       }
       const vector = await embedImage(blob, onProgress)
@@ -180,7 +184,6 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
     }
     setBusy(true)
     setNotice(null)
-    let fingerprintFailed = false
     try {
       for (let index = 0; index < ids.length; index += MAX_STATUS_IDS) {
         const chunk = ids.slice(index, index + MAX_STATUS_IDS)
@@ -193,36 +196,52 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
         try {
           await fingerprint(ids)
         } catch {
-          fingerprintFailed = true
+          staleList.current = true
+          setPhotos((current) =>
+            current.map((item) => (ids.includes(item.id) ? { ...item, status: 'approved' } : item)),
+          )
+          throw new Error('Approved. The fingerprint did not save. Use Fingerprint missing to retry.')
         }
       }
       setSelected(new Set())
       setOpenId(null)
       setNotice(
-        fingerprintFailed
-          ? 'Approved. The fingerprint did not save. Use Fingerprint missing to retry.'
-          : status === 'approved'
-            ? 'Approved.'
-            : status === 'rejected'
-              ? 'Rejected. The photo stays in Rejected.'
-              : 'Moved back to pending.',
+        status === 'approved'
+          ? 'Approved.'
+          : status === 'rejected'
+            ? 'Rejected. The photo stays in Rejected.'
+            : 'Moved back to pending.',
       )
       if (photoTab) await loadPhotos(photoTab, truckFilter, null)
       else await loadPhotos('pending', '', null)
       if (tab === 'coverage') await loadCoverage()
     } catch (error) {
-      setNotice(messageFrom(error, 'The photos were not updated.'))
+      const message = messageFrom(error, 'The photos were not updated.')
+      setNotice(message)
+      throw new Error(message)
     } finally {
       setProgress(null)
       setBusy(false)
     }
   }
 
+  function closeDetail() {
+    setOpenId(null)
+    if (staleList.current && photoTab) {
+      staleList.current = false
+      void loadPhotos(photoTab, truckFilter, null)
+    }
+  }
+
+  function runStatus(ids: string[], status: PhotoStatus) {
+    void updateStatus(ids, status).catch(() => undefined)
+  }
+
   async function savePhoto(photo: ReviewPhoto, patch: Record<string, unknown>) {
     if (Object.keys(patch).length === 0) return
     await binderApi(`/api/admin/photos/${photo.id}`, { method: 'PATCH', body: JSON.stringify(patch) })
     setPhotos((current) =>
-      current.map((item) => (item.id === photo.id ? { ...item, ...patchFrom(item, patch) } : item)),
+      current.map((item) => (item.id === photo.id ? { ...item, ...patchFrom(item, patch, trucks ?? []) } : item)),
     )
   }
 
@@ -495,17 +514,17 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
           <strong>{selected.size} selected</strong>
           <div className="binder-bulk-buttons">
             {photoTab !== 'approved' ? (
-              <button type="button" className="btn btn-accent" disabled={busy} onClick={() => void updateStatus([...selected], 'approved')}>
+              <button type="button" className="btn btn-accent" disabled={busy} onClick={() => runStatus([...selected], 'approved')}>
                 Approve
               </button>
             ) : null}
             {photoTab !== 'rejected' ? (
-              <button type="button" className="btn" disabled={busy} onClick={() => void updateStatus([...selected], 'rejected')}>
+              <button type="button" className="btn" disabled={busy} onClick={() => runStatus([...selected], 'rejected')}>
                 Reject
               </button>
             ) : null}
             {photoTab !== 'pending' ? (
-              <button type="button" className="btn" disabled={busy} onClick={() => void updateStatus([...selected], 'pending')}>
+              <button type="button" className="btn" disabled={busy} onClick={() => runStatus([...selected], 'pending')}>
                 Pending
               </button>
             ) : null}
@@ -519,7 +538,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
       <dialog
         ref={dialogRef}
         className="binder-dialog"
-        onClose={() => setOpenId(null)}
+        onClose={closeDetail}
         aria-label="Photo"
       >
         {openPhoto ? (
@@ -528,7 +547,8 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
             trucks={trucks ?? []}
             faces={faces}
             busy={busy}
-            onClose={() => setOpenId(null)}
+            progress={progress}
+            onClose={closeDetail}
             onSave={(patch) => savePhoto(openPhoto, patch)}
             onStatus={(status) => updateStatus([openPhoto.id], status)}
           />
@@ -540,10 +560,12 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
   )
 }
 
-function patchFrom(photo: ReviewPhoto, patch: Record<string, unknown>): ReviewPhoto {
+function patchFrom(photo: ReviewPhoto, patch: Record<string, unknown>, trucks: ReviewTruck[]): ReviewPhoto {
+  const nextTruck = typeof patch.truckId === 'string' ? trucks.find((truck) => truck.id === patch.truckId) : undefined
   return {
     ...photo,
-    truckId: typeof patch.truckId === 'string' ? patch.truckId : photo.truckId,
+    truckId: nextTruck?.id ?? photo.truckId,
+    truckSlug: nextTruck?.slug ?? photo.truckSlug,
     angle: 'angle' in patch ? ((patch.angle as PhotoAngle | null) ?? null) : photo.angle,
     faceTagId: 'faceTagId' in patch ? ((patch.faceTagId as string | null) ?? null) : photo.faceTagId,
   }
@@ -554,6 +576,7 @@ function PhotoDetail({
   trucks,
   faces,
   busy,
+  progress,
   onClose,
   onSave,
   onStatus,
@@ -562,6 +585,7 @@ function PhotoDetail({
   trucks: ReviewTruck[]
   faces: ReviewFace[]
   busy: boolean
+  progress: string | null
   onClose: () => void
   onSave: (patch: Record<string, unknown>) => Promise<void>
   onStatus: (status: PhotoStatus) => Promise<void>
@@ -578,8 +602,11 @@ function PhotoDetail({
     setTruckId(photo.truckId)
     setAngle(photo.angle ?? '')
     setFaceId(photo.faceTagId ?? '')
+  }, [photo.id, photo.truckId, photo.angle, photo.faceTagId])
+
+  useEffect(() => {
     setError(null)
-  }, [photo])
+  }, [photo.id])
 
   function patch(): Record<string, unknown> {
     const next: Record<string, unknown> = {}
@@ -609,6 +636,7 @@ function PhotoDetail({
       await onStatus(status)
     } catch (caught) {
       setError(messageFrom(caught, 'The photo was not updated.'))
+    } finally {
       setSaving(false)
     }
   }
@@ -617,6 +645,16 @@ function PhotoDetail({
 
   return (
     <div className="binder-detail">
+      {progress || error ? (
+        <div className="binder-progress">
+          {progress ? <p role="status">{progress}</p> : null}
+          {error ? (
+            <p className="binder-note is-bad" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {/* Private bytes. next/image would send them through the paid optimizer. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={`/api/admin/photos/${photo.id}`} alt={title} />
@@ -687,11 +725,6 @@ function PhotoDetail({
           Close
         </button>
       </div>
-      {error ? (
-        <p className="binder-note is-bad" role="alert">
-          {error}
-        </p>
-      ) : null}
     </div>
   )
 }

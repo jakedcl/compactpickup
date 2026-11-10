@@ -29,7 +29,7 @@ npm run dev
 
 Open http://localhost:3000. The Sanity project id and dataset are set in `src/lib/sanity.ts` and the data is public, so the public site runs without any environment variables.
 
-The binder (photo library at `/binder`, not linked in the nav) needs the variables in `.env.example`. `/admin` redirects to `/studio`. Sign-in allows only `ADMIN_EMAIL` via a one-time email code. The signed-in page is the review dashboard: pending, approved, and rejected photos, bulk approve or reject, upload, a coverage list, and a Sanity import. Approving a photo builds its fingerprint in your browser. Rejected photos stay in the library.
+The binder (photo library at `/binder`, not linked in the nav) needs the variables in `.env.example`. `/admin` redirects to `/studio`. Sign-in allows only `ADMIN_EMAIL` via a one-time email code. The signed-in page is the review dashboard: pending, approved, and rejected photos, bulk approve or reject, upload, a coverage list, and a Sanity import. Approving a photo builds its fingerprint in your browser. Rejected photos stay in the library. A folder import takes each truck from the Sanity slug and ignores a truck id written in the manifest.
 
 Migrations and imports use the direct Neon URL and stay a dry run until `BINDER_CONFIRM=1`:
 

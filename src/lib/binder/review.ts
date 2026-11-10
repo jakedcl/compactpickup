@@ -120,16 +120,14 @@ export function resolvePhotoPatch(
   return { ok: true, truckId, truckSlug, angle, faceTagId }
 }
 
-export function statusSql(ids: string[]): { text: string; idOffset: number } {
+export function statusSql(ids: string[]): string {
   const placeholders = ids.map((_, index) => `$${index + 2}::uuid`).join(', ')
-  return {
-    idOffset: 2,
-    text: `update photos
+  return `update photos
       set status = $1,
-          reviewed_at = case when $1::text = 'pending' then null else now() end
+          reviewed_at = case when $1::text = 'pending' then null else now() end,
+          embedding = case when $1::text = 'approved' then embedding else null end
       where id in (${placeholders})
-      returning id`,
-  }
+      returning id`
 }
 
 export function encodeCursor(createdAt: string, id: string): string {

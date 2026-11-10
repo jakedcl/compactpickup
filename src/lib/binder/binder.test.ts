@@ -8,8 +8,8 @@ import { CLIP_EMBEDDING_DIM } from './clip'
 import { sortCoverage } from './coverage'
 import { normalizeEmbedding, vectorLiteral } from './embedding'
 import { adminEmail } from './env'
-import { THUMB_LONG_EDGE, compressToThumb, prepareStoredPhoto, sha256Hex } from './images'
-import { manifestFileCandidates, parseManifestLine, resolveInside } from './manifest'
+import { SHARP_PIXEL_LIMIT, THUMB_LONG_EDGE, assertUploadFormat, compressToThumb, compressToWebp, sha256Hex } from './images'
+import { manifestFileCandidates, parseManifestLine, resolveInside, truckIdFromSlug } from './manifest'
 import { connectionStringForPg } from './pg-url'
 import { assertSanityCdnUrl, canonicalSanityUrl, collectImages, parseImageRef, sanityDerivativeUrl, sanityImageUrl } from './sanityImages'
 import { plannedFromImage } from './sanitySync'
@@ -49,21 +49,24 @@ test('webp long edge is capped and the hash is the original', async () => {
   })
     .png()
     .toBuffer()
-  const stored = await prepareStoredPhoto(large)
-  assert.equal(stored.sha256, sha256Hex(large))
+  const stored = await compressToWebp(large)
+  assert.notEqual(sha256Hex(stored.data), sha256Hex(large))
   assert.equal(Math.max(stored.width, stored.height), 1600)
   assert.equal(stored.width, 1600)
   assert.equal(stored.height, 800)
-  assert.ok(stored.webp.length > 0)
+  assert.ok(stored.data.length > 0)
 
   const small = await sharp({
     create: { width: 320, height: 200, channels: 3, background: { r: 1, g: 2, b: 3 } },
   })
     .png()
     .toBuffer()
-  const kept = await prepareStoredPhoto(small)
+  const kept = await compressToWebp(small)
   assert.equal(kept.width, 320)
   assert.equal(kept.height, 200)
+  await assertUploadFormat(small)
+  await assert.rejects(() => assertUploadFormat(Buffer.from('not a photo')), /unsupported image/)
+  assert.equal(SHARP_PIXEL_LIMIT, 40_000_000)
 })
 
 test('image walk finds content and other image fields', () => {
@@ -132,7 +135,24 @@ test('manifest lines stay inside the folder', () => {
   assert.equal(commons.sourceUrl, 'https://commons.wikimedia.org/wiki/File:Foo')
   const candidates = manifestFileCandidates('/tmp/pull', commons)
   assert.ok(candidates.includes(path.resolve('/tmp/pull/commons/b-5/foo.webp')))
+  assert.ok(candidates.every((candidate) => candidate.startsWith(path.resolve('/tmp/pull'))))
   assert.throws(() => parseManifestLine(JSON.stringify({ slug: 'b-5', filename: '../secret.webp' }), { defaultSource: 'commons' }))
+
+  const pull = manifestFileCandidates('/workspace/cp-photo-pull', { slug: 'pickup', localPath: 'pickup-front.webp' })
+  assert.deepEqual(pull, [
+    path.resolve('/workspace/cp-photo-pull/pickup-front.webp'),
+    path.resolve('/workspace/cp-photo-pull/commons/pickup/pickup-front.webp'),
+    path.resolve('/workspace/cp-photo-pull/commons/pickup-front.webp'),
+  ])
+})
+
+test('folder import takes the truck id from the slug', () => {
+  const wrong = '8420afe5-5f9a-4475-9d45-18d42f6ee35d'
+  const real = '8420afe5-5f9a-4475-9d1a-1e731c3ee606'
+  const bySlug = new Map([['pickup', real]])
+  assert.equal(truckIdFromSlug('pickup', bySlug), real)
+  assert.notEqual(truckIdFromSlug('pickup', bySlug), wrong)
+  assert.equal(truckIdFromSlug('pickup', new Map()), null)
 })
 
 test('migration matches the CLIP dimension and lookup indexes', () => {
@@ -199,6 +219,7 @@ test('coverage puts the truck that still needs shots first', () => {
       title: 'Full',
       maker: 'Mazda',
       approved: 10,
+      fingerprinted: 10,
       front: 1,
       side: 1,
       faces: [{ id: 'f', label: '1994', approved: 1 }],
@@ -209,6 +230,7 @@ test('coverage puts the truck that still needs shots first', () => {
       title: 'Empty',
       maker: 'Ford',
       approved: 0,
+      fingerprinted: 0,
       front: 0,
       side: 0,
       faces: [{ id: 'g', label: '1994', approved: 0 }],
@@ -242,7 +264,7 @@ test('robots keeps the binder and the api out of the crawl', () => {
   const disallow = rules.flatMap((rule) =>
     typeof rule.disallow === 'string' ? [rule.disallow] : (rule.disallow ?? []),
   )
-  assert.ok(disallow.includes('/binder/'))
+  assert.ok(disallow.includes('/binder'))
   assert.ok(disallow.includes('/api/'))
   assert.ok(disallow.includes('/studio/'))
 })
@@ -254,5 +276,7 @@ test('the shared fingerprint module is the browser CLIP contract', () => {
   assert.match(source, /Promise<Float32Array>/)
   assert.match(source, /512/)
   assert.match(source, /dtype: CLIP_BROWSER_DTYPE/)
+  assert.match(source, /progress_callback:/)
+  assert.match(source, /listeners/)
   assert.match(source, /q8/)
 })

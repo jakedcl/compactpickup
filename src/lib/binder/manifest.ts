@@ -93,6 +93,15 @@ export function manifestFileCandidates(
   return [...new Set(found)]
 }
 
+/**
+ * The truck id always comes from the Sanity slug.
+ * A truckId written in the manifest is ignored, including when it names a different truck.
+ */
+export function truckIdFromSlug(slug: string, bySlug: ReadonlyMap<string, string>): string | null {
+  const id = bySlug.get(slug)?.trim() ?? ''
+  return id.length > 0 ? id : null
+}
+
 export function resolveInside(folder: string, localPath: string): string {
   if (path.isAbsolute(localPath) || localPath.split(/[/\\]/).includes('..')) {
     throw new Error('localPath must stay inside the folder')

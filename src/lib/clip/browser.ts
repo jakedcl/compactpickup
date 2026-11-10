@@ -32,6 +32,11 @@ type ProgressInfo = {
 export type EmbedProgress = (update: { ratio: number; status: string }) => void
 
 let pending: Promise<Extractor> | null = null
+const listeners = new Set<EmbedProgress>()
+
+function notify(update: { ratio: number; status: string }) {
+  for (const listener of listeners) listener(update)
+}
 
 function unitVector(values: Float32Array): Float32Array {
   if (values.length !== CLIP_BROWSER_DIM) {
@@ -71,34 +76,32 @@ async function imageInput(input: Blob | ImageBitmap): Promise<Blob | OffscreenCa
   return canvas
 }
 
-async function loadExtractor(onProgress?: EmbedProgress): Promise<Extractor> {
+async function loadExtractor(): Promise<Extractor> {
   const { env, pipeline } = await import('@huggingface/transformers')
   env.allowLocalModels = false
   env.useBrowserCache = true
   const pipe = await pipeline('image-feature-extraction', CLIP_BROWSER_MODEL, {
     device: CLIP_BROWSER_DEVICE,
     dtype: CLIP_BROWSER_DTYPE,
-    progress_callback: onProgress
-      ? (info: ProgressInfo) => {
-          const ratio =
-            typeof info.progress === 'number'
-              ? info.progress / 100
-              : info.total
-                ? (info.loaded ?? 0) / info.total
-                : 0
-          onProgress({
-            ratio: Math.max(0, Math.min(1, ratio)),
-            status: info.status ?? 'progress',
-          })
-        }
-      : undefined,
+    progress_callback: (info: ProgressInfo) => {
+      const ratio =
+        typeof info.progress === 'number'
+          ? info.progress / 100
+          : info.total
+            ? (info.loaded ?? 0) / info.total
+            : 0
+      notify({
+        ratio: Math.max(0, Math.min(1, ratio)),
+        status: info.status ?? 'progress',
+      })
+    },
   })
   return async (image) => pipe(image) as Promise<FeatureTensor>
 }
 
-function extractor(onProgress?: EmbedProgress): Promise<Extractor> {
+function extractor(): Promise<Extractor> {
   if (!pending) {
-    pending = loadExtractor(onProgress).catch((error: unknown) => {
+    pending = loadExtractor().catch((error: unknown) => {
       pending = null
       throw error
     })
@@ -108,8 +111,13 @@ function extractor(onProgress?: EmbedProgress): Promise<Extractor> {
 
 export async function embedImage(input: Blob | ImageBitmap, onProgress?: EmbedProgress): Promise<Float32Array> {
   if (typeof window === 'undefined') throw new Error('Fingerprints run in the browser')
-  const image = await imageInput(input)
-  const run = await extractor(onProgress)
-  const tensor = await run(image)
-  return vectorFromTensor(tensor)
+  if (onProgress) listeners.add(onProgress)
+  try {
+    const image = await imageInput(input)
+    const run = await extractor()
+    const tensor = await run(image)
+    return vectorFromTensor(tensor)
+  } finally {
+    if (onProgress) listeners.delete(onProgress)
+  }
 }

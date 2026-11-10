@@ -1,8 +1,9 @@
+import { createHash } from 'node:crypto'
 import { getSession } from '@/lib/binder/session-cookie'
 import { isSameOrigin } from '@/lib/binder/origin'
 import { query, withPooledClient } from '@/lib/binder/db'
 import { readJsonObject } from '@/lib/binder/http'
-import { compressToThumb, MAX_UPLOAD_BYTES } from '@/lib/binder/images'
+import { assertUploadFormat, compressToThumb, MAX_UPLOAD_BYTES } from '@/lib/binder/images'
 import { photoFile } from '@/lib/binder/photos'
 import { getPhotoBytes, putPhoto, readPhotoIfExists, thumbObjectKey } from '@/lib/binder/r2'
 import { storeOriginalPhoto } from '@/lib/binder/store-photo'
@@ -186,7 +187,7 @@ export async function handlePhotoStatus(
   if (!parsed.ok) return json({ error: parsed.error }, 400)
   const statement = statusSql(parsed.ids)
   try {
-    const result = await db.query<{ id: string }>(statement.text, [parsed.status, ...parsed.ids])
+    const result = await db.query<{ id: string }>(statement, [parsed.status, ...parsed.ids])
     return json({ updated: result.rows.length, status: parsed.status })
   } catch (error) {
     console.error(`binder: status update failed (${error instanceof Error ? error.name : 'Error'})`)
@@ -244,11 +245,13 @@ export async function handlePhotoPatch(
     const updated = await db.query<{ id: string }>(
       `update photos
        set truck_id = $1, truck_slug = $2, angle = $3, face_tag_id = $4
-       where id = $5
+       where id = $5::uuid and truck_id = $6
        returning id`,
-      [resolved.truckId, resolved.truckSlug, resolved.angle, resolved.faceTagId, id],
+      [resolved.truckId, resolved.truckSlug, resolved.angle, resolved.faceTagId, id, current.truck_id],
     )
-    if (updated.rows.length === 0) return json({ error: 'The photo was not found.' }, 404)
+    if (updated.rows.length === 0) {
+      return json({ error: 'The photo changed. Reload it and try again.' }, 409)
+    }
     return json({ ok: true })
   } catch (error) {
     console.error(`binder: photo update failed (${error instanceof Error ? error.name : 'Error'})`)
@@ -296,20 +299,46 @@ export async function handleEmbeddings(
   }
 }
 
-async function readStoredImage(id: string, size: 'full' | 'thumb'): Promise<Uint8Array | null> {
-  const file = await photoFile(id)
-  if (!file) return null
-  if (size === 'full') return getPhotoBytes(file.r2Key)
-  const existing = await readPhotoIfExists(thumbObjectKey(file.sha256))
+type PhotoStorage = {
+  read: (key: string) => Promise<Uint8Array>
+  readIfExists: (key: string) => Promise<Uint8Array | null>
+  put: (key: string, body: Buffer) => Promise<void>
+  thumb: (input: Buffer) => Promise<Buffer>
+}
+
+/** Full bytes, or the stored thumb. A missing thumb is built from the full photo and saved. */
+export async function bytesForStoredPhoto(
+  file: { r2Key: string; sha256: string },
+  size: 'full' | 'thumb',
+  io: PhotoStorage,
+): Promise<Uint8Array> {
+  if (size === 'full') return io.read(file.r2Key)
+  const key = thumbObjectKey(file.sha256)
+  const existing = await io.readIfExists(key)
   if (existing) return existing
-  const full = await getPhotoBytes(file.r2Key)
-  const thumb = await compressToThumb(Buffer.from(full))
+  const full = await io.read(file.r2Key)
+  const thumb = await io.thumb(Buffer.from(full))
   try {
-    await putPhoto(thumbObjectKey(file.sha256), thumb)
+    await io.put(key, thumb)
   } catch (error) {
     console.error(`binder: thumb upload failed (${error instanceof Error ? error.name : 'Error'})`)
   }
-  return thumb
+  return new Uint8Array(thumb)
+}
+
+async function readStoredImage(id: string, size: 'full' | 'thumb'): Promise<Uint8Array | null> {
+  const file = await photoFile(id)
+  if (!file) return null
+  return bytesForStoredPhoto(file, size, {
+    read: (key) => getPhotoBytes(key),
+    readIfExists: (key) => readPhotoIfExists(key),
+    put: (key, body) => putPhoto(key, body),
+    thumb: (input) => compressToThumb(input),
+  })
+}
+
+function entityTag(bytes: Uint8Array): string {
+  return `"${createHash('sha256').update(bytes).digest('base64url')}"`
 }
 
 export async function handlePhotoImage(
@@ -327,13 +356,20 @@ export async function handlePhotoImage(
   try {
     const bytes = await readImage(id, size)
     if (!bytes) return new Response('Not found', { status: 404, headers: { 'cache-control': 'no-store' } })
+    const tag = entityTag(bytes)
+    const headers = {
+      etag: tag,
+      'cache-control': 'private, no-cache',
+      'x-content-type-options': 'nosniff',
+    }
+    const matches = request.headers
+      .get('if-none-match')
+      ?.split(',')
+      .some((part) => part.trim() === tag)
+    if (matches) return new Response(null, { status: 304, headers })
     return new Response(new Uint8Array(bytes), {
       status: 200,
-      headers: {
-        'content-type': 'image/webp',
-        'cache-control': size === 'thumb' ? 'private, max-age=86400' : 'private, max-age=3600',
-        'x-content-type-options': 'nosniff',
-      },
+      headers: { ...headers, 'content-type': 'image/webp' },
     })
   } catch (error) {
     console.error(`binder: photo read failed (${error instanceof Error ? error.name : 'Error'})`)
@@ -392,6 +428,15 @@ export async function handleUpload(
   const bytes = Buffer.from(await file.arrayBuffer())
   if (bytes.length === 0 || bytes.length > MAX_UPLOAD_BYTES) {
     return json({ error: 'That photo is too large. Try it again from the phone.' }, 400)
+  }
+  try {
+    await assertUploadFormat(bytes)
+  } catch (error) {
+    console.error(`binder: upload rejected (${error instanceof Error ? error.name : 'Error'})`)
+    if (error instanceof Error && /pixel limit/i.test(error.message)) {
+      return json({ error: 'That photo is too large. Try it again from the phone.' }, 400)
+    }
+    return json({ error: 'That file is not a photo.' }, 400)
   }
   try {
     const outcome = await store({
@@ -458,9 +503,16 @@ export async function handleCoverage(
   try {
     const [catalog, counts, faces, faceCounts] = await Promise.all([
       trucks(),
-      db.query<{ truck_id: string; approved: number | string; fronts: number | string; sides: number | string }>(
+      db.query<{
+        truck_id: string
+        approved: number | string
+        fronts: number | string
+        sides: number | string
+        fingerprinted: number | string
+      }>(
         `select truck_id,
                 count(*) filter (where status = 'approved')::int as approved,
+                count(*) filter (where status = 'approved' and embedding is not null)::int as fingerprinted,
                 count(*) filter (where status = 'approved' and angle = 'front')::int as fronts,
                 count(*) filter (where status = 'approved' and angle = 'side')::int as sides
          from photos
@@ -486,6 +538,7 @@ export async function handleCoverage(
         title: truck.title,
         maker: truck.maker,
         approved: Number(count?.approved) || 0,
+        fingerprinted: Number(count?.fingerprinted) || 0,
         front: Number(count?.fronts) || 0,
         side: Number(count?.sides) || 0,
         faces: faces.rows
