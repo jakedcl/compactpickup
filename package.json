@@ -10,10 +10,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test:binder": "tsx --conditions=react-server --test src/lib/binder/*.test.ts",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "import:sanity": "tsx scripts/import-sanity.ts",
+    "import:folder": "tsx scripts/import-folder.ts",
+    "seed:faces": "tsx scripts/seed-faces.ts",
     "studio:dev": "sanity dev --dir ./sanity",
     "studio:build": "sanity build --dir ./sanity"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1165.0",
+    "@aws-sdk/s3-request-presigner": "^3.1165.0",
     "@portabletext/react": "^8.0.1",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
@@ -22,21 +30,26 @@
     "@sanity/vision": "^6.22.0",
     "next": "^16.4.5",
     "next-sanity": "^13.4.0",
+    "pg": "^8.23.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "resend": "^6.37.0",
     "sanity": "^6.20.0",
     "server-only": "^0.0.1",
+    "sharp": "^0.35.5",
     "three": "^0.187.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint": "^9",
     "eslint-config-next": "^16.4.5",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
