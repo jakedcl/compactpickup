@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://compactpickup.vercel.app'),
+  metadataBase: new URL('https://compactpickup.com'),
   title: "Compact Pickup",
   description: "A field guide to compact and mid-size pickup trucks",
   icons: {
