@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { binderApi, BinderApiError } from '@/app/binder/api'
 import { ModelCombobox } from '@/app/binder/model-combobox'
 import { FingerprintPanel, type FingerprintRunner } from '@/app/binder/fingerprint-queue'
+import { aiBadgeClass, aiBadgeLabel, rejectReasonLabel } from '@/lib/binder/ai-review'
 import { photoImagePath, type ReviewDecision, type ReviewFace, type ReviewPhoto, type ReviewTruck } from '@/lib/binder/review'
 import {
   angleShortcut,
@@ -204,6 +205,7 @@ export function ReviewMode({
   const [truckError, setTruckError] = useState<string | null>(null)
   const acted = useRef<string | null>(null)
   const asked = useRef<string | null>(null)
+  const prefilled = useRef<string | null>(null)
   const seq = useRef(0)
   const closeRef = useRef<HTMLButtonElement>(null)
   const modelRef = useRef<HTMLInputElement>(null)
@@ -308,14 +310,15 @@ export function ReviewMode({
     return `review-${seq.current}`
   }, [])
 
-  const act = useCallback((status: 'approved' | 'rejected') => {
+  const act = useCallback((status: 'approved' | 'rejected', faceOverride?: string | null) => {
     const current = currentItem(session)
     if (!current || acted.current === current.id) return
     if (status === 'approved' && !canApprove(current)) return
     acted.current = current.id
     const token = nextToken()
-    setSession((existing) => choose(existing, { status, angle, faceTagId: faceId }, token))
-    saves.send({ id: current.id, status, angle, faceTagId: faceId }, token, current.sha256)
+    const faceTagId = faceOverride === undefined ? faceId : faceOverride
+    setSession((existing) => choose(existing, { status, angle, faceTagId }, token))
+    saves.send({ id: current.id, status, angle, faceTagId }, token, current.sha256)
   }, [angle, faceId, nextToken, saves, session])
 
   const skipPhoto = useCallback(() => {
@@ -359,10 +362,10 @@ export function ReviewMode({
     }
   }
 
-  async function changeTruck(nextId: string) {
-    if (!photo || nextId === photo.truckId || truckBusy) return
+  async function changeTruck(nextId: string): Promise<boolean> {
+    if (!photo || nextId === photo.truckId || truckBusy) return false
     const truck = trucks.find((entry) => entry.id === nextId)
-    if (!truck) return
+    if (!truck) return false
     setTruckBusy(true)
     setTruckError(null)
     try {
@@ -377,11 +380,45 @@ export function ReviewMode({
       setFaceId((current) =>
         current && faces.some((face) => face.id === current && face.truckId === nextId) ? current : null,
       )
+      return true
     } catch (error) {
       setTruckError(messageFrom(error, 'The truck was not changed.'))
+      return false
     } finally {
       setTruckBusy(false)
     }
+  }
+
+  useEffect(() => {
+    if (!photo) return
+    const row = photos.find((item) => item.id === photo.id)
+    if (!row?.aiReview || prefilled.current === photo.id) return
+    prefilled.current = photo.id
+    const review = row.aiReview
+    // Local prefill only. Nothing is saved until Jake taps a decision.
+    if (review.angle) setAngle(review.angle)
+  }, [photo, photos])
+
+  const listed = photo ? photos.find((item) => item.id === photo.id) : null
+  const ai = listed?.aiReview ?? null
+  const suggestedTruck =
+    ai?.outcome === 'wrong_truck' && ai.suggestedTruckSlug
+      ? (trucks.find((entry) => entry.slug === ai.suggestedTruckSlug) ?? null)
+      : null
+  // Offer the AI's truck only while the photo is still on the truck the AI reviewed.
+  const suggestMove = Boolean(
+    photo && listed && suggestedTruck && photo.truckId === listed.truckId && photo.truckId !== suggestedTruck.id,
+  )
+
+  async function approveSuggested() {
+    if (!photo || acted.current === photo.id) return
+    if (!suggestMove || !suggestedTruck) {
+      act('approved')
+      return
+    }
+    const nextId = suggestedTruck.id
+    const keepFace = faceId && faces.some((face) => face.id === faceId && face.truckId === nextId) ? faceId : null
+    if (await changeTruck(nextId)) act('approved', keepFace)
   }
 
   useEffect(() => {
@@ -400,7 +437,7 @@ export function ReviewMode({
       }
       if (key === 'a') {
         event.preventDefault()
-        act('approved')
+        void approveSuggested()
         return
       }
       if (key === 'r' || key === 'x') {
@@ -440,10 +477,11 @@ export function ReviewMode({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [act, skipPhoto, truckFaces, undoLast])
+  })
 
-  const listed = photo ? photos.find((item) => item.id === photo.id) : null
   const sourceLine = listed ? [listed.source, listed.author, listed.license].filter(Boolean).join(' · ') : ''
+
+  const canSuggestApprove = Boolean(photo?.truckId) && (ai?.outcome === 'looks_right' || suggestMove)
   const left = remainingCount(session)
   const toast = saves.retries.at(-1)?.error ?? null
 
@@ -489,6 +527,35 @@ export function ReviewMode({
               {truckTitle(trucks, photo)} <span>{photo.truckSlug}</span>
             </p>
             {sourceLine ? <p className="binder-meta review-source">{sourceLine}</p> : null}
+            {ai ? (
+              <div className="review-ai">
+                <p className={aiBadgeClass(ai.outcome)}>{aiBadgeLabel(ai.outcome)}</p>
+                {ai.confidence !== null || suggestedTruck ? (
+                  <p className="binder-meta review-ai-meta">
+                    {ai.confidence !== null ? `Confidence ${Math.round(ai.confidence * 100)}%` : ''}
+                    {ai.confidence !== null && suggestedTruck ? ' · ' : ''}
+                    {suggestedTruck ? `AI says: ${displayModelTitle(suggestedTruck.maker, suggestedTruck.title)}` : ''}
+                  </p>
+                ) : null}
+                {ai.reasons.length > 0 ? (
+                  <ul className="review-ai-reasons">
+                    {ai.reasons.slice(0, 3).map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                {ai.questions.length > 0 ? (
+                  <ul className="review-ai-questions">
+                    {ai.questions.map((question) => (
+                      <li key={question}>{question}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                {ai.generationYearsGuess ? (
+                  <p className="binder-meta review-ai-guess">AI guess: {ai.generationYearsGuess}</p>
+                ) : null}
+              </div>
+            ) : null}
             <ModelCombobox
               id="review-model"
               label="Model"
@@ -555,14 +622,33 @@ export function ReviewMode({
             <div className="review-row review-decide">
               <p className="review-label">Decision</p>
               <div className="review-grid review-choices">
-                <button type="button" className="btn btn-accent" onClick={() => act('approved')} disabled={!photo.truckId}>
-                  Approve
-                  <span className="review-key">A</span>
-                </button>
-                <button type="button" className="btn" onClick={() => act('rejected')}>
-                  Reject
-                  <span className="review-key">R</span>
-                </button>
+                {canSuggestApprove ? (
+                  <button
+                    type="button"
+                    className="btn btn-accent"
+                    onClick={() => void approveSuggested()}
+                    disabled={truckBusy}
+                  >
+                    Approve as suggested
+                    <span className="review-key">A</span>
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-accent" onClick={() => act('approved')} disabled={!photo.truckId}>
+                    Approve
+                    <span className="review-key">A</span>
+                  </button>
+                )}
+                {ai?.outcome === 'reject' && ai.rejectReason ? (
+                  <button type="button" className="btn" onClick={() => act('rejected')}>
+                    {rejectReasonLabel(ai.rejectReason)}
+                    <span className="review-key">R</span>
+                  </button>
+                ) : (
+                  <button type="button" className="btn" onClick={() => act('rejected')}>
+                    Reject
+                    <span className="review-key">R</span>
+                  </button>
+                )}
                 <button type="button" className="btn" onClick={skipPhoto}>
                   Skip
                   <span className="review-key">S</span>

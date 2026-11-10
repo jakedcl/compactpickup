@@ -14,6 +14,8 @@ import { APPROVED_TARGET, sortCoverage, type CoverageTruck } from '@/lib/binder/
 import { PHOTO_ANGLES, PHOTO_STATUSES, type PhotoAngle, type PhotoStatus } from '@/lib/binder/types'
 import {
   UUID_RE,
+  aiReviewFromRow,
+  encodeConfidenceCursor,
   encodeCursor,
   imageSizeParam,
   parseEmbedBody,
@@ -25,6 +27,7 @@ import {
   parseStatusBody,
   resolvePhotoPatch,
   statusSql,
+  type PhotoAiReviewRow,
   type ReviewFace,
   type ReviewPhoto,
   type ReviewTruck,
@@ -103,7 +106,7 @@ type PhotoDbRow = {
   notes: string | null
   sha256: string
   has_embedding: boolean
-}
+} & PhotoAiReviewRow
 
 function toPhoto(row: PhotoDbRow): ReviewPhoto {
   return {
@@ -123,7 +126,15 @@ function toPhoto(row: PhotoDbRow): ReviewPhoto {
     notes: row.notes,
     sha256: row.sha256,
     hasEmbedding: Boolean(row.has_embedding),
+    aiReview: aiReviewFromRow(row),
   }
+}
+
+function aiFilterClause(aiOutcome: string, params: unknown[]): string {
+  if (!aiOutcome) return 'true'
+  if (aiOutcome === 'none') return 'air.photo_id is null'
+  const slot = params.push(aiOutcome)
+  return `air.outcome = $${slot}`
 }
 
 async function countMap(db: AdminSql): Promise<Record<PhotoStatus, number>> {
@@ -150,43 +161,84 @@ export async function handlePhotoList(
   if (!parsed.ok) return json({ error: parsed.error }, 400)
   try {
     const params: unknown[] = [parsed.status]
-    const truckSql = truckClause(params, parsed.truckId, parsed.truckIds)
+    const truckSql = truckClause(params, parsed.truckId, parsed.truckIds).replaceAll('truck_id', 'p.truck_id')
     const missingSql = `$${params.push(parsed.missingEmbedding)}`
-    const cursorAt = parsed.cursor ? `$${params.push(parsed.cursor.createdAt)}` : 'null'
-    const cursorId = parsed.cursor ? `$${params.push(parsed.cursor.id)}` : 'null'
+    const aiSql = aiFilterClause(parsed.aiOutcome, params)
+    let cursorSql = 'true'
+    if (parsed.cursor?.kind === 'created') {
+      const cursorAt = `$${params.push(parsed.cursor.createdAt)}`
+      const cursorId = `$${params.push(parsed.cursor.id)}`
+      cursorSql = `(${cursorAt}::timestamptz is null or (p.created_at, p.id) < (${cursorAt}::timestamptz, ${cursorId}::uuid))`
+    } else if (parsed.cursor?.kind === 'confidence') {
+      const cursorConf = `$${params.push(parsed.cursor.confidence)}`
+      const cursorAt = `$${params.push(parsed.cursor.createdAt)}`
+      const cursorId = `$${params.push(parsed.cursor.id)}`
+      cursorSql = `(coalesce(air.confidence, -1), p.created_at, p.id) < (
+        coalesce(${cursorConf}::numeric, -1),
+        ${cursorAt}::timestamptz,
+        ${cursorId}::uuid
+      )`
+    }
+    const orderSql =
+      parsed.sort === 'confidence'
+        ? 'order by air.confidence desc nulls last, p.created_at desc, p.id desc'
+        : 'order by p.created_at desc, p.id desc'
     const limitSql = `$${params.push(parsed.limit + 1)}`
     const listed = await db.query<PhotoDbRow>(
-      `select id, truck_id, truck_slug, status, angle, face_tag_id, source, source_url,
-              author, license, width, height, created_at, notes, sha256,
-              (embedding is not null) as has_embedding
-       from photos
-       where status = $1
+      `select p.id, p.truck_id, p.truck_slug, p.status, p.angle, p.face_tag_id, p.source, p.source_url,
+              p.author, p.license, p.width, p.height, p.created_at, p.notes, p.sha256,
+              (p.embedding is not null) as has_embedding,
+              air.outcome as ai_outcome,
+              air.suggested_truck_slug as ai_suggested_truck_slug,
+              air.angle as ai_angle,
+              air.confidence as ai_confidence,
+              air.reasons as ai_reasons,
+              air.questions as ai_questions,
+              air.reject_reason as ai_reject_reason,
+              air.generation_years_guess as ai_generation_years_guess,
+              air.reviewed_at as ai_reviewed_at
+       from photos p
+       left join photo_ai_reviews air on air.photo_id = p.id
+       where p.status = $1
          and (${truckSql})
-         and (${missingSql}::boolean = false or embedding is null)
-         and (${cursorAt}::timestamptz is null or (created_at, id) < (${cursorAt}::timestamptz, ${cursorId}::uuid))
-       order by created_at desc, id desc
+         and (${missingSql}::boolean = false or p.embedding is null)
+         and (${aiSql})
+         and (${cursorSql})
+       ${orderSql}
        limit ${limitSql}`,
       params,
     )
     const hasMore = listed.rows.length > parsed.limit
     const page = hasMore ? listed.rows.slice(0, parsed.limit) : listed.rows
     const last = page.at(-1)
-    const createdAt = last ? iso(last.created_at) : null
+    const lastCreated = last ? iso(last.created_at) : null
     const matchParams: unknown[] = [parsed.status]
-    const matchSql = truckClause(matchParams, parsed.truckId, parsed.truckIds)
+    const matchTruckSql = truckClause(matchParams, parsed.truckId, parsed.truckIds).replaceAll('truck_id', 'p.truck_id')
+    const matchAiSql = aiFilterClause(parsed.aiOutcome, matchParams)
     const [counts, missing, matched] = await Promise.all([
       countMap(db),
       db.query<{ n: number | string }>(
         `select count(*)::int as n from photos where status = 'approved' and embedding is null`,
       ),
       db.query<{ n: number | string }>(
-        `select count(*)::int as n from photos where status = $1 and (${matchSql})`,
+        `select count(*)::int as n
+         from photos p
+         left join photo_ai_reviews air on air.photo_id = p.id
+         where p.status = $1 and (${matchTruckSql}) and (${matchAiSql})`,
         matchParams,
       ),
     ])
+    let nextCursor: string | null = null
+    if (hasMore && last && lastCreated) {
+      const lastAi = aiReviewFromRow(last)
+      nextCursor =
+        parsed.sort === 'confidence'
+          ? encodeConfidenceCursor(lastAi?.confidence ?? null, lastCreated, last.id)
+          : encodeCursor(lastCreated, last.id)
+    }
     return json({
       photos: page.map(toPhoto),
-      nextCursor: hasMore && last && createdAt ? encodeCursor(createdAt, last.id) : null,
+      nextCursor,
       counts,
       matched: Number(matched.rows[0]?.n) || 0,
       missingEmbeddings: Number(missing.rows[0]?.n) || 0,

@@ -17,6 +17,7 @@
     "import:sanity": "tsx scripts/import-sanity.ts",
     "import:folder": "tsx scripts/import-folder.ts",
     "seed:faces": "tsx scripts/seed-faces.ts",
+    "import:ai-reviews": "tsx scripts/import-ai-reviews.ts",
     "fix:makes": "tsx scripts/fix-makes.ts",
     "studio:dev": "sanity dev --dir ./sanity",
     "studio:build": "sanity build --dir ./sanity"

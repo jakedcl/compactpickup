@@ -229,6 +229,12 @@ test('list and image routes validate the query before reading a photo', async ()
   assert.equal(bad.status, 400)
   assert.equal(db.calls.length, 0)
 
+  const aiBad = await handlePhotoList(
+    new Request('https://compactpickup.local/api/admin/photos?status=pending&aiOutcome=nope'),
+    { session: signedIn, db },
+  )
+  assert.equal(aiBad.status, 400)
+
   let reads = 0
   const image = await handlePhotoImage(
     new Request(`https://compactpickup.local/api/admin/photos/${ID}?size=original`),
