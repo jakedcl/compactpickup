@@ -1,4 +1,4 @@
-import { BinderShell } from '@/app/admin/shell'
+import { BinderShell } from '@/app/binder/shell'
 
 export default function AdminLoading() {
   return (

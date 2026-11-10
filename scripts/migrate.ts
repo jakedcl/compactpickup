@@ -5,17 +5,6 @@ import { writesEnabled } from '../src/lib/binder/confirm'
 
 const MIGRATION = /^\d+_.+\.sql$/
 
-function statements(sql: string): string[] {
-  const withoutComments = sql
-    .split('\n')
-    .filter((line) => !line.trim().startsWith('--'))
-    .join('\n')
-  return withoutComments
-    .split(';')
-    .map((part) => part.trim())
-    .filter(Boolean)
-}
-
 async function migrationFiles(): Promise<string[]> {
   const directory = path.join(process.cwd(), 'db', 'migrations')
   const names = await readdir(directory)
@@ -62,9 +51,7 @@ async function main() {
       const sql = await readFile(path.join(process.cwd(), 'db', 'migrations', file), 'utf8')
       await client.query('begin')
       try {
-        for (const statement of statements(sql)) {
-          await client.query(statement)
-        }
+        await client.query(sql)
         await client.query(`insert into schema_migrations (filename) values ($1)`, [file])
         await client.query('commit')
         console.log(`applied ${file}`)

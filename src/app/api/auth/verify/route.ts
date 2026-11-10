@@ -2,12 +2,16 @@ import { NextResponse } from 'next/server'
 import { adminEmail, authSecret } from '@/lib/binder/env'
 import { clientIp, readJsonObject, stringField } from '@/lib/binder/http'
 import { VERIFY_MESSAGE, verifyLoginCode } from '@/lib/binder/login'
+import { isSameOrigin } from '@/lib/binder/origin'
 import { setSessionCookie } from '@/lib/binder/session-cookie'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function POST(request: Request) {
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ ok: false, message: VERIFY_MESSAGE }, { status: 403 })
+  }
   const body = await readJsonObject(request)
   if (!body) {
     return NextResponse.json({ ok: false, message: VERIFY_MESSAGE }, { status: 401 })

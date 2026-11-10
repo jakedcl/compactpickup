@@ -18,7 +18,12 @@ export async function getSession(): Promise<{ email: string } | null> {
   const secret = authSecret()
   const admin = adminEmail()
   if (!secret || !admin) return null
-  const token = (await cookies()).get(SESSION_COOKIE)?.value
+  let token: string | undefined
+  try {
+    token = (await cookies()).get(SESSION_COOKIE)?.value
+  } catch {
+    return null
+  }
   if (!token) return null
   const session = await readSessionToken(token, secret)
   if (!session || session.email !== admin) return null

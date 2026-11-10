@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
 import { clientIp, readJsonObject, stringField } from '@/lib/binder/http'
 import { REQUEST_MESSAGE, requestLoginCode } from '@/lib/binder/login'
+import { isSameOrigin } from '@/lib/binder/origin'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function POST(request: Request) {
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ ok: false, message: REQUEST_MESSAGE }, { status: 403 })
+  }
   const body = await readJsonObject(request)
   if (!body) return NextResponse.json({ ok: false, message: 'Enter an email.' }, { status: 400 })
   const email = stringField(body, 'email')

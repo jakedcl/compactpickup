@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg'
-import type { PhotoSource, PhotoStatus } from '@/lib/binder/types'
+import { PHOTO_STATUSES, type PhotoSource, type PhotoStatus } from '@/lib/binder/types'
 import { query } from '@/lib/binder/db'
 
 export type PhotoCounts = Record<PhotoStatus, number>
@@ -22,11 +22,11 @@ export async function photoCounts(): Promise<PhotoCounts> {
   const result = await query<{ status: string; n: number | string }>(
     `select status, count(*)::int as n from photos group by status`,
   )
-  const counts: PhotoCounts = { pending: 0, approved: 0, rejected: 0 }
+  const counts = Object.fromEntries(PHOTO_STATUSES.map((status) => [status, 0])) as PhotoCounts
   for (const row of result.rows) {
-    if (row.status !== 'pending' && row.status !== 'approved' && row.status !== 'rejected') continue
+    if (!(PHOTO_STATUSES as readonly string[]).includes(row.status)) continue
     const n = Number(row.n)
-    counts[row.status] = Number.isFinite(n) ? n : 0
+    counts[row.status as PhotoStatus] = Number.isFinite(n) ? n : 0
   }
   return counts
 }

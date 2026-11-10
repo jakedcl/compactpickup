@@ -1,8 +1,6 @@
-'use client'
-
 import type { ReactNode } from 'react'
-import { BinderClock } from '@/app/admin/binder-clock'
-import './admin.css'
+import { BinderClock } from '@/app/binder/binder-clock'
+import './binder.css'
 
 export function BinderShell({ children }: { children: ReactNode }) {
   return (

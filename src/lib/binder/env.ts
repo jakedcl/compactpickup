@@ -4,6 +4,18 @@ export function requireEnv(name: string): string {
   return value
 }
 
+export function requireEnvs(names: readonly string[]): void {
+  for (const name of names) requireEnv(name)
+}
+
+export const BINDER_WRITE_ENV = [
+  'DATABASE_URL_UNPOOLED',
+  'R2_ACCOUNT_ID',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
+  'R2_BUCKET',
+] as const
+
 /** The only address allowed to sign in. Comes from ADMIN_EMAIL. */
 export function adminEmail(): string | null {
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase()

@@ -29,7 +29,7 @@ npm run dev
 
 Open http://localhost:3000. The Sanity project id and dataset are set in `src/lib/sanity.ts` and the data is public, so the public site runs without any environment variables.
 
-The binder (admin photo library at `/admin`, not linked in the nav) needs the variables in `.env.example`. Sign-in allows only `ADMIN_EMAIL` (jakedcl73@gmail.com) via a one-time email code. Migrations and imports use the direct Neon URL and stay a dry run until `BINDER_CONFIRM=1`:
+The binder (photo library at `/binder`, not linked in the nav) needs the variables in `.env.example`. `/admin` redirects to `/studio`. Sign-in allows only `ADMIN_EMAIL` via a one-time email code. Migrations and imports use the direct Neon URL and stay a dry run until `BINDER_CONFIRM=1`:
 
 ```sh
 npm run db:migrate
@@ -46,7 +46,7 @@ To work on content locally, use the site at `/studio` (`npm run dev`) or run `np
 
 ```
 src/app/(site)/       pages (home, [manufacturer], timeline, browse, game)
-src/app/admin/        binder sign-in and photo counts
+src/app/binder/       binder sign-in and photo counts
 src/app/api/          catalog API, auth, admin photo bytes
 src/components/       ImageCarousel and the 3D truck viewer
 src/lib/sanity.ts     Sanity client and queries

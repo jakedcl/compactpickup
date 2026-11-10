@@ -16,15 +16,14 @@ async function sessionEmail(request: NextRequest): Promise<string | null> {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  if (pathname.startsWith('/api/admin')) {
+  // /admin redirects to Studio in next.config.ts. The binder page is /binder.
+  if (pathname === '/api/admin' || pathname.startsWith('/api/admin/')) {
     const email = await sessionEmail(request)
     if (!email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  // /admin itself stays reachable so the sign-in form can render.
-  // Photo counts are loaded in the page only after the cookie checks out.
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/admin', '/admin/:path*', '/api/admin', '/api/admin/:path*'],
+  matcher: ['/binder', '/binder/:path*', '/api/admin', '/api/admin/:path*'],
 }

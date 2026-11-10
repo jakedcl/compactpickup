@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import PageHeader from '@/components/ui/PageHeader'
-import { LoginForm } from '@/app/admin/login-form'
-import { LogoutButton } from '@/app/admin/logout-button'
-import { BinderShell } from '@/app/admin/shell'
+import { LoginForm } from '@/app/binder/login-form'
+import { LogoutButton } from '@/app/binder/logout-button'
+import { BinderShell } from '@/app/binder/shell'
 import { photoCounts, type PhotoCounts } from '@/lib/binder/photos'
 import { getSession } from '@/lib/binder/session-cookie'
 

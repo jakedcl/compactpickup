@@ -36,9 +36,10 @@ export async function prepareStoredPhoto(original: Buffer): Promise<{
   width: number
   height: number
 }> {
+  const sha256 = sha256Hex(original)
   const compressed = await compressToWebp(original)
   return {
-    sha256: sha256Hex(original),
+    sha256,
     webp: compressed.data,
     width: compressed.width,
     height: compressed.height,

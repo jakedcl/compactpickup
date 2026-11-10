@@ -66,7 +66,7 @@ create table if not exists login_attempts (
   id uuid primary key default gen_random_uuid(),
   email text,
   ip text,
-  kind text not null check (kind in ('request', 'verify')),
+  kind text not null check (kind in ('request', 'verify', 'reject', 'lockout')),
   success boolean not null,
   created_at timestamptz not null default now()
 );

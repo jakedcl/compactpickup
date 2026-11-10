@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test:binder": "tsx --test src/lib/binder/binder.test.ts",
+    "test:binder": "tsx --conditions=react-server --test src/lib/binder/*.test.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "import:sanity": "tsx scripts/import-sanity.ts",
     "import:folder": "tsx scripts/import-folder.ts",

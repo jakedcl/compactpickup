@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg'
-import { prepareStoredPhoto } from '@/lib/binder/images'
+import { compressToWebp, sha256Hex } from '@/lib/binder/images'
 import { insertPendingPhoto, photoIdForSha256, type PendingPhoto } from '@/lib/binder/photos'
 import { photoObjectKey, putPhoto } from '@/lib/binder/r2'
 
@@ -12,11 +12,12 @@ export async function storeOriginalPhoto(
   client: PoolClient,
   input: StoreInput,
 ): Promise<'inserted' | 'duplicate'> {
-  const prepared = await prepareStoredPhoto(input.original)
-  const existing = await photoIdForSha256(client, prepared.sha256)
+  const sha256 = sha256Hex(input.original)
+  const existing = await photoIdForSha256(client, sha256)
   if (existing) return 'duplicate'
-  const r2Key = photoObjectKey(prepared.sha256)
-  await putPhoto(r2Key, prepared.webp)
+  const prepared = await compressToWebp(input.original)
+  const r2Key = photoObjectKey(sha256)
+  await putPhoto(r2Key, prepared.data)
   return insertPendingPhoto(client, {
     truckId: input.truckId,
     truckSlug: input.truckSlug,
@@ -27,7 +28,7 @@ export async function storeOriginalPhoto(
     r2Key,
     width: prepared.width,
     height: prepared.height,
-    sha256: prepared.sha256,
+    sha256,
     notes: input.notes,
   })
 }

@@ -8,7 +8,7 @@ import { CLIP_EMBEDDING_DIM } from './clip'
 import { adminEmail } from './env'
 import { prepareStoredPhoto, sha256Hex } from './images'
 import { parseManifestLine, resolveInside } from './manifest'
-import { collectImages, parseImageRef, sanityImageUrl } from './sanityImages'
+import { assertSanityCdnUrl, collectImages, parseImageRef, sanityImageUrl } from './sanityImages'
 import { readSessionToken, signSession } from './session'
 import { PHOTO_ANGLES, PHOTO_SOURCES, PHOTO_STATUSES } from './types'
 
@@ -83,6 +83,9 @@ test('image walk finds content and other image fields', () => {
     sanityImageUrl('image-abc-2000x1000-jpg', 'xbw6uf6e', 'production'),
     'https://cdn.sanity.io/images/xbw6uf6e/production/abc-2000x1000.jpg',
   )
+  assert.doesNotThrow(() => assertSanityCdnUrl('https://cdn.sanity.io/images/xbw6uf6e/production/abc-2000x1000.jpg'))
+  assert.throws(() => assertSanityCdnUrl('https://evil.example/images/abc.jpg'))
+  assert.throws(() => assertSanityCdnUrl('http://cdn.sanity.io/images/abc.jpg'))
 })
 
 test('manifest lines stay inside the folder', () => {

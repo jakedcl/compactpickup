@@ -2,8 +2,7 @@ import 'server-only'
 
 import { randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
-import type { PoolClient } from 'pg'
-import { getPool, query } from '@/lib/binder/db'
+import { getPool } from '@/lib/binder/db'
 import { sendLoginCode } from '@/lib/binder/email'
 import { adminEmail } from '@/lib/binder/env'
 
@@ -16,6 +15,22 @@ const LOCKOUT_MAX_FAILURES = 8
 const SEND_WINDOW_SECONDS = 15 * 60
 const SEND_MAX = 5
 const SEND_COOLDOWN_SECONDS = 60
+/** Separate from the sign-in lockout so a noisy IP is not the same counter. */
+const IP_REQUEST_MAX = 8
+const IP_REQUEST_WINDOW_SECONDS = 15 * 60
+const DAILY_SEND_CAP = 20
+const DAILY_WINDOW_SECONDS = 24 * 60 * 60
+
+type QueryClient = {
+  query: <T = Record<string, unknown>>(text: string, params?: readonly unknown[]) => Promise<{ rows: T[] }>
+  release: () => void
+}
+type QueryPool = { connect: () => Promise<QueryClient> }
+
+export type LoginDeps = {
+  pool?: QueryPool
+  send?: (to: string, code: string) => Promise<void>
+}
 
 export const REQUEST_MESSAGE = 'If that address can sign in, a code is on the way.'
 export const VERIFY_MESSAGE = 'Check the code and try again.'
@@ -45,10 +60,10 @@ async function verifyCodeHash(code: string, stored: string): Promise<boolean> {
 }
 
 async function logAttempt(
-  client: PoolClient,
+  client: QueryClient,
   email: string,
   ip: string | null,
-  kind: 'request' | 'verify',
+  kind: 'request' | 'verify' | 'reject' | 'lockout',
   success: boolean,
 ) {
   await client.query(
@@ -57,25 +72,60 @@ async function logAttempt(
   )
 }
 
-async function ipOverLimit(client: PoolClient, ip: string | null): Promise<boolean> {
+async function pruneOldRows(client: QueryClient) {
+  await client.query(`delete from login_attempts where created_at < now() - interval '30 days'`)
+  await client.query(`delete from login_codes where created_at < now() - interval '30 days'`)
+}
+
+async function ipOverLimit(client: QueryClient, ip: string | null): Promise<boolean> {
   if (!ip) return false
   const result = await client.query<{ n: number | string }>(
     `select count(*)::int as n from login_attempts
      where ip = $1 and kind = 'request'
        and created_at > now() - make_interval(secs => $2)`,
-    [ip, SEND_WINDOW_SECONDS],
+    [ip, IP_REQUEST_WINDOW_SECONDS],
   )
-  return Number(result.rows[0]?.n ?? 0) >= LOCKOUT_MAX_FAILURES
+  return Number(result.rows[0]?.n ?? 0) >= IP_REQUEST_MAX
 }
 
-export async function requestLoginCode(rawEmail: string, ip: string | null): Promise<void> {
+/** A short lockout after failures against codes that were actually emailed. Spam guesses do not extend it. */
+async function isLocked(client: QueryClient, email: string): Promise<boolean> {
+  const result = await client.query<{ created_at: Date | string }>(
+    `select created_at from login_attempts
+     where email = $1 and kind = 'lockout'
+       and created_at > now() - make_interval(secs => $2)
+     order by created_at desc
+     limit 1`,
+    [email, LOCKOUT_WINDOW_SECONDS],
+  )
+  return Boolean(result.rows[0])
+}
+
+async function maybeLock(client: QueryClient, email: string, ip: string | null) {
+  const result = await client.query<{ n: number | string }>(
+    `select count(*)::int as n from login_attempts
+     where email = $1 and kind = 'verify' and success = false
+       and created_at > now() - make_interval(secs => $2)`,
+    [email, LOCKOUT_WINDOW_SECONDS],
+  )
+  if (Number(result.rows[0]?.n ?? 0) < LOCKOUT_MAX_FAILURES) return
+  await logAttempt(client, email, ip, 'lockout', false)
+}
+
+function poolFor(deps?: LoginDeps): QueryPool {
+  return deps?.pool ?? getPool()
+}
+
+export async function requestLoginCode(rawEmail: string, ip: string | null, deps?: LoginDeps): Promise<void> {
   const email = normalizeEmail(rawEmail)
   const admin = adminEmail()
   const allowed = Boolean(admin && email === admin)
-  const client = await getPool().connect()
+  const pool = poolFor(deps)
+  const client = await pool.connect()
   let pending: { id: string; code: string } | null = null
   try {
     await client.query('begin')
+    await pruneOldRows(client)
     await client.query(`select pg_advisory_xact_lock(hashtext($1)::bigint)`, [`login:${email}`])
     const blocked = await ipOverLimit(client, ip)
     if (!allowed || blocked) {
@@ -85,16 +135,26 @@ export async function requestLoginCode(rawEmail: string, ip: string | null): Pro
       return
     }
 
-    const recent = await client.query<{ n: number | string; latest: Date | null }>(
-      `select count(*)::int as n, max(created_at) as latest
+    const recent = await client.query<{ n: number | string }>(
+      `select count(*)::int as n
        from login_codes
        where email = $1 and created_at > now() - make_interval(secs => $2)`,
       [email, SEND_WINDOW_SECONDS],
     )
+    const cooling = await client.query(
+      `select 1 as cooling from login_codes
+       where email = $1 and created_at > now() - make_interval(secs => $2)
+       limit 1`,
+      [email, SEND_COOLDOWN_SECONDS],
+    )
     const count = Number(recent.rows[0]?.n ?? 0)
-    const latest = recent.rows[0]?.latest ? new Date(recent.rows[0].latest).getTime() : 0
-    const cooling = latest > 0 && Date.now() - latest < SEND_COOLDOWN_SECONDS * 1000
-    if (count >= SEND_MAX || cooling) {
+    const isCooling = Boolean(cooling.rows[0])
+    const daily = await client.query<{ n: number | string }>(
+      `select count(*)::int as n from login_codes
+       where created_at > now() - make_interval(secs => $1)`,
+      [DAILY_WINDOW_SECONDS],
+    )
+    if (count >= SEND_MAX || isCooling || Number(daily.rows[0]?.n ?? 0) >= DAILY_SEND_CAP) {
       await logAttempt(client, email, ip, 'request', false)
       await client.query('commit')
       return
@@ -126,13 +186,20 @@ export async function requestLoginCode(rawEmail: string, ip: string | null): Pro
   }
 
   if (!pending) return
+  const send = deps?.send ?? sendLoginCode
   try {
-    await sendLoginCode(email, pending.code)
-  } catch {
-    console.error('binder: login code email failed')
-    await query(`delete from login_codes where id = $1`, [pending.id]).catch(() => {
+    await send(email, pending.code)
+  } catch (error) {
+    const name = error instanceof Error ? error.name : 'Error'
+    console.error(`binder: login code email failed (${name})`)
+    const cleanup = await pool.connect()
+    try {
+      await cleanup.query(`delete from login_codes where id = $1`, [pending.id])
+    } catch {
       console.error('binder: could not drop unsent login code')
-    })
+    } finally {
+      cleanup.release()
+    }
   }
 }
 
@@ -140,20 +207,15 @@ export async function verifyLoginCode(
   rawEmail: string,
   code: string,
   ip: string | null,
+  deps?: LoginDeps,
 ): Promise<boolean> {
   const email = normalizeEmail(rawEmail)
   const admin = adminEmail()
-  const client = await getPool().connect()
+  const client = await poolFor(deps).connect()
   try {
     await client.query('begin')
     await client.query(`select pg_advisory_xact_lock(hashtext($1)::bigint)`, [`login:${email}`])
-    const failures = await client.query<{ n: number | string }>(
-      `select count(*)::int as n from login_attempts
-       where email = $1 and kind = 'verify' and success = false
-         and created_at > now() - make_interval(secs => $2)`,
-      [email, LOCKOUT_WINDOW_SECONDS],
-    )
-    if (Number(failures.rows[0]?.n ?? 0) >= LOCKOUT_MAX_FAILURES) {
+    if (await isLocked(client, email)) {
       await client.query('commit')
       return false
     }
@@ -161,7 +223,7 @@ export async function verifyLoginCode(
     const shapeOk = /^\d{8}$/.test(code)
     if (!admin || email !== admin || !shapeOk) {
       await hashCode(code || '00000000')
-      await logAttempt(client, email, ip, 'verify', false)
+      await logAttempt(client, email, ip, 'reject', false)
       await client.query('commit')
       return false
     }
@@ -178,7 +240,7 @@ export async function verifyLoginCode(
     const row = found.rows[0]
     if (!row || row.attempts >= CODE_MAX_ATTEMPTS) {
       await hashCode(code)
-      await logAttempt(client, email, ip, 'verify', false)
+      await logAttempt(client, email, ip, 'reject', false)
       await client.query('commit')
       return false
     }
@@ -187,6 +249,7 @@ export async function verifyLoginCode(
     if (!match) {
       await client.query(`update login_codes set attempts = attempts + 1 where id = $1`, [row.id])
       await logAttempt(client, email, ip, 'verify', false)
+      await maybeLock(client, email, ip)
       await client.query('commit')
       return false
     }

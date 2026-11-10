@@ -15,7 +15,7 @@ import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { writesEnabled } from '../src/lib/binder/confirm'
 import { withDirectClient } from '../src/lib/binder/db'
-import { requireEnv } from '../src/lib/binder/env'
+import { BINDER_WRITE_ENV, requireEnvs } from '../src/lib/binder/env'
 import { MAX_ORIGINAL_BYTES } from '../src/lib/binder/images'
 import { parseManifestLine, resolveInside } from '../src/lib/binder/manifest'
 import { storeOriginalPhoto } from '../src/lib/binder/store-photo'
@@ -76,11 +76,7 @@ async function main() {
   }
   if (missing > 0) process.exit(1)
 
-  requireEnv('DATABASE_URL_UNPOOLED')
-  requireEnv('R2_ACCOUNT_ID')
-  requireEnv('R2_ACCESS_KEY_ID')
-  requireEnv('R2_SECRET_ACCESS_KEY')
-  requireEnv('R2_BUCKET')
+  requireEnvs(BINDER_WRITE_ENV)
 
   let inserted = 0
   let skipped = 0

@@ -13,6 +13,14 @@ export function parseImageRef(ref: string): { assetId: string; cdnPath: string }
   return { assetId: `image-${id}`, cdnPath: `${id}-${size}.${format}` }
 }
 
+/** Downloads must come from the Sanity CDN, not an arbitrary host on an asset record. */
+export function assertSanityCdnUrl(url: string): void {
+  const parsed = new URL(url)
+  if (parsed.protocol !== 'https:' || parsed.hostname !== 'cdn.sanity.io') {
+    throw new Error('unexpected image host')
+  }
+}
+
 export function sanityImageUrl(ref: string, projectId: string, dataset: string): string | null {
   const parsed = parseImageRef(ref)
   if (!parsed) return null

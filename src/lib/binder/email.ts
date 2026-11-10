@@ -20,7 +20,7 @@ export async function sendLoginCode(to: string, code: string): Promise<void> {
     ].join('\n'),
   })
   if (result.error) {
-    console.error(`binder: resend ${result.error.name}`)
+    console.error(`binder: resend ${result.error.name} ${result.error.statusCode ?? ''}`)
     throw new Error('email send failed')
   }
 }
