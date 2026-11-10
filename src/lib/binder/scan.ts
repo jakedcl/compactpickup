@@ -364,15 +364,16 @@ async function insertFeedback(
     photoId: string
     guessed: ScanCatalogTruck
     corrected: ScanCatalogTruck | null
-    verdict: 'right' | 'wrong'
+    correctedCustomText: string | null
+    verdict: 'right' | 'wrong' | 'idk'
     ipHash: string
   },
 ) {
   await client.query(
     `insert into scanner_feedback (
        photo_id, guessed_truck_id, guessed_truck_slug, verdict,
-       corrected_truck_id, corrected_truck_slug, consent, ip_hash
-     ) values ($1, $2, $3, $4, $5, $6, true, $7)`,
+       corrected_truck_id, corrected_truck_slug, corrected_truck_custom_text, consent, ip_hash
+     ) values ($1, $2, $3, $4, $5, $6, $7, true, $8)`,
     [
       row.photoId,
       row.guessed.id,
@@ -380,6 +381,7 @@ async function insertFeedback(
       row.verdict,
       row.corrected?.id ?? null,
       row.corrected?.slug ?? null,
+      row.correctedCustomText,
       row.ipHash,
     ],
   )
@@ -394,6 +396,7 @@ export async function submitVisitorPhoto(
     guessedTruckSlug: string
     correctedTruckId: string
     correctedTruckSlug: string
+    correctedTruckCustomText: string
     ip: string | null
   },
   deps: SubmitDeps,
@@ -412,15 +415,23 @@ export async function submitVisitorPhoto(
   if (!sniffImage(input.original)) {
     return { ok: false, status: 400, error: 'type', message: 'Use a JPEG, PNG, or WebP photo.' }
   }
-  if (input.verdict !== 'right' && input.verdict !== 'wrong') {
-    return { ok: false, status: 400, error: 'invalid', message: 'Say whether the guess was right or wrong.' }
+  if (input.verdict !== 'right' && input.verdict !== 'wrong' && input.verdict !== 'idk') {
+    return { ok: false, status: 400, error: 'invalid', message: 'Say whether the guess was right, wrong, or uncertain.' }
   }
-  const verdict: 'right' | 'wrong' = input.verdict
-  if (verdict === 'right' && (input.correctedTruckId || input.correctedTruckSlug)) {
+  const verdict: 'right' | 'wrong' | 'idk' = input.verdict
+  const customText = input.correctedTruckCustomText.trim()
+  if (verdict === 'right' && (input.correctedTruckId || input.correctedTruckSlug || customText)) {
     return { ok: false, status: 400, error: 'truck', message: 'A right guess does not need a correction.' }
   }
-  if (verdict === 'wrong' && (!input.correctedTruckId || !input.correctedTruckSlug)) {
-    return { ok: false, status: 400, error: 'truck', message: 'Pick the truck it actually is.' }
+  if (verdict === 'idk' && (input.correctedTruckId || input.correctedTruckSlug || customText)) {
+    return { ok: false, status: 400, error: 'truck', message: 'An uncertain guess does not need a correction.' }
+  }
+  if (verdict === 'wrong') {
+    const catalogCorrection = Boolean(input.correctedTruckId && input.correctedTruckSlug)
+    const customCorrection = customText.length > 0
+    if (catalogCorrection === customCorrection) {
+      return { ok: false, status: 400, error: 'truck', message: 'Pick the truck it actually is, or describe it in text.' }
+    }
   }
 
   const slot = await takeVisitorSlots(
@@ -446,10 +457,18 @@ export async function submitVisitorPhoto(
     return { ok: false, status: 400, error: 'truck', message: 'Pick a truck from the catalog.' }
   }
   let corrected: ScanCatalogTruck | null = null
+  let correctedCustomText: string | null = null
   if (verdict === 'wrong') {
-    corrected = findTruck(catalog, input.correctedTruckId, input.correctedTruckSlug)
-    if (!corrected || corrected.id === guessed.id) {
-      return { ok: false, status: 400, error: 'truck', message: 'Pick the truck it actually is.' }
+    if (customText) {
+      if (customText.length > 200) {
+        return { ok: false, status: 400, error: 'truck', message: 'That description is too long.' }
+      }
+      correctedCustomText = customText
+    } else {
+      corrected = findTruck(catalog, input.correctedTruckId, input.correctedTruckSlug)
+      if (!corrected || corrected.id === guessed.id) {
+        return { ok: false, status: 400, error: 'truck', message: 'Pick the truck it actually is.' }
+      }
     }
   }
 
@@ -465,6 +484,7 @@ export async function submitVisitorPhoto(
   const feedback = {
     guessed,
     corrected,
+    correctedCustomText,
     verdict,
     ipHash,
   }
@@ -479,9 +499,18 @@ export async function submitVisitorPhoto(
   await deps.putPhoto(r2Key, prepared.data)
 
   const outcome = await withTransaction(deps, async (client) => {
+    let truckId: string | null = null
+    let truckSlug: string | null = null
+    if (verdict === 'right') {
+      truckId = guessed.id
+      truckSlug = guessed.slug
+    } else if (verdict === 'wrong' && corrected) {
+      truckId = corrected.id
+      truckSlug = corrected.slug
+    }
     const inserted = await insertPendingPhoto(asPool(client), {
-      truckId: (corrected ?? guessed).id,
-      truckSlug: (corrected ?? guessed).slug,
+      truckId,
+      truckSlug,
       source: 'visitor',
       sourceUrl: null,
       author: null,

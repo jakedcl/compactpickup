@@ -1,22 +1,36 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { ClipError, embedImage } from '@/lib/clip/browser'
-import { SCAN_CONSENT_VALUE, SCAN_FIELDS, type ScanCatalogTruck, type ScanMatch } from '@/lib/binder/scan-types'
+import {
+  SCAN_CONSENT_VALUE,
+  SCAN_FIELDS,
+  formatScanScorePercent,
+  type ScanCatalogTruck,
+  type ScanMatch,
+  type ScanVerdict,
+} from '@/lib/binder/scan-types'
+import ScanModal from './scan-modal'
+import { ScanTruckSearch } from './scan-truck-search'
+import { useMobileDevice } from './use-mobile-device'
 import './scan.css'
 
 const UPLOAD_LONG_EDGE = 1600
 const UPLOAD_JPEG_QUALITY = 0.85
 
-type Phase = 'idle' | 'working' | 'results' | 'error'
+type Phase = 'idle' | 'preview' | 'working' | 'error'
+type ModalStep = 'results' | 'correction' | 'consent' | 'done'
 type SubmitPhase = 'idle' | 'sending' | 'sent' | 'duplicate' | 'error'
-type Verdict = 'right' | 'wrong'
 
 type ScanSuccess = {
   state: 'learning' | 'match' | 'guess'
   matches: ScanMatch[]
 }
+
+type Correction =
+  | { kind: 'catalog'; truck: ScanCatalogTruck }
+  | { kind: 'custom'; text: string }
 
 function isMatch(value: unknown): value is ScanMatch {
   if (!value || typeof value !== 'object') return false
@@ -51,6 +65,17 @@ function clientMessage(error: unknown): string {
   return 'The scanner did not load. Check the connection and try the photo again.'
 }
 
+function messageFrom(value: unknown, fallback: string): string {
+  if (!value || typeof value !== 'object') return fallback
+  const message = (value as { message?: unknown }).message
+  return typeof message === 'string' && message.length > 0 && message.length < 200 ? message : fallback
+}
+
+function isImageFile(file: File): boolean {
+  if (file.type.startsWith('image/')) return true
+  return /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name)
+}
+
 async function shrinkVisitorJpeg(file: Blob): Promise<File> {
   const bitmap = await createImageBitmap(file)
   try {
@@ -74,12 +99,6 @@ async function shrinkVisitorJpeg(file: Blob): Promise<File> {
   }
 }
 
-function messageFrom(value: unknown, fallback: string): string {
-  if (!value || typeof value !== 'object') return fallback
-  const message = (value as { message?: unknown }).message
-  return typeof message === 'string' && message.length > 0 && message.length < 200 ? message : fallback
-}
-
 export default function Scanner({
   trucks,
   catalogStatus,
@@ -87,78 +106,106 @@ export default function Scanner({
   trucks: ScanCatalogTruck[]
   catalogStatus: 'ready' | 'error'
 }) {
+  const device = useMobileDevice()
   const runId = useRef(0)
   const previewRef = useRef<string | null>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const libraryInputRef = useRef<HTMLInputElement>(null)
+  const chooseInputRef = useRef<HTMLInputElement>(null)
+  const dragDepth = useRef(0)
+
   const [phase, setPhase] = useState<Phase>('idle')
-  const [status, setStatus] = useState('The photo stays on this phone until you choose to send a copy.')
+  const [status, setStatus] = useState('Pick a photo, then press Scan when you are ready.')
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [result, setResult] = useState<ScanSuccess | null>(null)
-  const [verdict, setVerdict] = useState<Verdict | null>(null)
-  const [correctionId, setCorrectionId] = useState('')
-  const [filter, setFilter] = useState('')
-  const [consent, setConsent] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalStep, setModalStep] = useState<ModalStep>('results')
+  const [verdict, setVerdict] = useState<ScanVerdict | null>(null)
+  const [correction, setCorrection] = useState<Correction | null>(null)
   const [submitPhase, setSubmitPhase] = useState<SubmitPhase>('idle')
   const [submitMessage, setSubmitMessage] = useState('')
-
-  useEffect(() => {
-    const revoke = () => {
-      if (previewRef.current) URL.revokeObjectURL(previewRef.current)
-    }
-    window.addEventListener('pagehide', revoke)
-    return () => window.removeEventListener('pagehide', revoke)
-  }, [])
-
-  const correction = trucks.find((truck) => truck.id === correctionId) ?? null
-  const shown = useMemo(() => {
-    const query = filter.trim().toLowerCase()
-    return trucks.filter((truck) => {
-      if (truck.id === correctionId) return true
-      if (!query) return true
-      return `${truck.maker} ${truck.title} ${truck.years}`.toLowerCase().includes(query)
-    })
-  }, [trucks, filter, correctionId])
-
-  const groups = useMemo(() => {
-    const map = new Map<string, ScanCatalogTruck[]>()
-    for (const truck of shown) {
-      const list = map.get(truck.maker) ?? []
-      list.push(truck)
-      map.set(truck.maker, list)
-    }
-    return [...map.entries()]
-  }, [shown])
+  const [dragging, setDragging] = useState(false)
+  const [chosenTruck, setChosenTruck] = useState<ScanCatalogTruck | null>(null)
 
   const busy = phase === 'working' || submitPhase === 'sending'
-  const top = result?.matches[0]
-  const canSend = Boolean(
-    file
-    && top
-    && consent
-    && submitPhase !== 'sending'
-    && submitPhase !== 'sent'
-    && submitPhase !== 'duplicate'
-    && (verdict === 'right' || (verdict === 'wrong' && correction && catalogStatus === 'ready')),
-  )
+  const top = result?.matches[0] ?? null
+  const canFeedback = Boolean(top)
 
-  async function run(next: File) {
-    const id = runId.current + 1
-    runId.current = id
-    setFile(next)
+  const clearPreviewUrl = useCallback(() => {
     if (previewRef.current) URL.revokeObjectURL(previewRef.current)
+    previewRef.current = null
+  }, [])
+
+  useEffect(() => {
+    const revoke = () => clearPreviewUrl()
+    window.addEventListener('pagehide', revoke)
+    return () => window.removeEventListener('pagehide', revoke)
+  }, [clearPreviewUrl])
+
+  const resetSession = useCallback(() => {
+    runId.current += 1
+    clearPreviewUrl()
+    setFile(null)
+    setPreview(null)
+    setPhase('idle')
+    setResult(null)
+    setModalOpen(false)
+    setModalStep('results')
+    setVerdict(null)
+    setCorrection(null)
+    setSubmitPhase('idle')
+    setSubmitMessage('')
+    setChosenTruck(null)
+    setStatus('Pick a photo, then press Scan when you are ready.')
+  }, [clearPreviewUrl])
+
+  const pickFile = useCallback((next: File) => {
+    if (!isImageFile(next)) {
+      setStatus('That file is not a photo. Choose a JPEG, PNG, or WebP.')
+      return
+    }
+    runId.current += 1
+    setFile(next)
+    clearPreviewUrl()
     const url = URL.createObjectURL(next)
     previewRef.current = url
     setPreview(url)
-    setPhase('working')
+    setPhase('preview')
     setResult(null)
+    setModalOpen(false)
+    setModalStep('results')
     setVerdict(null)
-    setCorrectionId('')
-    setConsent(false)
+    setCorrection(null)
     setSubmitPhase('idle')
     setSubmitMessage('')
-    setStatus('Reading the photo. The first time downloads the scanner (about 90 MB) onto this phone and keeps it there.')
+    setChosenTruck(null)
+    setStatus('Press Scan when you are ready, or replace the photo.')
+  }, [clearPreviewUrl])
+
+  function pickGuess(match: ScanMatch, index: number) {
+    if (!top) return
+    if (index === 0) {
+      setVerdict('right')
+      setCorrection(null)
+      setChosenTruck(match)
+    } else {
+      setVerdict('wrong')
+      setCorrection({ kind: 'catalog', truck: match })
+      setChosenTruck(match)
+    }
+    setModalStep('consent')
+  }
+
+  const scanPhoto = useCallback(async () => {
+    if (!file) return
+    const id = runId.current + 1
+    runId.current = id
+    setPhase('working')
+    setResult(null)
+    setStatus('Reading the photo. The first time downloads the scanner (about 90 MB) onto this device and keeps it there.')
     try {
-      const vector = await embedImage(next, (progress) => {
+      const vector = await embedImage(file, (progress) => {
         if (runId.current !== id) return
         if (progress.status === 'progress' && typeof progress.progress === 'number') {
           setStatus(`Downloading the scanner. ${Math.round(progress.progress)}%`)
@@ -185,32 +232,98 @@ export default function Scanner({
         return
       }
       setResult(parsed)
-      setPhase('results')
+      setPhase('preview')
+      setModalOpen(true)
+      setModalStep('results')
+      setVerdict(null)
+      setCorrection(null)
       if (parsed.state === 'learning') {
-        setStatus('The scanner is still learning. Reference photos are not ready yet, so there is no match to show.')
+        setStatus('The scanner is still learning. Reference photos are not ready yet.')
       } else if (parsed.matches.length === 0) {
         setStatus('Not sure. The closest photos are not on a truck page yet.')
       } else if (parsed.state === 'guess') {
-        setStatus('Not sure. Here is the closest guess.')
+        setStatus(`Not sure. Closest guess is ${formatScanScorePercent(parsed.matches[0].score)}.`)
       } else {
-        setStatus('Closest match.')
+        setStatus(`Closest match at ${formatScanScorePercent(parsed.matches[0].score)}.`)
       }
     } catch (error) {
       if (runId.current !== id) return
       setPhase('error')
       setStatus(clientMessage(error))
     }
-  }
+  }, [file])
 
-  function onPhoto(event: ChangeEvent<HTMLInputElement>) {
+  useEffect(() => {
+    if (device !== 'desktop') return undefined
+    function hasFiles(event: DragEvent): boolean {
+      return [...(event.dataTransfer?.types ?? [])].includes('Files')
+    }
+    function onDragEnter(event: DragEvent) {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      dragDepth.current += 1
+      setDragging(true)
+    }
+    function onDragOver(event: DragEvent) {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+    }
+    function onDragLeave(event: DragEvent) {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      dragDepth.current = Math.max(0, dragDepth.current - 1)
+      if (dragDepth.current === 0) setDragging(false)
+    }
+    function onDrop(event: DragEvent) {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      dragDepth.current = 0
+      setDragging(false)
+      const item = event.dataTransfer?.files?.[0]
+      if (item && isImageFile(item)) pickFile(item)
+    }
+    function onPaste(event: ClipboardEvent) {
+      const item = [...(event.clipboardData?.items ?? [])].find((row) => row.type.startsWith('image/'))
+      const blob = item?.getAsFile()
+      if (blob) {
+        event.preventDefault()
+        pickFile(blob)
+      }
+    }
+    window.addEventListener('dragenter', onDragEnter)
+    window.addEventListener('dragover', onDragOver)
+    window.addEventListener('dragleave', onDragLeave)
+    window.addEventListener('drop', onDrop)
+    window.addEventListener('paste', onPaste)
+    return () => {
+      window.removeEventListener('dragenter', onDragEnter)
+      window.removeEventListener('dragover', onDragOver)
+      window.removeEventListener('dragleave', onDragLeave)
+      window.removeEventListener('drop', onDrop)
+      window.removeEventListener('paste', onPaste)
+    }
+  }, [device, pickFile])
+
+  function onCameraChange(event: ChangeEvent<HTMLInputElement>) {
     const next = event.target.files?.[0]
     event.target.value = ''
-    if (next) void run(next)
+    if (next) pickFile(next)
   }
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!file || !top || !verdict || !canSend) return
+  function onLibraryChange(event: ChangeEvent<HTMLInputElement>) {
+    const next = event.target.files?.[0]
+    event.target.value = ''
+    if (next) pickFile(next)
+  }
+
+  function onChooseChange(event: ChangeEvent<HTMLInputElement>) {
+    const next = event.target.files?.[0]
+    event.target.value = ''
+    if (next) pickFile(next)
+  }
+
+  async function sendConsentingPhoto() {
+    if (!file || !top || !verdict) return
     setSubmitPhase('sending')
     setSubmitMessage('Sending')
     let upload: File
@@ -227,9 +340,18 @@ export default function Scanner({
     body.set(SCAN_FIELDS.verdict, verdict)
     body.set(SCAN_FIELDS.guessedTruckId, top.id)
     body.set(SCAN_FIELDS.guessedTruckSlug, top.slug)
-    if (verdict === 'wrong' && correction) {
-      body.set(SCAN_FIELDS.correctedTruckId, correction.id)
-      body.set(SCAN_FIELDS.correctedTruckSlug, correction.slug)
+    if (verdict === 'wrong' && correction?.kind === 'catalog') {
+      body.set(SCAN_FIELDS.correctedTruckId, correction.truck.id)
+      body.set(SCAN_FIELDS.correctedTruckSlug, correction.truck.slug)
+      body.set(SCAN_FIELDS.correctedTruckCustomText, '')
+    } else if (verdict === 'wrong' && correction?.kind === 'custom') {
+      body.set(SCAN_FIELDS.correctedTruckId, '')
+      body.set(SCAN_FIELDS.correctedTruckSlug, '')
+      body.set(SCAN_FIELDS.correctedTruckCustomText, correction.text)
+    } else {
+      body.set(SCAN_FIELDS.correctedTruckId, '')
+      body.set(SCAN_FIELDS.correctedTruckSlug, '')
+      body.set(SCAN_FIELDS.correctedTruckCustomText, '')
     }
     try {
       const response = await fetch('/api/scan/submit', { method: 'POST', body })
@@ -242,12 +364,14 @@ export default function Scanner({
       const outcome = payload && typeof payload === 'object' ? (payload as { outcome?: unknown }).outcome : null
       if (outcome === 'duplicate') {
         setSubmitPhase('duplicate')
-        setSubmitMessage('That photo is already in the library. Your note was saved. The stored photo was left as it was.')
+        setSubmitMessage('That photo is already in the library. Your note was saved.')
+        setModalStep('done')
         return
       }
       if (outcome === 'inserted') {
         setSubmitPhase('sent')
-        setSubmitMessage('Sent. It waits in Pending until it is reviewed, and it is not used for matching yet.')
+        setSubmitMessage('Saved as Pending. It is not used for matching until reviewed.')
+        setModalStep('done')
         return
       }
       setSubmitPhase('error')
@@ -258,131 +382,262 @@ export default function Scanner({
     }
   }
 
+  function dismissModal() {
+    resetSession()
+  }
+
+  const modalTitle =
+    modalStep === 'results'
+      ? 'Scan results'
+      : modalStep === 'correction'
+        ? 'Which truck was it?'
+        : modalStep === 'consent'
+          ? 'Teach the scanner'
+          : 'All set'
+
   return (
-    <div>
-      <p className="scan-note">The photo stays on this phone until you choose to send a copy.</p>
+    <div className="scan-shell">
+      {dragging ? (
+        <div className="scan-drop-overlay" aria-hidden="true">
+          <p>Drop photo</p>
+        </div>
+      ) : null}
+      <p className="scan-note">The photo stays on this device until you choose to send a copy.</p>
       <div className="scan-preview">
         {preview ? (
-          // Local camera preview. next/image does not serve blob URLs.
           // eslint-disable-next-line @next/next/no-img-element
           <img src={preview} alt="The photo you chose" />
         ) : (
           <p>No photo yet</p>
         )}
       </div>
-      <div className="scan-actions">
-        <label className={`btn btn-accent scan-capture${busy ? ' is-disabled' : ''}`}>
-          Take photo
+      {!file ? (
+        <div className={`scan-actions${device === 'desktop' ? ' is-single' : ''}`}>
+          {device === 'unknown' ? (
+            <p className="scan-device-wait" role="status">
+              Preparing camera controls
+            </p>
+          ) : device === 'mobile' ? (
+            <>
+              <button
+                type="button"
+                className="btn btn-accent"
+                disabled={busy}
+                onClick={() => cameraInputRef.current?.click()}
+              >
+                Take photo
+              </button>
+              <button type="button" className="btn" disabled={busy} onClick={() => libraryInputRef.current?.click()}>
+                Choose photo
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-accent"
+              disabled={busy}
+              onClick={() => chooseInputRef.current?.click()}
+            >
+              Choose photo
+            </button>
+          )}
+        </div>
+      ) : null}
+      {device === 'mobile' ? (
+        <>
           <input
+            ref={cameraInputRef}
             type="file"
             accept="image/*"
             capture="environment"
-            disabled={busy}
-            onChange={onPhoto}
+            className="scan-hidden-input"
+            tabIndex={-1}
+            onChange={onCameraChange}
           />
-        </label>
-        <label className={`btn scan-capture${busy ? ' is-disabled' : ''}`}>
-          Choose photo
-          <input type="file" accept="image/*" disabled={busy} onChange={onPhoto} />
-        </label>
-      </div>
-      <p className="scan-status" role="status">{status}</p>
-      {phase === 'error' && file ? (
-        <button type="button" className="btn" onClick={() => void run(file)}>Try again</button>
+          <input
+            ref={libraryInputRef}
+            type="file"
+            accept="image/*"
+            className="scan-hidden-input"
+            tabIndex={-1}
+            onChange={onLibraryChange}
+          />
+        </>
+      ) : device === 'desktop' ? (
+        <input
+          ref={chooseInputRef}
+          type="file"
+          accept="image/*"
+          className="scan-hidden-input"
+          tabIndex={-1}
+          onChange={onChooseChange}
+        />
       ) : null}
-      {phase === 'results' && result && result.matches.length > 0 ? (
-        <ol className="scan-results">
-          {result.matches.map((match, index) => (
-            <li key={match.id}>
-              <Link href={match.href} className="card scan-hit">
-                <span className="card-copy">
-                  <span className="card-label">
-                    {index === 0 ? (result.state === 'match' ? 'Closest' : 'Closest guess') : 'Next closest'}
-                  </span>
-                  <span className="card-label">{match.maker}</span>
-                  <span className="card-title">{match.title}</span>
-                  {match.years ? <span>{match.years}</span> : null}
-                  <span className="meta">Score {match.score.toFixed(2)}</span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      {phase === 'results' && top ? (
-        <form className="scan-feedback" onSubmit={onSubmit}>
-          <h2>Was this the right truck?</h2>
-          <div className="scan-choice">
-            <button
-              type="button"
-              className={verdict === 'right' ? 'btn btn-accent' : 'btn'}
-              aria-pressed={verdict === 'right'}
-              onClick={() => setVerdict('right')}
-            >
-              Right
-            </button>
-            <button
-              type="button"
-              className={verdict === 'wrong' ? 'btn btn-accent' : 'btn'}
-              aria-pressed={verdict === 'wrong'}
-              onClick={() => setVerdict('wrong')}
-            >
-              Wrong
-            </button>
-          </div>
-          {verdict === 'wrong' ? (
-            catalogStatus === 'error' ? (
-              <p role="status">The truck list did not load, so a correction cannot be picked.</p>
-            ) : (
-              <label className="scan-label">
-                Which truck is it?
-                <input
-                  className="scan-field"
-                  value={filter}
-                  onChange={(event) => setFilter(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') event.preventDefault()
-                  }}
-                  placeholder="Ranger, Hilux"
-                  autoComplete="off"
-                  enterKeyHint="search"
-                />
-                <select
-                  className="scan-field"
-                  value={correctionId}
-                  onChange={(event) => setCorrectionId(event.target.value)}
-                >
-                  <option value="">Choose a truck</option>
-                  {groups.map(([maker, list]) => (
-                    <optgroup key={maker} label={maker}>
-                      {list.map((truck) => (
-                        <option key={truck.id} value={truck.id}>
-                          {truck.title}{truck.years ? ` ${truck.years}` : ''}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
-            )
-          ) : null}
-          <label className="scan-consent">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(event) => setConsent(event.target.checked)}
-            />
-            <span>
-              I took this photo, or I have permission to share it. Store one compressed copy for review.
-              If it is approved, it can teach the scanner. It is not published before that.
-              The report also stores this network address to limit spam.
-            </span>
-          </label>
-          <button type="submit" className="btn btn-accent" disabled={!canSend}>
-            {submitPhase === 'sending' ? 'Sending' : 'Send photo'}
+      {file ? (
+        <div className="scan-preview-actions">
+          <button type="button" className="btn btn-accent" disabled={busy} onClick={() => void scanPhoto()}>
+            {phase === 'working' ? 'Scanning…' : 'Scan'}
           </button>
-          {submitMessage ? <p role="status">{submitMessage}</p> : null}
-        </form>
+          <button type="button" className="btn" disabled={busy} onClick={resetSession}>
+            Replace photo
+          </button>
+        </div>
+      ) : null}
+      <p className="scan-status" role="status">
+        {status}
+      </p>
+      {phase === 'error' && file ? (
+        <button type="button" className="btn" onClick={() => void scanPhoto()}>
+          Try again
+        </button>
+      ) : null}
+      {device === 'desktop' && !file ? (
+        <p className="scan-hint">Drop a photo anywhere on this page, or paste from the clipboard.</p>
+      ) : null}
+
+      {modalOpen ? (
+        <ScanModal title={modalTitle} onClose={dismissModal}>
+          {modalStep === 'results' && result ? (
+            <div className="scan-modal-panel">
+              {result.state === 'guess' && result.matches.length > 0 ? (
+                <p className="scan-not-sure" role="status">
+                  Not sure. The strongest match is only {formatScanScorePercent(result.matches[0].score)}.
+                </p>
+              ) : null}
+              {result.matches.length > 0 ? (
+                <ol className="scan-results">
+                  {result.matches.slice(0, 2).map((match, index) => (
+                    <li key={match.id}>
+                      <button type="button" className="scan-guess" onClick={() => pickGuess(match, index)}>
+                        <span className="card scan-hit">
+                          <span className="card-copy">
+                            <span className="card-label">
+                              {index === 0 ? (result.state === 'match' ? 'Closest' : 'Closest guess') : 'Next closest'}
+                            </span>
+                            <span className="card-label">{match.maker}</span>
+                            <span className="card-title">{match.title}</span>
+                            {match.years ? <span>{match.years}</span> : null}
+                            <span className="meta">Match {formatScanScorePercent(match.score)}</span>
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p role="status">Not sure yet. There is no truck page close enough to show.</p>
+              )}
+              {canFeedback ? (
+                <>
+                  <p className="scan-pick-prompt">Tap the right truck, or:</p>
+                  <div className="scan-choice">
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        setVerdict('wrong')
+                        setCorrection(null)
+                        setChosenTruck(null)
+                        setModalStep('correction')
+                      }}
+                    >
+                      Wrong
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        setVerdict('idk')
+                        setCorrection(null)
+                        setChosenTruck(top)
+                        setModalStep('consent')
+                      }}
+                    >
+                      Not sure
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button type="button" className="btn" onClick={resetSession}>
+                  Scan another
+                </button>
+              )}
+            </div>
+          ) : null}
+
+          {modalStep === 'correction' ? (
+            <div className="scan-modal-panel">
+              {catalogStatus === 'error' ? (
+                <p role="status">The truck list did not load. Try again later.</p>
+              ) : (
+                <ScanTruckSearch
+                  trucks={trucks}
+                  disabled={busy}
+                  onPick={(pick) => {
+                    if (pick.kind === 'catalog') {
+                      setCorrection({ kind: 'catalog', truck: pick.truck })
+                      setChosenTruck(pick.truck)
+                    } else {
+                      setCorrection({ kind: 'custom', text: pick.text })
+                      setChosenTruck(null)
+                    }
+                    setModalStep('consent')
+                  }}
+                />
+              )}
+            </div>
+          ) : null}
+
+          {modalStep === 'consent' ? (
+            <div className="scan-modal-panel">
+              <h2 className="scan-modal-heading">Can we use this photo to teach the scanner?</h2>
+              <p className="scan-consent-copy">
+                A compressed copy goes to Pending for review. It is never published or used for matching until approved.
+              </p>
+              <div className="scan-choice">
+                <button
+                  type="button"
+                  className="btn btn-accent"
+                  disabled={busy || (verdict === 'wrong' && !correction)}
+                  onClick={() => void sendConsentingPhoto()}
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busy}
+                  onClick={() => {
+                    setModalStep('done')
+                    setSubmitMessage('Nothing was stored.')
+                  }}
+                >
+                  No
+                </button>
+              </div>
+              {submitMessage && submitPhase !== 'idle' ? <p role="status">{submitMessage}</p> : null}
+            </div>
+          ) : null}
+
+          {modalStep === 'done' ? (
+            <div className="scan-modal-panel">
+              <p role="status">
+                {submitMessage || (submitPhase === 'sent' ? 'Photo saved to Pending.' : 'Thanks for the report.')}
+              </p>
+              {chosenTruck ? (
+                <Link href={chosenTruck.href} className="btn">
+                  {chosenTruck.maker} {chosenTruck.title}
+                  {chosenTruck.years ? ` · ${chosenTruck.years}` : ''}
+                </Link>
+              ) : correction?.kind === 'custom' ? (
+                <p className="scan-consent-copy">Noted: {correction.text}</p>
+              ) : null}
+              <button type="button" className="btn btn-accent" onClick={resetSession}>
+                Scan another
+              </button>
+            </div>
+          ) : null}
+        </ScanModal>
       ) : null}
     </div>
   )

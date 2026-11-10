@@ -5,8 +5,8 @@ import { query } from '@/lib/binder/db'
 export type PhotoCounts = Record<PhotoStatus, number>
 
 export type PendingPhoto = {
-  truckId: string
-  truckSlug: string
+  truckId: string | null
+  truckSlug: string | null
   source: PhotoSource
   sourceUrl: string | null
   author: string | null
