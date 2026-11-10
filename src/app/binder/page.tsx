@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import PageHeader from '@/components/ui/PageHeader'
+import { Dashboard } from '@/app/binder/dashboard'
 import { LoginForm } from '@/app/binder/login-form'
-import { LogoutButton } from '@/app/binder/logout-button'
 import { BinderShell } from '@/app/binder/shell'
 import { photoCounts, type PhotoCounts } from '@/lib/binder/photos'
 import { getSession } from '@/lib/binder/session-cookie'
@@ -12,13 +12,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-const labels: { key: keyof PhotoCounts; label: string }[] = [
-  { key: 'pending', label: 'Pending' },
-  { key: 'approved', label: 'Approved' },
-  { key: 'rejected', label: 'Rejected' },
-]
-
-export default async function AdminPage() {
+export default async function BinderPage() {
   const session = await getSession()
   if (!session) {
     return (
@@ -39,31 +33,15 @@ export default async function AdminPage() {
   } catch {
     console.error('binder: photo counts failed')
   }
-  const total = counts ? counts.pending + counts.approved + counts.rejected : 0
 
   return (
-    <BinderShell>
+    <BinderShell wide>
       <PageHeader
         kicker="Binder"
         title="Photo library"
-        lede={`Signed in as ${session.email}. Review tools come later.`}
+        lede={`Signed in as ${session.email}. Nothing matches until you approve it.`}
       />
-      {counts ? (
-        <ul className="binder-counts">
-          {labels.map((item) => (
-            <li key={item.key} className="binder-count">
-              <span>{item.label}</span>
-              <strong>{counts[item.key]}</strong>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="binder-note is-bad" role="alert">
-          The photo counts did not load.
-        </p>
-      )}
-      {counts && total === 0 ? <p>No photos yet. Import runs after the database migration.</p> : null}
-      <LogoutButton />
+      <Dashboard initialCounts={counts} />
     </BinderShell>
   )
 }

@@ -1,12 +1,13 @@
 import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from 'pg'
 import { requireEnv } from '@/lib/binder/env'
+import { connectionStringForPg } from '@/lib/binder/pg-url'
 
 let pool: Pool | undefined
 
 export function getPool(): Pool {
   if (!pool) {
     pool = new Pool({
-      connectionString: requireEnv('DATABASE_URL'),
+      connectionString: connectionStringForPg(requireEnv('DATABASE_URL')),
       max: 3,
       idleTimeoutMillis: 10_000,
     })
@@ -21,10 +22,19 @@ export async function query<T extends QueryResultRow>(
   return getPool().query<T>(text, params)
 }
 
+export async function withPooledClient<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await getPool().connect()
+  try {
+    return await fn(client)
+  } finally {
+    client.release()
+  }
+}
+
 /** Direct Neon connection for migrations and imports. Caller owns the pool. */
 export async function withDirectClient<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const direct = new Pool({
-    connectionString: requireEnv('DATABASE_URL_UNPOOLED'),
+    connectionString: connectionStringForPg(requireEnv('DATABASE_URL_UNPOOLED')),
     max: 1,
   })
   const client = await direct.connect()

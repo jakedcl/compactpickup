@@ -31,9 +31,14 @@ export async function photoCounts(): Promise<PhotoCounts> {
   return counts
 }
 
-export async function photoKey(id: string): Promise<string | null> {
-  const result = await query<{ r2_key: string }>(`select r2_key from photos where id = $1`, [id])
-  return result.rows[0]?.r2_key ?? null
+export async function photoFile(id: string): Promise<{ r2Key: string; sha256: string } | null> {
+  const result = await query<{ r2_key: string; sha256: string }>(
+    `select r2_key, sha256 from photos where id = $1`,
+    [id],
+  )
+  const row = result.rows[0]
+  if (!row) return null
+  return { r2Key: row.r2_key, sha256: row.sha256 }
 }
 
 export async function photoIdForSha256(client: PoolClient, sha256: string): Promise<string | null> {

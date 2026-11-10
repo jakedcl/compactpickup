@@ -5,12 +5,18 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import { CLIP_EMBEDDING_DIM } from './clip'
+import { sortCoverage } from './coverage'
+import { normalizeEmbedding, vectorLiteral } from './embedding'
 import { adminEmail } from './env'
-import { prepareStoredPhoto, sha256Hex } from './images'
-import { parseManifestLine, resolveInside } from './manifest'
-import { assertSanityCdnUrl, collectImages, parseImageRef, sanityImageUrl } from './sanityImages'
+import { THUMB_LONG_EDGE, compressToThumb, prepareStoredPhoto, sha256Hex } from './images'
+import { manifestFileCandidates, parseManifestLine, resolveInside } from './manifest'
+import { connectionStringForPg } from './pg-url'
+import { assertSanityCdnUrl, canonicalSanityUrl, collectImages, parseImageRef, sanityDerivativeUrl, sanityImageUrl } from './sanityImages'
+import { plannedFromImage } from './sanitySync'
 import { readSessionToken, signSession } from './session'
 import { PHOTO_ANGLES, PHOTO_SOURCES, PHOTO_STATUSES } from './types'
+import robots from '../../app/robots'
+import { fittedSize } from '../../app/binder/shrink-photo'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 const secret = 'test-secret-value-32-characters'
@@ -106,6 +112,27 @@ test('manifest lines stay inside the folder', () => {
   assert.equal(resolveInside('/tmp/binder', row.localPath), path.resolve('/tmp/binder', 'photos/a.jpg'))
   assert.throws(() => parseManifestLine(JSON.stringify({ ...row, source: 'nope', localPath: 'a.jpg' })))
   assert.throws(() => resolveInside('/tmp/binder', '../secret.jpg'))
+
+  const commons = parseManifestLine(
+    JSON.stringify({
+      slug: 'b-5',
+      url: 'https://commons.wikimedia.org/wiki/File:Foo',
+      license: 'CC BY 2.0',
+      author: 'Ada',
+      title: 'Foo',
+      filename: 'foo.webp',
+    }),
+    { defaultSource: 'commons' },
+  )
+  assert.equal(commons.source, 'commons')
+  assert.equal(commons.truckId, '')
+  assert.equal(commons.author, 'Ada')
+  assert.equal(commons.license, 'CC BY 2.0')
+  assert.equal(commons.title, 'Foo')
+  assert.equal(commons.sourceUrl, 'https://commons.wikimedia.org/wiki/File:Foo')
+  const candidates = manifestFileCandidates('/tmp/pull', commons)
+  assert.ok(candidates.includes(path.resolve('/tmp/pull/commons/b-5/foo.webp')))
+  assert.throws(() => parseManifestLine(JSON.stringify({ slug: 'b-5', filename: '../secret.webp' }), { defaultSource: 'commons' }))
 })
 
 test('migration matches the CLIP dimension and lookup indexes', () => {
@@ -117,4 +144,115 @@ test('migration matches the CLIP dimension and lookup indexes', () => {
   for (const source of PHOTO_SOURCES) assert.match(sql, new RegExp(`'${source}'`))
   for (const status of PHOTO_STATUSES) assert.match(sql, new RegExp(`'${status}'`))
   for (const angle of PHOTO_ANGLES) assert.match(sql, new RegExp(`'${angle}'`))
+})
+
+test('a sanity import downloads a derivative and stores the canonical url', () => {
+  const raw = 'https://cdn.sanity.io/images/xbw6uf6e/production/abc-8000x6000.png'
+  assert.equal(canonicalSanityUrl(`${raw}?w=100`), raw)
+  const derivative = sanityDerivativeUrl(raw)
+  assert.match(derivative, /[?&]w=2000/)
+  assert.match(derivative, /fm=jpg/)
+  assert.doesNotThrow(() => assertSanityCdnUrl(derivative))
+  const planned = plannedFromImage(
+    'truck-1',
+    'b-5',
+    { assetRef: 'image-abc-8000x6000-png', alt: 'Front', caption: null },
+    raw,
+  )
+  assert.equal(planned?.canonicalUrl, raw)
+  assert.match(planned?.downloadUrl ?? '', /fm=jpg/)
+  assert.equal(planned?.notes, 'Front')
+})
+
+test('non-local database urls use sslmode=verify-full', () => {
+  assert.equal(
+    connectionStringForPg('postgres://u:p@ep-cool.neon.tech/db?sslmode=require'),
+    'postgres://u:p@ep-cool.neon.tech/db?sslmode=verify-full',
+  )
+  assert.equal(
+    connectionStringForPg('postgres://u:p@ep-cool.neon.tech/db'),
+    'postgres://u:p@ep-cool.neon.tech/db?sslmode=verify-full',
+  )
+  assert.equal(connectionStringForPg('postgres://u:p@localhost:5432/db?sslmode=disable'), 'postgres://u:p@localhost:5432/db?sslmode=disable')
+  assert.equal(connectionStringForPg('postgres://u:p@127.0.0.1/db'), 'postgres://u:p@127.0.0.1/db')
+})
+
+test('embeddings must be 512 finite numbers and come back normalized', () => {
+  assert.equal(normalizeEmbedding(Array(CLIP_EMBEDDING_DIM - 1).fill(1)), null)
+  assert.equal(normalizeEmbedding(Array(CLIP_EMBEDDING_DIM).fill(Number.NaN)), null)
+  assert.equal(normalizeEmbedding(Array(CLIP_EMBEDDING_DIM).fill(0)), null)
+  const vector = normalizeEmbedding(Array(CLIP_EMBEDDING_DIM).fill(2))
+  assert.ok(vector)
+  const expected = 1 / Math.sqrt(CLIP_EMBEDDING_DIM)
+  assert.ok(Math.abs(vector[0] - expected) < 1e-6)
+  let sum = 0
+  for (const value of vector) sum += value * value
+  assert.ok(Math.abs(sum - 1) < 1e-5)
+  assert.match(vectorLiteral(vector), /^\[[-\d.,]+\]$/)
+})
+
+test('coverage puts the truck that still needs shots first', () => {
+  const rows = sortCoverage([
+    {
+      truckId: '1',
+      slug: 'full',
+      title: 'Full',
+      maker: 'Mazda',
+      approved: 10,
+      front: 1,
+      side: 1,
+      faces: [{ id: 'f', label: '1994', approved: 1 }],
+    },
+    {
+      truckId: '2',
+      slug: 'empty',
+      title: 'Empty',
+      maker: 'Ford',
+      approved: 0,
+      front: 0,
+      side: 0,
+      faces: [{ id: 'g', label: '1994', approved: 0 }],
+    },
+  ])
+  assert.equal(rows[0].slug, 'empty')
+  assert.equal(rows[0].needsFront, true)
+  assert.equal(rows[0].needsSide, true)
+  assert.deepEqual(rows[0].missingFaces, ['1994'])
+  assert.equal(rows[1].caughtUp, true)
+})
+
+test('thumb long edge stays small and upload fit does not enlarge', async () => {
+  const large = await sharp({
+    create: { width: 1200, height: 800, channels: 3, background: { r: 8, g: 16, b: 32 } },
+  })
+    .webp()
+    .toBuffer()
+  const thumb = await compressToThumb(large)
+  const meta = await sharp(thumb).metadata()
+  assert.ok((meta.width ?? 0) <= THUMB_LONG_EDGE)
+  assert.ok((meta.height ?? 0) <= THUMB_LONG_EDGE)
+  assert.equal(Math.max(meta.width ?? 0, meta.height ?? 0), THUMB_LONG_EDGE)
+  assert.deepEqual(fittedSize(4000, 2000), { width: 2000, height: 1000 })
+  assert.deepEqual(fittedSize(320, 200), { width: 320, height: 200 })
+})
+
+test('robots keeps the binder and the api out of the crawl', () => {
+  const body = robots()
+  const rules = Array.isArray(body.rules) ? body.rules : [body.rules]
+  const disallow = rules.flatMap((rule) =>
+    typeof rule.disallow === 'string' ? [rule.disallow] : (rule.disallow ?? []),
+  )
+  assert.ok(disallow.includes('/binder/'))
+  assert.ok(disallow.includes('/api/'))
+  assert.ok(disallow.includes('/studio/'))
+})
+
+test('the shared fingerprint module is the browser CLIP contract', () => {
+  const source = readFileSync(path.join(root, 'src/lib/clip/browser.ts'), 'utf8')
+  assert.match(source, /export async function embedImage/)
+  assert.match(source, /Xenova\/clip-vit-base-patch32/)
+  assert.match(source, /Promise<Float32Array>/)
+  assert.match(source, /512/)
+  assert.match(source, /dtype: CLIP_BROWSER_DTYPE/)
+  assert.match(source, /q8/)
 })

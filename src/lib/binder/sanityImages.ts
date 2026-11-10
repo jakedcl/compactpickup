@@ -27,6 +27,28 @@ export function sanityImageUrl(ref: string, projectId: string, dataset: string):
   return `https://cdn.sanity.io/images/${projectId}/${dataset}/${parsed.cdnPath}`
 }
 
+/** Strip CDN transforms so a repeat import matches the row already stored. */
+export function canonicalSanityUrl(url: string): string {
+  assertSanityCdnUrl(url)
+  const parsed = new URL(url)
+  parsed.search = ''
+  parsed.hash = ''
+  return parsed.toString()
+}
+
+/**
+ * A bounded derivative, never the original file.
+ * A 2000px JPEG stays under the import cap. A PNG derivative of a huge original can still be enormous.
+ */
+export function sanityDerivativeUrl(url: string): string {
+  const parsed = new URL(canonicalSanityUrl(url))
+  parsed.searchParams.set('w', '2000')
+  parsed.searchParams.set('fit', 'max')
+  parsed.searchParams.set('fm', 'jpg')
+  parsed.searchParams.set('q', '82')
+  return parsed.toString()
+}
+
 function readRef(asset: unknown): string | null {
   if (!asset || typeof asset !== 'object') return null
   const ref = (asset as { _ref?: unknown })._ref

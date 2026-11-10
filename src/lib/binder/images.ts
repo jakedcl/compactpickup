@@ -1,9 +1,14 @@
 import { createHash } from 'node:crypto'
 import sharp from 'sharp'
 
+export { MAX_UPLOAD_BYTES } from '@/lib/binder/limits'
+
 /** Long edge of the single stored copy. Smaller originals are not enlarged. */
 export const WEBP_LONG_EDGE = 1600
 export const WEBP_QUALITY = 80
+/** Grid variant. The full WebP stays the only file used for fingerprints and detail. */
+export const THUMB_LONG_EDGE = 480
+export const THUMB_QUALITY = 60
 export const MAX_ORIGINAL_BYTES = 25 * 1024 * 1024
 
 export function sha256Hex(bytes: Buffer): string {
@@ -25,6 +30,19 @@ export async function compressToWebp(
     .toBuffer({ resolveWithObject: true })
 
   return { data, width: info.width, height: info.height }
+}
+
+export async function compressToThumb(input: Buffer): Promise<Buffer> {
+  return sharp(input, { failOn: 'none' })
+    .rotate()
+    .resize({
+      width: THUMB_LONG_EDGE,
+      height: THUMB_LONG_EDGE,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .webp({ quality: THUMB_QUALITY })
+    .toBuffer()
 }
 
 /**

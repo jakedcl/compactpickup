@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg'
-import { compressToWebp, sha256Hex } from '@/lib/binder/images'
+import { compressToThumb, compressToWebp, sha256Hex } from '@/lib/binder/images'
 import { insertPendingPhoto, photoIdForSha256, type PendingPhoto } from '@/lib/binder/photos'
-import { photoObjectKey, putPhoto } from '@/lib/binder/r2'
+import { photoObjectKey, putPhoto, thumbObjectKey } from '@/lib/binder/r2'
 
 type StoreInput = Omit<PendingPhoto, 'r2Key' | 'width' | 'height' | 'sha256'> & {
   original: Buffer
@@ -18,6 +18,13 @@ export async function storeOriginalPhoto(
   const prepared = await compressToWebp(input.original)
   const r2Key = photoObjectKey(sha256)
   await putPhoto(r2Key, prepared.data)
+  try {
+    const thumb = await compressToThumb(prepared.data)
+    await putPhoto(thumbObjectKey(sha256), thumb)
+  } catch (error) {
+    const name = error instanceof Error ? error.name : 'Error'
+    console.error(`binder: thumb upload failed (${name})`)
+  }
   return insertPendingPhoto(client, {
     truckId: input.truckId,
     truckSlug: input.truckSlug,
