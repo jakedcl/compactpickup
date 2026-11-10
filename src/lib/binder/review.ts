@@ -1,3 +1,14 @@
+import {
+  AI_OUTCOMES,
+  parseAiOutcome,
+  parseAiSort,
+  aiAngleToBinder,
+  readStringArray,
+  type AiOutcome,
+  type AiOutcomeFilter,
+  type AiSort,
+  type PhotoAiReview,
+} from '@/lib/binder/ai-review'
 import { THUMB_CACHE_VERSION } from '@/lib/binder/limits'
 import { PHOTO_ANGLES, PHOTO_STATUSES, type PhotoAngle, type PhotoStatus } from '@/lib/binder/types'
 
@@ -186,6 +197,29 @@ export function decodeCursor(value: string): { createdAt: string; id: string } |
   return { createdAt: new Date(time).toISOString(), id }
 }
 
+/** Cursor for confidence sort: `{conf|n}_{iso}_{uuid}` */
+export function encodeConfidenceCursor(confidence: number | null, createdAt: string, id: string): string {
+  const conf = confidence === null ? 'n' : String(confidence)
+  return `${conf}_${createdAt}_${id}`
+}
+
+export function decodeConfidenceCursor(
+  value: string,
+): { confidence: number | null; createdAt: string; id: string } | null {
+  const first = value.indexOf('_')
+  const last = value.lastIndexOf('_')
+  if (first <= 0 || last <= first) return null
+  const confRaw = value.slice(0, first)
+  const createdAt = value.slice(first + 1, last)
+  const id = value.slice(last + 1)
+  if (!UUID_RE.test(id)) return null
+  const time = Date.parse(createdAt)
+  if (!Number.isFinite(time)) return null
+  const confidence = confRaw === 'n' ? null : Number(confRaw)
+  if (confRaw !== 'n' && !Number.isFinite(confidence)) return null
+  return { confidence, createdAt: new Date(time).toISOString(), id }
+}
+
 export function parseListQuery(url: string):
   | {
       ok: true
@@ -193,8 +227,13 @@ export function parseListQuery(url: string):
       truckId: string | null
       truckIds: string[] | null
       missingEmbedding: boolean
+      aiOutcome: AiOutcomeFilter
+      sort: AiSort
       limit: number
-      cursor: { createdAt: string; id: string } | null
+      cursor:
+        | { kind: 'created'; createdAt: string; id: string }
+        | { kind: 'confidence'; confidence: number | null; createdAt: string; id: string }
+        | null
     }
   | { ok: false; error: string } {
   const params = new URL(url).searchParams
@@ -221,17 +260,81 @@ export function parseListQuery(url: string):
     limit = Number(limitRaw)
     if (limit < 1 || limit > PAGE_SIZE_MAX) return { ok: false, error: 'The page size is not valid.' }
   }
+  const sortRaw = params.get('sort')
+  const sort = parseAiSort(sortRaw)
+  if (sortRaw && sort === null) return { ok: false, error: 'That sort is not valid.' }
+  const resolvedSort = sort ?? 'created'
   const cursorRaw = params.get('cursor')
-  const cursor = cursorRaw ? decodeCursor(cursorRaw) : null
-  if (cursorRaw && !cursor) return { ok: false, error: 'That page link is not valid.' }
+  let cursor:
+    | { kind: 'created'; createdAt: string; id: string }
+    | { kind: 'confidence'; confidence: number | null; createdAt: string; id: string }
+    | null = null
+  if (cursorRaw) {
+    if (resolvedSort === 'confidence') {
+      const decoded = decodeConfidenceCursor(cursorRaw)
+      if (!decoded) return { ok: false, error: 'That page link is not valid.' }
+      cursor = { kind: 'confidence', ...decoded }
+    } else {
+      const decoded = decodeCursor(cursorRaw)
+      if (!decoded) return { ok: false, error: 'That page link is not valid.' }
+      cursor = { kind: 'created', ...decoded }
+    }
+  }
+  const aiRaw = params.get('aiOutcome')
+  const aiOutcome = parseAiOutcome(aiRaw)
+  if (aiRaw && aiOutcome === null) return { ok: false, error: 'That AI filter is not valid.' }
   return {
     ok: true,
     status: status as PhotoStatus,
     truckId: truckRaw,
     truckIds,
     missingEmbedding: params.get('missingEmbedding') === '1',
+    aiOutcome: aiOutcome ?? '',
+    sort: resolvedSort,
     limit,
     cursor,
+  }
+}
+
+export type PhotoAiReviewRow = {
+  ai_outcome: string | null
+  ai_suggested_truck_slug: string | null
+  ai_angle: string | null
+  ai_confidence: string | number | null
+  ai_reasons: unknown
+  ai_questions: unknown
+  ai_reject_reason: string | null
+  ai_generation_years_guess: string | null
+  ai_reviewed_at: Date | string | null
+}
+
+function isoReview(value: Date | string | null | undefined): string | null {
+  if (!value) return null
+  if (value instanceof Date) return value.toISOString()
+  const time = Date.parse(value)
+  return Number.isFinite(time) ? new Date(time).toISOString() : null
+}
+
+export function aiReviewFromRow(row: PhotoAiReviewRow): PhotoAiReview | null {
+  if (!row.ai_outcome) return null
+  if (!(AI_OUTCOMES as readonly string[]).includes(row.ai_outcome)) {
+    return null
+  }
+  const confidenceRaw = row.ai_confidence
+  const confidence =
+    confidenceRaw === null || confidenceRaw === undefined
+      ? null
+      : Number(typeof confidenceRaw === 'string' ? confidenceRaw : confidenceRaw)
+  return {
+    outcome: row.ai_outcome as AiOutcome,
+    suggestedTruckSlug: row.ai_suggested_truck_slug,
+    angle: aiAngleToBinder(row.ai_angle),
+    confidence: Number.isFinite(confidence) ? confidence : null,
+    reasons: readStringArray(row.ai_reasons),
+    questions: readStringArray(row.ai_questions),
+    rejectReason: row.ai_reject_reason,
+    generationYearsGuess: row.ai_generation_years_guess,
+    reviewedAt: isoReview(row.ai_reviewed_at),
   }
 }
 
@@ -313,6 +416,7 @@ export type ReviewPhoto = {
   notes: string | null
   sha256: string
   hasEmbedding: boolean
+  aiReview: PhotoAiReview | null
 }
 
 export type ReviewTruck = {

@@ -9,6 +9,7 @@ import { ModelCombobox } from '@/app/binder/model-combobox'
 import { ReviewMode, useReviewSaves } from '@/app/binder/review-mode'
 import { UploadPanel } from '@/app/binder/upload-panel'
 import type { ClipProgress } from '@/lib/clip/browser'
+import { aiBadgeClass, aiBadgeLabel, type AiOutcomeFilter, type AiSort } from '@/lib/binder/ai-review'
 import { MAX_EMBED_ITEMS, MAX_STATUS_IDS, photoImagePath, type ReviewFace, type ReviewPhoto, type ReviewTruck } from '@/lib/binder/review'
 import { applySelection } from '@/lib/binder/selection'
 import { type PhotoAngle, type PhotoStatus } from '@/lib/binder/types'
@@ -37,11 +38,21 @@ const ANGLE_LABEL: Record<PhotoAngle, string> = {
   other: 'Other',
 }
 
-function listUrl(status: PhotoStatus, modelId: string, truckIds: string[] | null, cursor: string | null, limit = 24) {
+function listUrl(
+  status: PhotoStatus,
+  modelId: string,
+  truckIds: string[] | null,
+  cursor: string | null,
+  limit = 24,
+  aiOutcome: AiOutcomeFilter = '',
+  sort: AiSort = 'created',
+) {
   const params = new URLSearchParams({ status, limit: String(limit) })
   if (modelId) params.set('truckId', modelId)
   else if (truckIds) params.set('trucks', truckIds.join(','))
   if (cursor) params.set('cursor', cursor)
+  if (aiOutcome) params.set('aiOutcome', aiOutcome)
+  if (sort !== 'created') params.set('sort', sort)
   return `/api/admin/photos?${params}`
 }
 
@@ -56,6 +67,8 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
   const [cursor, setCursor] = useState<string | null>(null)
   const [makeFilter, setMakeFilter] = useState('')
   const [modelFilter, setModelFilter] = useState('')
+  const [aiOutcomeFilter, setAiOutcomeFilter] = useState<AiOutcomeFilter>('')
+  const [aiSort, setAiSort] = useState<AiSort>('confidence')
   const [adding, setAdding] = useState(false)
   const [reviewId, setReviewId] = useState<string | null>(null)
   const [trucks, setTrucks] = useState<ReviewTruck[] | null>(null)
@@ -105,12 +118,19 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
     return (trucks ?? []).filter((truck) => truck.maker === makeFilter).map((truck) => truck.id)
   }, [makeFilter, modelFilter, trucks])
 
-  const loadPhotos = useCallback(async (status: PhotoStatus, modelId: string, truckIds: string[] | null, nextCursor: string | null) => {
+  const loadPhotos = useCallback(async (
+    status: PhotoStatus,
+    modelId: string,
+    truckIds: string[] | null,
+    nextCursor: string | null,
+    aiOutcome: AiOutcomeFilter = aiOutcomeFilter,
+    sort: AiSort = aiSort,
+  ) => {
     const id = ++requestId.current
     setListLoading(true)
     setListError(null)
     try {
-      const data = await binderApi<ListResponse>(listUrl(status, modelId, truckIds, nextCursor))
+      const data = await binderApi<ListResponse>(listUrl(status, modelId, truckIds, nextCursor, 24, aiOutcome, sort))
       if (id !== requestId.current) return
       for (const photo of data.photos) shaById.current.set(photo.id, photo.sha256)
       setPhotos((current) => (nextCursor ? [...current, ...data.photos] : data.photos))
@@ -124,7 +144,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
     } finally {
       if (id === requestId.current) setListLoading(false)
     }
-  }, [])
+  }, [aiOutcomeFilter, aiSort])
 
   useEffect(() => {
     void loadTrucks()
@@ -134,8 +154,8 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
     if (!photoTab) return
     if (makeFilter && !modelFilter && trucks === null) return
     setSelected(new Set())
-    void loadPhotos(photoTab, modelFilter, modelIds, null)
-  }, [photoTab, makeFilter, modelFilter, modelIds, trucks, loadPhotos])
+    void loadPhotos(photoTab, modelFilter, modelIds, null, aiOutcomeFilter, aiSort)
+  }, [photoTab, makeFilter, modelFilter, modelIds, trucks, aiOutcomeFilter, aiSort, loadPhotos])
 
   async function loadCoverage() {
     setCoverageLoading(true)
@@ -259,7 +279,9 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
       const ids: string[] = []
       let next: string | null = null
       do {
-        const page: ListResponse = await binderApi(listUrl(photoTab, modelFilter, modelIds, next, 48))
+        const page: ListResponse = await binderApi(
+          listUrl(photoTab, modelFilter, modelIds, next, 48, aiOutcomeFilter, aiSort),
+        )
         remember(page.photos)
         for (const photo of page.photos) ids.push(photo.id)
         next = page.nextCursor
@@ -290,8 +312,69 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
 
   const loadMoreReview = useCallback(() => {
     if (!cursor || !photoTab) return
-    void loadPhotos(photoTab, modelFilter, modelIds, cursor)
-  }, [cursor, loadPhotos, modelFilter, modelIds, photoTab])
+    void loadPhotos(photoTab, modelFilter, modelIds, cursor, aiOutcomeFilter, aiSort)
+  }, [aiOutcomeFilter, aiSort, cursor, loadPhotos, modelFilter, modelIds, photoTab])
+
+  async function fetchAllFiltered(): Promise<ReviewPhoto[]> {
+    if (!photoTab) return []
+    const found: ReviewPhoto[] = []
+    let next: string | null = null
+    do {
+      const page: ListResponse = await binderApi<ListResponse>(
+        listUrl(photoTab, modelFilter, modelIds, next, 48, aiOutcomeFilter, aiSort),
+      )
+      remember(page.photos)
+      found.push(...page.photos)
+      next = page.nextCursor
+    } while (next && found.length < 5000)
+    return found
+  }
+
+  async function bulkApproveLooksRight() {
+    if (!photoTab || aiOutcomeFilter !== 'looks_right' || busy) return
+    const total = matched > 0 ? matched : photos.length
+    if (!window.confirm(`Approve all ${total} looks-right photos in this filter?`)) return
+    setBusy(true)
+    setNotice(null)
+    setProgress(null)
+    try {
+      const items = await fetchAllFiltered()
+      let approved = 0
+      let stayed = 0
+      for (let index = 0; index < items.length; index += 1) {
+        const photo = items[index]
+        if (!photo.truckId || photo.aiReview?.outcome !== 'looks_right') {
+          stayed += 1
+          continue
+        }
+        const angle = photo.aiReview.angle ?? photo.angle
+        setProgress(`Approving ${index + 1} of ${items.length}`)
+        await binderApi('/api/admin/photos/review', {
+          method: 'POST',
+          body: JSON.stringify({
+            id: photo.id,
+            status: 'approved',
+            angle,
+            faceTagId: photo.faceTagId,
+          }),
+        })
+        runner.enqueue({ id: photo.id, sha256: photo.sha256 })
+        approved += 1
+      }
+      setNotice(
+        stayed > 0
+          ? `Approved ${approved}. ${stayed} stayed pending (no model or not looks right).`
+          : `Approved ${approved} photos.`,
+      )
+      await loadPhotos(photoTab, modelFilter, modelIds, null, aiOutcomeFilter, aiSort)
+      setSelected(new Set())
+    } catch (error) {
+      setNotice(messageFrom(error, 'Bulk approve did not finish.'))
+    } finally {
+      setBusy(false)
+      setProgress(null)
+    }
+  }
 
   async function importSanity() {
     if (busy) return
@@ -450,7 +533,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
       ) : null}
 
       {photoTab ? (
-        <section aria-label={photoTab}>
+        <section className={photoTab === 'pending' && aiOutcomeFilter === 'looks_right' ? 'binder-pad' : undefined} aria-label={photoTab}>
           <div className="binder-filters">
             <label htmlFor="make-filter">Make</label>
             <select id="make-filter" value={makeFilter} onChange={(event) => chooseMake(event.target.value)}>
@@ -469,6 +552,24 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
               value={modelFilter}
               onChange={setModelFilter}
             />
+            <label htmlFor="ai-outcome-filter">AI</label>
+            <select
+              id="ai-outcome-filter"
+              value={aiOutcomeFilter}
+              onChange={(event) => setAiOutcomeFilter(event.target.value as AiOutcomeFilter)}
+            >
+              <option value="">All AI</option>
+              <option value="looks_right">Looks right</option>
+              <option value="needs_jake">Needs you</option>
+              <option value="wrong_truck">Wrong truck</option>
+              <option value="reject">Reject</option>
+              <option value="none">No AI note</option>
+            </select>
+            <label htmlFor="ai-sort">Sort</label>
+            <select id="ai-sort" value={aiSort} onChange={(event) => setAiSort(event.target.value as AiSort)}>
+              <option value="confidence">AI confidence</option>
+              <option value="created">Newest</option>
+            </select>
           </div>
           <section className="binder-section" aria-label="Selection">
             <h2>Selection</h2>
@@ -501,7 +602,11 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
           {listError ? (
             <p className="binder-note is-bad" role="alert">
               {listError}{' '}
-              <button type="button" className="btn" onClick={() => void loadPhotos(photoTab, modelFilter, modelIds, null)}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void loadPhotos(photoTab, modelFilter, modelIds, null, aiOutcomeFilter, aiSort)}
+              >
                 Try again
               </button>
             </p>
@@ -521,6 +626,9 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
               const angle = photo.angle ? ANGLE_LABEL[photo.angle] : 'Angle not set'
               return (
                 <li key={photo.id} className={selected.has(photo.id) ? 'binder-card is-on' : 'binder-card'}>
+                  {photo.aiReview ? (
+                    <span className={aiBadgeClass(photo.aiReview.outcome)}>{aiBadgeLabel(photo.aiReview.outcome)}</span>
+                  ) : null}
                   <label className="binder-check">
                     <input
                       type="checkbox"
@@ -547,7 +655,12 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
           </ul>
           {cursor ? (
             <div className="binder-actions">
-              <button type="button" className="btn" onClick={() => void loadPhotos(photoTab, modelFilter, modelIds, cursor)} disabled={listLoading}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void loadPhotos(photoTab, modelFilter, modelIds, cursor, aiOutcomeFilter, aiSort)}
+                disabled={listLoading}
+              >
                 {listLoading ? 'Loading' : 'More photos'}
               </button>
             </div>
@@ -572,6 +685,20 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
         />
       ) : null}
 
+      {photoTab === 'pending' && aiOutcomeFilter === 'looks_right' && matched > 0 ? (
+        <div className="binder-bulk">
+          <p>
+            Filtered to AI “looks right”
+            {modelFilter || makeFilter ? ' for this make/model' : ''}. {matched} photos.
+          </p>
+          <div className="binder-bulk-buttons">
+            <button type="button" className="btn btn-accent" disabled={busy} onClick={() => void bulkApproveLooksRight()}>
+              Approve all shown ({matched})
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {reviewId && photoTab && reviewPhotos.length > 0 ? (
         <ReviewMode
           photos={reviewPhotos}
@@ -587,7 +714,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
           onClose={async () => {
             await saves.settle()
             try {
-              await loadPhotos(photoTab, modelFilter, modelIds, null)
+              await loadPhotos(photoTab, modelFilter, modelIds, null, aiOutcomeFilter, aiSort)
             } finally {
               setReviewId(null)
             }
