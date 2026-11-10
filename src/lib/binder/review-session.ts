@@ -6,8 +6,8 @@ export type ReviewItem = {
   angle: PhotoAngle | null
   faceTagId: string | null
   status: PhotoStatus
-  truckId: string
-  truckSlug: string
+  truckId: string | null
+  truckSlug: string | null
 }
 
 export type ReviewChoice = {
@@ -21,7 +21,7 @@ export type ReviewStep = {
   kind: 'skip' | 'choice'
   id: string
   index: number
-  before: { angle: PhotoAngle | null; faceTagId: string | null; status: PhotoStatus; truckId: string; truckSlug: string }
+  before: { angle: PhotoAngle | null; faceTagId: string | null; status: PhotoStatus; truckId: string | null; truckSlug: string | null }
   after: ReviewChoice | null
   save: 'pending' | 'saved' | 'failed'
   error: string | null
@@ -84,10 +84,12 @@ export function prefetchItems(session: ReviewSession, count = 3): ReviewItem[] {
 export function appendItems(session: ReviewSession, items: ReviewItem[], total: number): ReviewSession {
   const seen = new Set(session.items.map((item) => item.id))
   const extra = items.filter((item) => !seen.has(item.id)).map((item) => ({ ...item }))
+  const totalNext = Math.max(session.total, total, session.items.length + extra.length)
+  if (extra.length === 0 && totalNext === session.total) return session
   return {
     ...session,
     items: [...session.items, ...extra],
-    total: Math.max(session.total, total, session.items.length + extra.length),
+    total: totalNext,
   }
 }
 
@@ -101,9 +103,14 @@ function snapshot(item: ReviewItem): ReviewStep['before'] {
   }
 }
 
+export function canApprove(item: ReviewItem): boolean {
+  return Boolean(item.truckId)
+}
+
 export function choose(session: ReviewSession, choice: ReviewChoice, token: string): ReviewSession {
   const item = currentItem(session)
   if (!item) return session
+  if (choice.status === 'approved' && !canApprove(item)) return session
   const step: ReviewStep = {
     token,
     kind: 'choice',

@@ -20,6 +20,7 @@ import {
 } from '@/lib/contentSections'
 import {cleanText, contentFlags, glanceFacts, type TruckSpecData} from '@/lib/truckDisplay'
 import {imageAlt} from '@/lib/imageAlt'
+import {modelTitle} from '@/lib/makes'
 
 export interface TruckModel extends TruckSpecData {
   _id: string
@@ -83,7 +84,7 @@ export default function TruckModelView({
               {years ? ` · ${years}` : null}
             </>
           }
-          title={truckModel.title}
+          title={modelTitle(truckModel.manufacturer?.name, truckModel.title)}
           lede={summary}
         />
 

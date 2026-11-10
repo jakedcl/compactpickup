@@ -32,6 +32,8 @@ const nextConfig: NextConfig = {
     return [
       { source: "/admin", destination: "/studio", permanent: false },
       { source: "/admin/:path*", destination: "/studio/:path*", permanent: false },
+      { source: "/more", destination: "/other", permanent: false },
+      { source: "/more/:model", destination: "/other/:model", permanent: false },
     ];
   },
 };

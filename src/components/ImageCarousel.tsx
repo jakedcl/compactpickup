@@ -5,6 +5,7 @@ import Link from 'next/link'
 import SanityImage from '@/components/SanityImage'
 import TruckQuiz, { type QuizImage } from '@/components/TruckQuiz'
 import { imageAlt } from '@/lib/imageAlt'
+import { displayModelTitle } from '@/lib/makes'
 import { prefersReducedMotion } from '@/lib/vhsSession'
 
 export interface TruckImageData extends QuizImage {
@@ -23,8 +24,7 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 function labelFor(image: TruckImageData): string {
-  if (image.manufacturerName === 'More...') return image.truckTitle
-  return `${image.manufacturerName} ${image.truckTitle}`
+  return displayModelTitle(image.manufacturerName, image.truckTitle)
 }
 
 export default function ImageCarousel({ images: allImages, className = '' }: { images: TruckImageData[]; className?: string }) {

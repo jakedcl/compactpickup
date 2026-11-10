@@ -202,7 +202,7 @@ test('photo edits reject a bad angle and a face tag from another truck', async (
   assert.equal(saved.status, 200)
   const update = editing.calls.find((call) => call.sql.startsWith('update'))
   assert.equal(update?.params[2], 'rear')
-  assert.match(update?.sql ?? '', /truck_id = \$6/)
+  assert.match(update?.sql ?? '', /truck_id is not distinct from \$6/)
   assert.equal(update?.params[5], 'truck-1')
 
   const raced = fakeDb((sql) => {
@@ -477,4 +477,39 @@ test('review saves status, angle, and face in one update', async () => {
     db: fakeDb((sql) => (sql.startsWith('select truck_id') ? { rows: [{ truck_id: 'truck-1' }] } : { rows: [] })),
   })
   assert.equal(conflict.status, 409)
+})
+
+test('review with no model refuses approve and still allows reject', async () => {
+  const url = 'https://compactpickup.local/api/admin/photos/review'
+  const db = fakeDb((sql) => {
+    if (sql.startsWith('select truck_id')) return { rows: [{ truck_id: null }] }
+    return { rows: [{ id: ID }] }
+  })
+  const approved = await handlePhotoReview(
+    post(url, { id: ID, status: 'approved', angle: 'front', faceTagId: null }),
+    { session: signedIn, db },
+  )
+  assert.equal(approved.status, 400)
+  assert.equal(db.calls.some((call) => call.sql.startsWith('update')), false)
+
+  const rejected = await handlePhotoReview(
+    post(url, { id: ID, status: 'rejected', angle: null, faceTagId: null }),
+    {
+      session: signedIn,
+      db: fakeDb((sql) => (sql.startsWith('select truck_id') ? { rows: [{ truck_id: null }] } : { rows: [{ id: ID }] })),
+    },
+  )
+  assert.equal(rejected.status, 200)
+
+  const assigned = resolvePhotoPatch(
+    { truckId: null, truckSlug: null, angle: null, faceTagId: null },
+    { truckId: 'truck-b' },
+    new Map([['truck-b', { slug: 'b-5' }]]),
+    [],
+  )
+  assert.equal(assigned.ok, true)
+  if (assigned.ok) {
+    assert.equal(assigned.truckId, 'truck-b')
+    assert.equal(assigned.truckSlug, 'b-5')
+  }
 })

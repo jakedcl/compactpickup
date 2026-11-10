@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache'
 import { sanityImageFields } from '@/lib/sanity'
 import { client } from '@/lib/sanityClient'
 import type { SanityImageValue } from '@/lib/sanityImage'
+import { displayModelTitle, modelTitle } from '@/lib/makes'
 import {
   decadesFor,
   driveFamily,
@@ -162,7 +163,7 @@ function toCatalogTruck(truck: RawTruck): CatalogTruck | null {
 
   return {
     id: truck._id,
-    title: truck.title,
+    title: modelTitle(maker, truck.title),
     href: `/${makerSlug}/${truck.slug}`,
     maker,
     makerSlug,
@@ -176,7 +177,7 @@ function toCatalogTruck(truck: RawTruck): CatalogTruck | null {
     end,
     rank,
     image,
-    alt: clean(image?.alt) || `${maker} ${truck.title}`,
+    alt: clean(image?.alt) || displayModelTitle(maker, truck.title),
   }
 }
 

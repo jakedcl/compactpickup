@@ -199,6 +199,7 @@ export function FingerprintPanel({ runner }: { runner: FingerprintRunner }) {
 
   async function catchUp() {
     if (catching) return
+    if (!window.confirm('Finish missing fingerprints? This does not approve anything.')) return
     setCatching(true)
     setNote(null)
     try {
@@ -252,7 +253,7 @@ export function FingerprintPanel({ runner }: { runner: FingerprintRunner }) {
             Retry failed
           </button>
           <button type="button" className="btn" onClick={() => void catchUp()} disabled={catching}>
-            {catching ? 'Looking' : 'Fingerprint all approved-but-missing'}
+            {catching ? 'Looking' : 'Finish missing fingerprints'}
           </button>
         </div>
       </div>

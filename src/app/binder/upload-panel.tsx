@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { binderApi, BinderApiError } from '@/app/binder/api'
 import { fileForUpload } from '@/app/binder/shrink-photo'
 import type { ReviewTruck } from '@/lib/binder/review'
+import { displayModelTitle } from '@/lib/makes'
 
 type Outcome = 'inserted' | 'duplicate'
 
@@ -34,6 +35,8 @@ export function UploadPanel({
       setError('Choose at least one photo.')
       return
     }
+    const noun = files.length === 1 ? 'photo' : 'photos'
+    if (!window.confirm(`Upload ${files.length} ${noun} into Pending?`)) return
     setBusy(true)
     let added = 0
     let duplicates = 0
@@ -94,7 +97,7 @@ export function UploadPanel({
         <option value="">Pick a truck</option>
         {trucks.map((truck) => (
           <option key={truck.id} value={truck.id}>
-            {truck.maker ? `${truck.maker} ${truck.title}` : truck.title}
+            {displayModelTitle(truck.maker, truck.title)}
           </option>
         ))}
       </select>

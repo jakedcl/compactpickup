@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import SanityImage from '@/components/SanityImage'
 import { imageAlt } from '@/lib/imageAlt'
+import { modelTitle } from '@/lib/makes'
 import type { SanityImageValue } from '@/lib/sanityImage'
 
 export interface TimelineTruck {
@@ -51,7 +52,7 @@ export default function TruckTimelineCard({ truck }: { truck: TimelineTruck }) {
       </span>
       <span className="card-copy">
         <span className="card-label">{truck.manufacturer.name}{truck.yearRange ? ` · ${truck.yearRange}` : ''}</span>
-        <span className="card-title">{truck.title}</span>
+        <span className="card-title">{modelTitle(truck.manufacturer.name, truck.title)}</span>
       </span>
     </Link>
   )

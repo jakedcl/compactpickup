@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { binderApi, BinderApiError } from '@/app/binder/api'
+import { ModelCombobox } from '@/app/binder/model-combobox'
 import { FingerprintPanel, type FingerprintRunner } from '@/app/binder/fingerprint-queue'
 import { photoImagePath, type ReviewDecision, type ReviewFace, type ReviewPhoto, type ReviewTruck } from '@/lib/binder/review'
 import {
   angleShortcut,
   appendItems,
+  canApprove,
   choose,
   clearPhotoRetries,
   createReviewSession,
@@ -24,6 +26,7 @@ import {
   type ReviewWrite,
 } from '@/lib/binder/review-session'
 import { PHOTO_ANGLES, type PhotoAngle } from '@/lib/binder/types'
+import { displayModelTitle } from '@/lib/makes'
 
 const ANGLE_LABEL: Record<PhotoAngle, string> = {
   front: 'Front',
@@ -151,9 +154,10 @@ export function useReviewSaves(onApproved?: (item: { id: string; sha256: string 
 export type ReviewSaves = ReturnType<typeof useReviewSaves>
 
 function truckTitle(trucks: ReviewTruck[], item: ReviewItem) {
+  if (!item.truckId) return 'No model'
   const truck = trucks.find((entry) => entry.id === item.truckId)
-  if (!truck) return item.truckSlug
-  return truck.maker ? `${truck.maker} ${truck.title}` : truck.title
+  if (!truck) return item.truckSlug || 'No model'
+  return displayModelTitle(truck.maker, truck.title)
 }
 
 export function ReviewMode({
@@ -187,13 +191,13 @@ export function ReviewMode({
   const [angle, setAngle] = useState<PhotoAngle | null>(opened?.angle ?? null)
   const [faceId, setFaceId] = useState<string | null>(opened?.faceTagId ?? null)
   const [trackedId, setTrackedId] = useState<string | null>(opened?.id ?? null)
-  const [wrong, setWrong] = useState(false)
   const [truckBusy, setTruckBusy] = useState(false)
   const [truckError, setTruckError] = useState<string | null>(null)
   const acted = useRef<string | null>(null)
   const asked = useRef<string | null>(null)
   const seq = useRef(0)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const modelRef = useRef<HTMLInputElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const [closing, setClosing] = useState(false)
   useEffect(() => {
@@ -206,7 +210,6 @@ export function ReviewMode({
     setTrackedId(visibleId)
     setAngle(photo?.angle ?? null)
     setFaceId(photo?.faceTagId ?? null)
-    setWrong(false)
     setTruckError(null)
   }
   const truckFaces = useMemo(
@@ -256,6 +259,11 @@ export function ReviewMode({
     }
   }, [])
 
+  const focusModel = photo?.id && !photo.truckId ? photo.id : null
+  useEffect(() => {
+    if (focusModel) modelRef.current?.focus()
+  }, [focusModel])
+
   useEffect(() => {
     for (const item of prefetchItems(session)) {
       const img = new Image()
@@ -280,6 +288,7 @@ export function ReviewMode({
   const act = useCallback((status: 'approved' | 'rejected') => {
     const current = currentItem(session)
     if (!current || acted.current === current.id) return
+    if (status === 'approved' && !canApprove(current)) return
     acted.current = current.id
     const token = nextToken()
     setSession((existing) => choose(existing, { status, angle, faceTagId: faceId }, token))
@@ -361,6 +370,11 @@ export function ReviewMode({
         if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || target.isContentEditable) return
       }
       const key = event.key.toLowerCase()
+      if (event.key === '/') {
+        event.preventDefault()
+        modelRef.current?.focus()
+        return
+      }
       if (key === 'a') {
         event.preventDefault()
         act('approved')
@@ -428,6 +442,21 @@ export function ReviewMode({
               {truckTitle(trucks, photo)} <span>{photo.truckSlug}</span>
             </p>
             {sourceLine ? <p className="binder-meta">{sourceLine}</p> : null}
+            <div className="review-row">
+              <ModelCombobox
+                id="review-model"
+                label="Model"
+                hint="/"
+                trucks={trucks}
+                make=""
+                value={photo.truckId ?? ''}
+                disabled={truckBusy}
+                inputRef={modelRef}
+                onChange={(nextId) => void changeTruck(nextId)}
+              />
+            </div>
+            <div className="review-row">
+              <p className="review-label">Angle</p>
             <div className="review-grid" role="group" aria-label="Angle">
               {PHOTO_ANGLES.map((value) => (
                 <button
@@ -442,8 +471,11 @@ export function ReviewMode({
                 </button>
               ))}
             </div>
+            </div>
+            <div className="review-row">
+              <p className="review-label">Facelift</p>
             {truckFaces.length > 0 ? (
-              <div className="review-grid" role="group" aria-label="Face tag">
+              <div className="review-grid" role="group" aria-label="Facelift">
                 <button
                   type="button"
                   className={faceId === null ? 'btn btn-accent' : 'btn'}
@@ -469,9 +501,14 @@ export function ReviewMode({
                   )
                 })}
               </div>
-            ) : null}
+            ) : (
+              <p>No facelift tags for this truck.</p>
+            )}
+            </div>
+            <div className="review-row review-decide">
+              <p className="review-label">Decision</p>
             <div className="review-grid">
-              <button type="button" className="btn btn-accent" onClick={() => act('approved')}>
+              <button type="button" className="btn btn-accent" onClick={() => act('approved')} disabled={!photo.truckId}>
                 Approve
                 <span className="review-key">A</span>
               </button>
@@ -483,30 +520,17 @@ export function ReviewMode({
                 Skip
                 <span className="review-key">S</span>
               </button>
-              <button type="button" className="btn" onClick={undoLast} disabled={session.steps.length === 0}>
-                Undo
-                <span className="review-key">U</span>
-              </button>
             </div>
-            {wrong ? (
-              <label className="review-truck">
-                Truck
-                <select value={photo.truckId} disabled={truckBusy} onChange={(event) => void changeTruck(event.target.value)}>
-                  {trucks.map((truck) => (
-                    <option key={truck.id} value={truck.id}>
-                      {truck.maker ? `${truck.maker} ${truck.title}` : truck.title}
-                    </option>
-                  ))}
-                  {trucks.some((truck) => truck.id === photo.truckId) ? null : (
-                    <option value={photo.truckId}>{photo.truckSlug}</option>
-                  )}
-                </select>
-              </label>
-            ) : (
-              <button type="button" className="btn" onClick={() => setWrong(true)}>
-                Wrong truck
-              </button>
-            )}
+            </div>
+            <div className="review-row">
+              <p className="review-label">Fix</p>
+              <div>
+                <button type="button" className="btn" onClick={undoLast} disabled={session.steps.length === 0}>
+                  Undo
+                  <span className="review-key">U</span>
+                </button>
+              </div>
+            </div>
             {truckError ? (
               <p className="binder-note is-bad" role="alert">
                 {truckError}

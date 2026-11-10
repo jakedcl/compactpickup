@@ -9,6 +9,8 @@ export interface ShelfManufacturer {
   _id: string
   name: string
   slug: { current: string }
+  featured?: boolean | null
+  isCatchAll?: boolean | null
   logo?: SanityImageValue | null
 }
 

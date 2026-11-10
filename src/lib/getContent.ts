@@ -13,11 +13,13 @@ import {
   manufacturerBySlugQuery,
   manufacturerParamsQuery,
   manufacturersQuery,
+  groupedTruckModelsQuery,
   timelineQuery,
   truckModelBySlugQuery,
   truckModelsByManufacturerQuery,
   truckParamsQuery,
 } from '@/lib/sanity'
+import { FEATURED_MAKE_SLUGS, isCatchAllMake, showsOnShelf } from '@/lib/makes'
 import { compareTrucksByYear } from '@/lib/truckDisplay'
 
 const hour = { revalidate: 3600 }
@@ -32,6 +34,8 @@ export type ManufacturerRecord = {
   website?: string | null
   description?: string | null
   compactPickupHistory?: string | null
+  featured?: boolean | null
+  isCatchAll?: boolean | null
   logo?: SanityImageValue | null
 }
 
@@ -70,7 +74,12 @@ function flattenImages(trucks: Array<{ images?: Array<GameStill | null> | null }
 const readManufacturers = unstable_cache(
   async () => {
     const rows = await client.fetch<ShelfManufacturer[] | null>(manufacturersQuery)
-    return sortManufacturers(rows ?? [])
+    return sortManufacturers((rows ?? []).filter((make) => showsOnShelf({
+      name: make.name,
+      slug: make.slug?.current,
+      featured: make.featured,
+      isCatchAll: make.isCatchAll,
+    })))
   },
   ['home-manufacturers'],
   { ...hour, tags: ['home-shelf'] },
@@ -128,7 +137,27 @@ const readTrucksForManufacturer = unstable_cache(
   hour,
 )
 
-export const getTrucksForManufacturer = cache(readTrucksForManufacturer)
+const readGroupedTrucks = unstable_cache(
+  async (manufacturerId: string) => {
+    const rows = await client.fetch<ManufacturerTruckRecord[] | null>(groupedTruckModelsQuery, {
+      manufacturerId,
+      featuredSlugs: [...FEATURED_MAKE_SLUGS],
+    })
+    return [...(rows ?? [])].sort(compareTrucksByYear)
+  },
+  ['trucks-grouped-under-more'],
+  hour,
+)
+
+export const getTrucksForManufacturer = cache(async (manufacturer: ManufacturerRecord) => {
+  const grouped = isCatchAllMake({
+    name: manufacturer.name,
+    slug: manufacturer.slug.current,
+    isCatchAll: manufacturer.isCatchAll,
+  })
+  if (grouped) return readGroupedTrucks(manufacturer._id)
+  return readTrucksForManufacturer(manufacturer._id)
+})
 
 const readTruck = unstable_cache(
   async (slug: string) => client.fetch<TruckModel | null>(truckModelBySlugQuery, { slug }),

@@ -9,6 +9,7 @@ import {
   getTrucksForManufacturer,
   type ManufacturerRecord,
 } from '@/lib/getContent'
+import { modelTitle } from '@/lib/makes'
 import { cleanText, formatProduction } from '@/lib/truckDisplay'
 
 export const revalidate = 3600
@@ -64,7 +65,7 @@ export default async function ManufacturerPage({ params }: Props) {
 
   let truckModels
   try {
-    truckModels = await getTrucksForManufacturer(manufacturer._id)
+    truckModels = await getTrucksForManufacturer(manufacturer)
   } catch {
     return signalLost()
   }
@@ -80,8 +81,8 @@ export default async function ManufacturerPage({ params }: Props) {
             <ul className="maker-list">
               {truckModels.map((model) => (
                 <li key={model._id}>
-                  <Link href={`/${slug}/${model.slug.current}`}>
-                    <span className="card-title">{model.title}</span>
+                  <Link href={`/${model.manufacturer?.slug?.current || slug}/${model.slug.current}`}>
+                    <span className="card-title">{modelTitle(model.manufacturer?.name, model.title)}</span>
                     <span className="meta">{model.yearRange || formatProduction(model.productionStart, model.productionEnd) || ''}</span>
                   </Link>
                 </li>

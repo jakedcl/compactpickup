@@ -22,6 +22,8 @@ export const manufacturersQuery = `*[_type == "manufacturer"] | order(name asc) 
   _id,
   name,
   slug,
+  featured,
+  isCatchAll,
   logo { ${sanityImageFields} }
 }`
 
@@ -29,6 +31,8 @@ export const manufacturerBySlugQuery = `*[_type == "manufacturer" && slug.curren
   _id,
   name,
   slug,
+  featured,
+  isCatchAll,
   logo { ${sanityImageFields} },
   founded,
   hq,
@@ -39,6 +43,26 @@ export const manufacturerBySlugQuery = `*[_type == "manufacturer" && slug.curren
 }`
 
 export const truckModelsByManufacturerQuery = `*[_type == "truckModel" && manufacturer._ref == $manufacturerId] {
+  _id,
+  title,
+  slug,
+  yearRange,
+  productionStart,
+  productionEnd,
+  manufacturer->{name, slug}
+}`
+
+/** Catch-all page: trucks still filed under More..., plus makes that are not on the homepage. */
+export const groupedTruckModelsQuery = `*[_type == "truckModel" && (
+  manufacturer._ref == $manufacturerId ||
+  (
+    manufacturer->isCatchAll != true &&
+    (
+      manufacturer->featured == false ||
+      (!defined(manufacturer->featured) && !(manufacturer->slug.current in $featuredSlugs))
+    )
+  )
+)] {
   _id,
   title,
   slug,

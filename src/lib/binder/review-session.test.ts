@@ -18,6 +18,7 @@ import {
   prefetchItems,
   refusedFingerprint,
   rememberRetry,
+  canApprove,
   remainingCount,
   retryFailedJobs,
   settleJob,
@@ -38,6 +39,17 @@ function item(id: string, extra: Partial<ReviewItem> = {}): ReviewItem {
     ...extra,
   }
 }
+
+test('a photo with no model cannot be approved until one is chosen', () => {
+  const bare = item('p1', { truckId: null, truckSlug: null })
+  assert.equal(canApprove(bare), false)
+  const session = createReviewSession([bare], 1)
+  const held = choose(session, { status: 'approved', angle: 'front', faceTagId: null }, 't1')
+  assert.equal(held.index, 0)
+  assert.equal(held.steps.length, 0)
+  const rejected = choose(session, { status: 'rejected', angle: null, faceTagId: null }, 't2')
+  assert.equal(rejected.index, 1)
+})
 
 test('approve advances, a rejection stays off the fingerprint queue, and undo restores the photo', () => {
   const session = createReviewSession(

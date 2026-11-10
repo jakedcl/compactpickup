@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import TruckModelView from '@/components/TruckModelView'
 import PageHeader from '@/components/ui/PageHeader'
 import { getTruckBySlug, getTruckParams } from '@/lib/getContent'
@@ -57,5 +57,8 @@ export default async function TruckModelPage({ params }: Props) {
   }
   if (!truck) notFound()
 
-  return <TruckModelView truckModel={truck} manufacturerSlug={manufacturerSlug} />
+  const canonical = truck.manufacturer?.slug?.current
+  if (canonical && manufacturerSlug !== canonical) redirect(`/${canonical}/${model}`)
+
+  return <TruckModelView truckModel={truck} manufacturerSlug={canonical ?? manufacturerSlug} />
 }

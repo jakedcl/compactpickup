@@ -126,8 +126,8 @@ export function parsePhotoPatch(body: unknown): { ok: true; patch: PhotoPatch } 
 }
 
 export type CurrentPhoto = {
-  truckId: string
-  truckSlug: string
+  truckId: string | null
+  truckSlug: string | null
   angle: PhotoAngle | null
   faceTagId: string | null
 }
@@ -138,7 +138,7 @@ export function resolvePhotoPatch(
   trucks: ReadonlyMap<string, { slug: string }>,
   faces: ReadonlyArray<{ id: string; truckId: string }>,
 ):
-  | { ok: true; truckId: string; truckSlug: string; angle: PhotoAngle | null; faceTagId: string | null }
+  | { ok: true; truckId: string | null; truckSlug: string | null; angle: PhotoAngle | null; faceTagId: string | null }
   | { ok: false; error: string } {
   let truckId = current.truckId
   let truckSlug = current.truckSlug
@@ -167,6 +167,7 @@ export function statusSql(ids: string[]): string {
           reviewed_at = case when $1::text = 'pending' then null else now() end,
           embedding = case when $1::text = 'approved' then embedding else null end
       where id in (${placeholders})
+        and ($1::text <> 'approved' or truck_id is not null)
       returning id`
 }
 
@@ -190,6 +191,7 @@ export function parseListQuery(url: string):
       ok: true
       status: PhotoStatus
       truckId: string | null
+      truckIds: string[] | null
       missingEmbedding: boolean
       limit: number
       cursor: { createdAt: string; id: string } | null
@@ -202,6 +204,16 @@ export function parseListQuery(url: string):
   }
   const truckRaw = params.get('truckId')
   if (truckRaw && !isTruckId(truckRaw)) return { ok: false, error: 'Pick a truck from the list.' }
+  let truckIds: string[] | null = null
+  if (!truckRaw && params.has('trucks')) {
+    const raw = params.get('trucks') ?? ''
+    if (!raw) truckIds = []
+    else {
+      const ids = raw.split(',')
+      if (ids.length > 80 || ids.some((id) => !isTruckId(id))) return { ok: false, error: 'Pick a truck from the list.' }
+      truckIds = ids
+    }
+  }
   const limitRaw = params.get('limit')
   let limit = PAGE_SIZE_DEFAULT
   if (limitRaw) {
@@ -216,6 +228,7 @@ export function parseListQuery(url: string):
     ok: true,
     status: status as PhotoStatus,
     truckId: truckRaw,
+    truckIds,
     missingEmbedding: params.get('missingEmbedding') === '1',
     limit,
     cursor,
@@ -285,8 +298,8 @@ export function parseSkipRefs(body: unknown): { ok: true; skipRefs: string[] } |
 
 export type ReviewPhoto = {
   id: string
-  truckId: string
-  truckSlug: string
+  truckId: string | null
+  truckSlug: string | null
   status: PhotoStatus
   angle: PhotoAngle | null
   faceTagId: string | null

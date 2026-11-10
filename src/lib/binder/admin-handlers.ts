@@ -69,14 +69,27 @@ function asAngle(value: string | null): PhotoAngle | null {
   return (PHOTO_ANGLES as readonly string[]).includes(value) ? (value as PhotoAngle) : null
 }
 
+function truckClause(params: unknown[], truckId: string | null, truckIds: string[] | null): string {
+  if (truckId) {
+    const slot = params.push(truckId)
+    return `truck_id = $${slot}`
+  }
+  if (truckIds) {
+    if (truckIds.length === 0) return 'false'
+    const slot = params.push(truckIds)
+    return `truck_id = any($${slot}::text[])`
+  }
+  return 'true'
+}
+
 function asStatus(value: string): PhotoStatus {
   return (PHOTO_STATUSES as readonly string[]).includes(value) ? (value as PhotoStatus) : 'pending'
 }
 
 type PhotoDbRow = {
   id: string
-  truck_id: string
-  truck_slug: string
+  truck_id: string | null
+  truck_slug: string | null
   status: string
   angle: string | null
   face_tag_id: string | null
@@ -137,7 +150,7 @@ export async function handlePhotoList(
   if (!parsed.ok) return json({ error: parsed.error }, 400)
   try {
     const params: unknown[] = [parsed.status]
-    const truckSql = parsed.truckId ? `$${params.push(parsed.truckId)}` : 'null'
+    const truckSql = truckClause(params, parsed.truckId, parsed.truckIds)
     const missingSql = `$${params.push(parsed.missingEmbedding)}`
     const cursorAt = parsed.cursor ? `$${params.push(parsed.cursor.createdAt)}` : 'null'
     const cursorId = parsed.cursor ? `$${params.push(parsed.cursor.id)}` : 'null'
@@ -148,7 +161,7 @@ export async function handlePhotoList(
               (embedding is not null) as has_embedding
        from photos
        where status = $1
-         and (${truckSql}::text is null or truck_id = ${truckSql})
+         and (${truckSql})
          and (${missingSql}::boolean = false or embedding is null)
          and (${cursorAt}::timestamptz is null or (created_at, id) < (${cursorAt}::timestamptz, ${cursorId}::uuid))
        order by created_at desc, id desc
@@ -159,15 +172,16 @@ export async function handlePhotoList(
     const page = hasMore ? listed.rows.slice(0, parsed.limit) : listed.rows
     const last = page.at(-1)
     const createdAt = last ? iso(last.created_at) : null
+    const matchParams: unknown[] = [parsed.status]
+    const matchSql = truckClause(matchParams, parsed.truckId, parsed.truckIds)
     const [counts, missing, matched] = await Promise.all([
       countMap(db),
       db.query<{ n: number | string }>(
         `select count(*)::int as n from photos where status = 'approved' and embedding is null`,
       ),
       db.query<{ n: number | string }>(
-        `select count(*)::int as n from photos
-         where status = $1 and ($2::text is null or truck_id = $2)`,
-        [parsed.status, parsed.truckId],
+        `select count(*)::int as n from photos where status = $1 and (${matchSql})`,
+        matchParams,
       ),
     ])
     return json({
@@ -196,12 +210,15 @@ export async function handlePhotoReview(
   if (!parsed.ok) return json({ error: parsed.error }, 400)
   const { decision } = parsed
   try {
-    const current = await db.query<{ truck_id: string }>(
+    const current = await db.query<{ truck_id: string | null }>(
       `select truck_id from photos where id = $1::uuid`,
       [decision.id],
     )
     const row = current.rows[0]
     if (!row) return json({ error: 'The photo was not found.' }, 404)
+    if (decision.status === 'approved' && !row.truck_id) {
+      return json({ error: 'Pick a model first.' }, 400)
+    }
     if (decision.faceTagId) {
       const face = await db.query<{ id: string }>(
         `select id from truck_faces where id = $1::uuid and truck_id = $2`,
@@ -216,7 +233,7 @@ export async function handlePhotoReview(
            embedding = case when $1::text = 'approved' then embedding else null end,
            angle = $2,
            face_tag_id = $3
-       where id = $4::uuid and truck_id = $5
+       where id = $4::uuid and truck_id is not distinct from $5
        returning id`,
       [decision.status, decision.angle, decision.faceTagId, decision.id, row.truck_id],
     )
@@ -267,8 +284,8 @@ export async function handlePhotoPatch(
   if (!parsed.ok) return json({ error: parsed.error }, 400)
   try {
     const currentResult = await db.query<{
-      truck_id: string
-      truck_slug: string
+      truck_id: string | null
+      truck_slug: string | null
       angle: string | null
       face_tag_id: string | null
     }>(`select truck_id, truck_slug, angle, face_tag_id from photos where id = $1`, [id])
@@ -301,7 +318,7 @@ export async function handlePhotoPatch(
     const updated = await db.query<{ id: string }>(
       `update photos
        set truck_id = $1, truck_slug = $2, angle = $3, face_tag_id = $4
-       where id = $5::uuid and truck_id = $6
+       where id = $5::uuid and truck_id is not distinct from $6
        returning id`,
       [resolved.truckId, resolved.truckSlug, resolved.angle, resolved.faceTagId, id, current.truck_id],
     )
