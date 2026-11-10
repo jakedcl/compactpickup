@@ -8,7 +8,8 @@ import { getPhotoBytes, putPhoto, readPhotoIfExists, thumbObjectKey } from '@/li
 import { storeOriginalPhoto } from '@/lib/binder/store-photo'
 import { importSanityBatch, type SanityBatchResult } from '@/lib/binder/sanitySync'
 import { listCatalogTrucks, type CatalogTruck } from '@/lib/binder/trucks'
-import { normalizeEmbedding, vectorLiteral } from '@/lib/binder/embedding'
+import { l2Normalize } from '@/lib/binder/clip'
+import { vectorLiteral } from '@/lib/binder/embedding'
 import { APPROVED_TARGET, sortCoverage, type CoverageTruck } from '@/lib/binder/coverage'
 import { PHOTO_ANGLES, PHOTO_STATUSES, type PhotoAngle, type PhotoStatus } from '@/lib/binder/types'
 import {
@@ -271,7 +272,7 @@ export async function handleEmbeddings(
   const body = await readJsonObject(request)
   const parsed = parseEmbedBody(body)
   if (!parsed.ok) return json({ error: parsed.error }, 400)
-  const prepared = parsed.items.map((item) => ({ id: item.id, vector: normalizeEmbedding(item.embedding) }))
+  const prepared = parsed.items.map((item) => ({ id: item.id, vector: l2Normalize(item.embedding) }))
   if (prepared.every((item) => !item.vector)) {
     return json({ error: 'The fingerprint must be 512 numbers.' }, 400)
   }

@@ -1,123 +1,146 @@
 'use client'
 
-/**
- * Shared browser CLIP for the review dashboard and the public scanner.
- * Import embedImage from this file. Do not load a second copy of the model.
- *
- * Xenova/clip-vit-base-patch32 is the ONNX build of openai/clip-vit-base-patch32.
- * device wasm and dtype q8 are pinned so a phone and a laptop write comparable vectors.
- * The result is an L2-normalized Float32Array of length 512.
- * The model downloads once, then stays in the module and the browser cache.
- */
+import { CLIP_EMBEDDING_DIM, l2Normalize } from '@/lib/binder/clip'
 
+/**
+ * Canonical CLIP extractor for the public scanner and the review tools.
+ * Both sides must import embedImage from this file so stored fingerprints
+ * and visitor fingerprints stay in one space.
+ *
+ * Model: Xenova/clip-vit-base-patch32 (ONNX port of openai/clip-vit-base-patch32).
+ * Weights: quantized vision encoder (q8, about 90 MB), loaded once and kept
+ * in the browser cache. Device is WASM with one thread so iPhone Safari does
+ * not need cross-origin isolation. The image is drawn to a canvas whose long
+ * edge is at most 768px, then read with RawImage.fromCanvas. Output is the
+ * model's image_embeds, L2-normalized to 512 numbers.
+ *
+ * embedImage(blob, onProgress?) forwards transformers.js progress_callback
+ * events while that shared load is in flight. Later callers can subscribe
+ * to the same load; events that already fired are not repeated.
+ */
 export const CLIP_BROWSER_MODEL = 'Xenova/clip-vit-base-patch32'
 export const CLIP_BROWSER_DTYPE = 'q8' as const
-export const CLIP_BROWSER_DEVICE = 'wasm' as const
-export const CLIP_BROWSER_DIM = 512
 
-type FeatureTensor = {
-  data: ArrayLike<number>
-  dims?: number[]
+const MAX_EDGE = 768
+
+export type ClipErrorCode = 'photo' | 'model' | 'runtime'
+
+export class ClipError extends Error {
+  readonly code: ClipErrorCode
+
+  constructor(code: ClipErrorCode, message: string) {
+    super(message)
+    this.name = 'ClipError'
+    this.code = code
+  }
 }
 
-type Extractor = (image: Blob | OffscreenCanvas) => Promise<FeatureTensor>
-
-type ProgressInfo = {
-  status?: string
+/** transformers.js progress_callback payload. progress is 0–100 when present. */
+export type ClipProgress = {
+  status: 'initiate' | 'download' | 'progress' | 'progress_total' | 'done' | 'ready' | string
+  name?: string
+  file?: string
   progress?: number
   loaded?: number
   total?: number
 }
 
-export type EmbedProgress = (update: { ratio: number; status: string }) => void
-
-let pending: Promise<Extractor> | null = null
-const listeners = new Set<EmbedProgress>()
-
-function notify(update: { ratio: number; status: string }) {
-  for (const listener of listeners) listener(update)
+type RawImageFactory = {
+  fromCanvas: (canvas: HTMLCanvasElement | OffscreenCanvas) => unknown
 }
 
-function unitVector(values: Float32Array): Float32Array {
-  if (values.length !== CLIP_BROWSER_DIM) {
-    throw new Error('The fingerprint was the wrong length')
+type ClipSession = {
+  RawImage: RawImageFactory
+  processor: (image: unknown) => Promise<unknown>
+  model: (inputs: unknown) => Promise<unknown>
+}
+
+const progressListeners = new Set<(progress: ClipProgress) => void>()
+let sessionPromise: Promise<ClipSession> | null = null
+
+function emitProgress(progress: ClipProgress) {
+  for (const listener of progressListeners) {
+    listener(progress)
   }
-  let sum = 0
-  for (let i = 0; i < values.length; i += 1) {
-    const n = values[i]
-    if (!Number.isFinite(n)) throw new Error('The fingerprint was the wrong length')
-    sum += n * n
+}
+
+function embeddingData(output: unknown): ArrayLike<number> | null {
+  if (!output || typeof output !== 'object') return null
+  const embeds = (output as { image_embeds?: { data?: ArrayLike<number> } }).image_embeds
+  const data = embeds?.data
+  if (!data || typeof data.length !== 'number') return null
+  return data
+}
+
+async function drawFitted(input: Blob): Promise<HTMLCanvasElement> {
+  if (input.size === 0) throw new ClipError('photo', 'Could not read the photo')
+  const bitmap = await createImageBitmap(input)
+  try {
+    if (bitmap.width < 1 || bitmap.height < 1) throw new ClipError('photo', 'Could not read the photo')
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height))
+    const width = Math.max(1, Math.round(bitmap.width * scale))
+    const height = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) throw new ClipError('photo', 'Could not read the photo')
+    ctx.drawImage(bitmap, 0, 0, width, height)
+    return canvas
+  } finally {
+    bitmap.close()
   }
-  if (!(sum > 0)) throw new Error('The fingerprint was empty')
-  const norm = Math.sqrt(sum)
-  const out = new Float32Array(CLIP_BROWSER_DIM)
-  for (let i = 0; i < values.length; i += 1) out[i] = values[i] / norm
-  return out
 }
 
-function vectorFromTensor(tensor: FeatureTensor): Float32Array {
-  const { dims } = tensor
-  if (dims && dims.length > 0) {
-    const size = dims.reduce((product, dim) => product * dim, 1)
-    if (size !== CLIP_BROWSER_DIM) throw new Error('The fingerprint was the wrong length')
-  }
-  const values = tensor.data instanceof Float32Array ? tensor.data : Float32Array.from(tensor.data)
-  return unitVector(values)
-}
-
-async function imageInput(input: Blob | ImageBitmap): Promise<Blob | OffscreenCanvas> {
-  if (typeof Blob !== 'undefined' && input instanceof Blob) return input
-  const bitmap = input as ImageBitmap
-  if (typeof OffscreenCanvas === 'undefined') throw new Error('This browser cannot read the photo')
-  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
-  const context = canvas.getContext('2d')
-  if (!context) throw new Error('This browser cannot read the photo')
-  context.drawImage(bitmap, 0, 0)
-  return canvas
-}
-
-async function loadExtractor(): Promise<Extractor> {
-  const { env, pipeline } = await import('@huggingface/transformers')
-  env.allowLocalModels = false
-  env.useBrowserCache = true
-  const pipe = await pipeline('image-feature-extraction', CLIP_BROWSER_MODEL, {
-    device: CLIP_BROWSER_DEVICE,
-    dtype: CLIP_BROWSER_DTYPE,
-    progress_callback: (info: ProgressInfo) => {
-      const ratio =
-        typeof info.progress === 'number'
-          ? info.progress / 100
-          : info.total
-            ? (info.loaded ?? 0) / info.total
-            : 0
-      notify({
-        ratio: Math.max(0, Math.min(1, ratio)),
-        status: info.status ?? 'progress',
+function loadSession(): Promise<ClipSession> {
+  if (!sessionPromise) {
+    sessionPromise = (async () => {
+      const transformers = await import('@huggingface/transformers')
+      const { env, AutoProcessor, CLIPVisionModelWithProjection, RawImage } = transformers
+      env.allowLocalModels = false
+      env.useBrowserCache = true
+      const wasm = env.backends.onnx.wasm
+      if (wasm) wasm.numThreads = 1
+      const progress_callback = (progress: ClipProgress) => emitProgress(progress)
+      const processor = await AutoProcessor.from_pretrained(CLIP_BROWSER_MODEL, { progress_callback })
+      const model = await CLIPVisionModelWithProjection.from_pretrained(CLIP_BROWSER_MODEL, {
+        dtype: CLIP_BROWSER_DTYPE,
+        device: 'wasm',
+        progress_callback,
       })
-    },
-  })
-  return async (image) => pipe(image) as Promise<FeatureTensor>
-}
-
-function extractor(): Promise<Extractor> {
-  if (!pending) {
-    pending = loadExtractor().catch((error: unknown) => {
-      pending = null
+      return {
+        RawImage,
+        processor: (image: unknown) => processor(image),
+        model: (inputs: unknown) => model(inputs),
+      }
+    })().catch((error: unknown) => {
+      sessionPromise = null
       throw error
     })
   }
-  return pending
+  return sessionPromise
 }
 
-export async function embedImage(input: Blob | ImageBitmap, onProgress?: EmbedProgress): Promise<Float32Array> {
-  if (typeof window === 'undefined') throw new Error('Fingerprints run in the browser')
-  if (onProgress) listeners.add(onProgress)
+export async function embedImage(
+  blob: Blob,
+  onProgress?: (progress: ClipProgress) => void,
+): Promise<Float32Array> {
+  if (typeof document === 'undefined') throw new ClipError('runtime', 'The scanner runs in the browser')
+  if (onProgress) progressListeners.add(onProgress)
   try {
-    const image = await imageInput(input)
-    const run = await extractor()
-    const tensor = await run(image)
-    return vectorFromTensor(tensor)
+    const session = await loadSession()
+    const canvas = await drawFitted(blob)
+    const image = session.RawImage.fromCanvas(canvas)
+    const inputs = await session.processor(image)
+    const output = await session.model(inputs)
+    const data = embeddingData(output)
+    if (!data || data.length !== CLIP_EMBEDDING_DIM) {
+      throw new ClipError('model', 'Scanner model returned an unexpected fingerprint')
+    }
+    const normalized = l2Normalize(data)
+    if (!normalized) throw new ClipError('model', 'Scanner model returned an empty fingerprint')
+    return normalized
   } finally {
-    if (onProgress) listeners.delete(onProgress)
+    if (onProgress) progressListeners.delete(onProgress)
   }
 }

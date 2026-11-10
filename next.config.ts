@@ -1,13 +1,19 @@
 import type { NextConfig } from "next";
 
+const traceExclude = [
+  'node_modules/@huggingface/transformers/**',
+  'node_modules/onnxruntime-node/**',
+  'node_modules/onnxruntime-web/**',
+  'node_modules/onnxruntime-common/**',
+  'node_modules/onnxruntime-*/**',
+]
+
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['pg', 'sharp'],
+  serverExternalPackages: ['pg', 'sharp', '@huggingface/transformers', 'onnxruntime-node'],
   outputFileTracingExcludes: {
-    '/binder': [
-      'node_modules/@huggingface/**',
-      'node_modules/onnxruntime-node/**',
-      'node_modules/onnxruntime-web/**',
-    ],
+    '/scan': traceExclude,
+    '/(site)/scan': traceExclude,
+    '/binder': traceExclude,
     '/api/admin/**': ['node_modules/@img/*linuxmusl*/**'],
   },
   images: {

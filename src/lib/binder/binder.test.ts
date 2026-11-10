@@ -4,11 +4,11 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
-import { CLIP_EMBEDDING_DIM } from './clip'
+import { CLIP_EMBEDDING_DIM, l2Normalize } from './clip'
 import { sortCoverage } from './coverage'
 import { THUMB_CACHE_VERSION } from './limits'
 import { photoImagePath } from './review'
-import { normalizeEmbedding, vectorLiteral } from './embedding'
+import { vectorLiteral } from './embedding'
 import { adminEmail } from './env'
 import { SHARP_PIXEL_LIMIT, THUMB_LONG_EDGE, assertUploadFormat, compressToThumb, compressToWebp, sha256Hex } from './images'
 import { manifestFileCandidates, parseManifestLine, resolveInside, truckIdFromSlug } from './manifest'
@@ -200,10 +200,10 @@ test('non-local database urls use sslmode=verify-full', () => {
 })
 
 test('embeddings must be 512 finite numbers and come back normalized', () => {
-  assert.equal(normalizeEmbedding(Array(CLIP_EMBEDDING_DIM - 1).fill(1)), null)
-  assert.equal(normalizeEmbedding(Array(CLIP_EMBEDDING_DIM).fill(Number.NaN)), null)
-  assert.equal(normalizeEmbedding(Array(CLIP_EMBEDDING_DIM).fill(0)), null)
-  const vector = normalizeEmbedding(Array(CLIP_EMBEDDING_DIM).fill(2))
+  assert.equal(l2Normalize(Array(CLIP_EMBEDDING_DIM - 1).fill(1)), null)
+  assert.equal(l2Normalize(Array(CLIP_EMBEDDING_DIM).fill(Number.NaN)), null)
+  assert.equal(l2Normalize(Array(CLIP_EMBEDDING_DIM).fill(0)), null)
+  const vector = l2Normalize(Array(CLIP_EMBEDDING_DIM).fill(2))
   assert.ok(vector)
   const expected = 1 / Math.sqrt(CLIP_EMBEDDING_DIM)
   assert.ok(Math.abs(vector[0] - expected) < 1e-6)
@@ -277,12 +277,14 @@ test('robots keeps the binder and the api out of the crawl', () => {
 
 test('the shared fingerprint module is the browser CLIP contract', () => {
   const source = readFileSync(path.join(root, 'src/lib/clip/browser.ts'), 'utf8')
-  assert.match(source, /export async function embedImage/)
+  assert.match(source, /export async function embedImage\(\s*blob: Blob/)
+  assert.match(source, /ClipProgress/)
+  assert.match(source, /ClipError/)
+  assert.match(source, /l2Normalize/)
   assert.match(source, /Xenova\/clip-vit-base-patch32/)
   assert.match(source, /Promise<Float32Array>/)
   assert.match(source, /512/)
   assert.match(source, /dtype: CLIP_BROWSER_DTYPE/)
-  assert.match(source, /progress_callback:/)
-  assert.match(source, /listeners/)
+  assert.match(source, /progress_callback/)
   assert.match(source, /q8/)
 })

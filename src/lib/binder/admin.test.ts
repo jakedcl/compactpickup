@@ -5,8 +5,8 @@ import { POST as embeddingsPost } from '../../app/api/admin/photos/embeddings/ro
 import { GET as imageGet, PATCH as imagePatch } from '../../app/api/admin/photos/[id]/route'
 import { POST as statusPost } from '../../app/api/admin/photos/status/route'
 import { POST as uploadPost } from '../../app/api/admin/uploads/route'
-import { CLIP_EMBEDDING_DIM } from './clip'
-import { normalizeEmbedding, vectorLiteral } from './embedding'
+import { CLIP_EMBEDDING_DIM, l2Normalize } from './clip'
+import { vectorLiteral } from './embedding'
 import {
   bytesForStoredPhoto,
   handleCoverage,
@@ -134,7 +134,7 @@ test('a fingerprint must be 512 numbers and is stored only on approved photos', 
   assert.deepEqual(body.skipped, [other])
   assert.match(db.calls[0].sql, /status = 'approved'/)
   assert.match(db.calls[0].sql, /::vector/)
-  const normalized = normalizeEmbedding(vector)
+  const normalized = l2Normalize(vector)
   assert.ok(normalized)
   assert.equal(db.calls[0].params[1], vectorLiteral(normalized))
 })

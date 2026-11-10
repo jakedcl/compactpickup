@@ -5,7 +5,7 @@ import { binderApi, BinderApiError } from '@/app/binder/api'
 import { CoverageList, type CoverageItem } from '@/app/binder/coverage-list'
 import { LogoutButton } from '@/app/binder/logout-button'
 import { UploadPanel } from '@/app/binder/upload-panel'
-import type { EmbedProgress } from '@/lib/clip/browser'
+import type { ClipProgress } from '@/lib/clip/browser'
 import { MAX_EMBED_ITEMS, MAX_STATUS_IDS, photoImagePath, type ReviewFace, type ReviewPhoto, type ReviewTruck } from '@/lib/binder/review'
 import { PHOTO_ANGLES, type PhotoAngle, type PhotoStatus } from '@/lib/binder/types'
 
@@ -170,11 +170,13 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
       const response = await fetch(photoImagePath(ids[index], shaFor(ids[index])))
       if (!response.ok) throw new Error('A photo did not load for fingerprinting.')
       const blob = await response.blob()
-      const onProgress: EmbedProgress = (update) => {
-        const percent = Math.round(Math.max(0, Math.min(1, update.ratio)) * 100)
-        if (update.ratio > 0 && update.ratio < 1) {
+      const onProgress = (update: ClipProgress) => {
+        if (typeof update.progress === 'number') {
+          const percent = Math.round(Math.max(0, Math.min(100, update.progress)))
           setProgress(`Downloading the fingerprint model ${percent}%. This happens once.`)
-        } else if (update.status === 'initiate' || update.status === 'download') {
+          return
+        }
+        if (update.status === 'initiate' || update.status === 'download' || update.status === 'progress') {
           setProgress('Downloading the fingerprint model. This happens once.')
         }
       }
