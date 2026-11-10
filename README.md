@@ -2,7 +2,7 @@
 
 A catalog of compact and mid-size pickup trucks sold in the U.S., styled like an old VHS recording. It started as a React class project and grew into a full Next.js app with a CMS.
 
-Live at [compactpickup.vercel.app](https://compactpickup.vercel.app).
+Live at [compactpickup.com](https://compactpickup.com).
 
 ![Compact Pickup homepage](docs/screenshot.png)
 

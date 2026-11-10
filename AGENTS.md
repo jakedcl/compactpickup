@@ -1,6 +1,6 @@
 # AGENTS.md — compactpickup
 
-Catalog of compact and mid-size pickup trucks sold in the U.S., styled like an old VHS recording. Started as a CSC436 React class project. Live at compactpickup.vercel.app.
+Catalog of compact and mid-size pickup trucks sold in the U.S., styled like an old VHS recording. Started as a CSC436 React class project. Live at compactpickup.com.
 
 ## Dev framework
 
