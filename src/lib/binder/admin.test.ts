@@ -58,6 +58,12 @@ test('admin write routes reject a signed-out call and a cross-site call', async 
   assert.equal((await statusPost(same)).status, 401)
   assert.equal((await statusPost(cross)).status, 403)
   assert.equal((await embeddingsPost(post('https://compactpickup.local/api/admin/photos/embeddings', {}))).status, 401)
+  const reviewBody = { id: ID, status: 'approved', angle: 'front', faceTagId: null }
+  assert.equal((await reviewPost(post('https://compactpickup.local/api/admin/photos/review', reviewBody))).status, 401)
+  assert.equal(
+    (await reviewPost(post('https://compactpickup.local/api/admin/photos/review', reviewBody, 'https://evil.example'))).status,
+    403,
+  )
   assert.equal((await uploadPost(post('https://compactpickup.local/api/admin/uploads', {}))).status, 401)
   assert.equal(
     (await imagePatch(post(`https://compactpickup.local/api/admin/photos/${ID}`, { angle: 'front' }), {

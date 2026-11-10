@@ -8,10 +8,10 @@ import {
   angleShortcut,
   appendItems,
   choose,
+  clearPhotoRetries,
   createReviewSession,
   currentItem,
   faceShortcut,
-  forgetRetry,
   noteSave,
   prefetchItems,
   rememberRetry,
@@ -50,28 +50,45 @@ function toItem(photo: ReviewPhoto): ReviewItem {
   }
 }
 
-export function useReviewSaves() {
+export function useReviewSaves(onApproved?: (item: { id: string; sha256: string }) => void) {
   const [box, setBox] = useState<ReviewSession>(() => createReviewSession([], 0))
+  const [inflight, setInflight] = useState(0)
   const boxRef = useRef(box)
   const chains = useRef(new Map<string, Promise<void>>())
   const cancelled = useRef(new Set<string>())
+  const latest = useRef(new Map<string, string>())
+  const shaByToken = useRef(new Map<string, string>())
+  const onApprovedRef = useRef(onApproved)
 
   useEffect(() => {
     boxRef.current = box
   }, [box])
 
-  const send = useCallback((body: ReviewDecision, token: string) => {
+  useEffect(() => {
+    onApprovedRef.current = onApproved
+  }, [onApproved])
+
+  const send = useCallback((body: ReviewDecision, token: string, sha256?: string) => {
+    if (sha256) shaByToken.current.set(token, sha256)
+    latest.current.set(body.id, token)
+    setInflight((count) => count + 1)
+    setBox((current) => clearPhotoRetries(current, body.id))
     const task = async () => {
-      if (cancelled.current.has(token)) return
+      const stale = () => cancelled.current.has(token) || latest.current.get(body.id) !== token
       try {
+        if (stale()) return
         await binderApi('/api/admin/photos/review', {
           method: 'POST',
           body: JSON.stringify(body),
         })
-        if (cancelled.current.has(token)) return
-        setBox((current) => forgetRetry(noteSave(current, token, 'saved'), token))
+        if (stale()) return
+        setBox((current) => clearPhotoRetries(noteSave(current, token, 'saved'), body.id))
+        if (body.status === 'approved') {
+          const sha = shaByToken.current.get(token)
+          if (sha) onApprovedRef.current?.({ id: body.id, sha256: sha })
+        }
       } catch (error) {
-        if (cancelled.current.has(token)) return
+        if (stale()) return
         const message = messageFrom(error, 'The photo was not updated.')
         const write: ReviewWrite = {
           token,
@@ -82,6 +99,8 @@ export function useReviewSaves() {
           error: message,
         }
         setBox((current) => rememberRetry(noteSave(current, token, 'failed', message), write))
+      } finally {
+        setInflight((count) => count - 1)
       }
     }
     const prev = chains.current.get(body.id) ?? Promise.resolve()
@@ -97,7 +116,10 @@ export function useReviewSaves() {
 
   const cancel = useCallback((token: string) => {
     cancelled.current.add(token)
-    setBox((current) => forgetRetry(current, token))
+    setBox((current) => {
+      const id = current.retries.find((item) => item.token === token)?.id
+      return id ? clearPhotoRetries(current, id) : current
+    })
   }, [])
 
   const retryAll = useCallback(() => {
@@ -105,11 +127,25 @@ export function useReviewSaves() {
       send(
         { id: write.id, status: write.status, angle: write.angle, faceTagId: write.faceTagId },
         write.token,
+        shaByToken.current.get(write.token),
       )
     }
   }, [send])
 
-  return { retries: box.retries, send, cancel, retryAll }
+  const settle = useCallback(() => Promise.all(Array.from(chains.current.values())).then(() => undefined), [])
+
+  const pending = inflight > 0 || box.retries.length > 0
+  useEffect(() => {
+    if (!pending) return
+    const onLeave = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onLeave)
+    return () => window.removeEventListener('beforeunload', onLeave)
+  }, [pending])
+
+  return { retries: box.retries, pending, send, cancel, retryAll, settle }
 }
 
 export type ReviewSaves = ReturnType<typeof useReviewSaves>
@@ -143,7 +179,7 @@ export function ReviewMode({
   runner: FingerprintRunner
   saves: ReviewSaves
   onLoadMore: () => void
-  onClose: () => void
+  onClose: () => void | Promise<void>
 }) {
   const total = matched > 0 ? Math.max(matched, photos.length) : photos.length
   const [session, setSession] = useState<ReviewSession>(() => createReviewSession(photos.map(toItem), total))
@@ -158,6 +194,8 @@ export function ReviewMode({
   const asked = useRef<string | null>(null)
   const seq = useRef(0)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const [closing, setClosing] = useState(false)
   useEffect(() => {
     setSession((current) => appendItems(current, photos.map(toItem), total))
   }, [photos, total])
@@ -180,8 +218,41 @@ export function ReviewMode({
     closeRef.current?.focus()
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    const root = dialogRef.current
+    function onTab(event: KeyboardEvent) {
+      if (event.key !== 'Tab' || !root) return
+      const nodes = [...root.querySelectorAll<HTMLElement>('button, [href], input, select, textarea')].filter((node) => {
+        if (node.hidden || node.hasAttribute('disabled') || node.getAttribute('tabindex') === '-1') return false
+        let current: HTMLElement | null = node
+        while (current && current !== root.parentElement) {
+          const style = window.getComputedStyle(current)
+          if (style.display === 'none' || style.visibility === 'hidden') return false
+          if (current === root) break
+          current = current.parentElement
+        }
+        return true
+      })
+      if (nodes.length === 0) {
+        event.preventDefault()
+        return
+      }
+      const first = nodes[0]
+      const last = nodes[nodes.length - 1]
+      const active = document.activeElement
+      if (event.shiftKey) {
+        if (active === first || !root.contains(active)) {
+          event.preventDefault()
+          last?.focus()
+        }
+      } else if (active === last || !root.contains(active)) {
+        event.preventDefault()
+        first?.focus()
+      }
+    }
+    document.addEventListener('keydown', onTab, true)
     return () => {
       document.body.style.overflow = previous
+      document.removeEventListener('keydown', onTab, true)
     }
   }, [])
 
@@ -193,13 +264,13 @@ export function ReviewMode({
   }, [session])
 
   useEffect(() => {
-    if (!cursor || loading) return
+    if (closing || !cursor || loading) return
     if (session.items.length === 0) return
     if (session.index <= session.items.length - 4) return
     if (asked.current === cursor) return
     asked.current = cursor
     onLoadMore()
-  }, [cursor, loading, onLoadMore, session.index, session.items.length])
+  }, [closing, cursor, loading, onLoadMore, session.index, session.items.length])
 
   const nextToken = useCallback(() => {
     seq.current += 1
@@ -212,9 +283,8 @@ export function ReviewMode({
     acted.current = current.id
     const token = nextToken()
     setSession((existing) => choose(existing, { status, angle, faceTagId: faceId }, token))
-    if (status === 'approved') runner.enqueue({ id: current.id, sha256: current.sha256 })
-    saves.send({ id: current.id, status, angle, faceTagId: faceId }, token)
-  }, [angle, faceId, nextToken, runner, saves, session])
+    saves.send({ id: current.id, status, angle, faceTagId: faceId }, token, current.sha256)
+  }, [angle, faceId, nextToken, saves, session])
 
   const skipPhoto = useCallback(() => {
     const current = currentItem(session)
@@ -234,16 +304,28 @@ export function ReviewMode({
     saves.cancel(step.token)
     if (step.after?.status === 'approved') runner.drop(step.id)
     const token = `undo-${step.token}`
+    const sha256 = session.items.find((item) => item.id === step.id)?.sha256
     saves.send(
       {
         id: step.id,
-        status: 'pending',
+        status: step.before.status,
         angle: step.before.angle,
         faceTagId: step.before.faceTagId,
       },
       token,
+      sha256,
     )
   }, [runner, saves, session])
+
+  async function close() {
+    if (closing) return
+    setClosing(true)
+    try {
+      await onClose()
+    } finally {
+      setClosing(false)
+    }
+  }
 
   async function changeTruck(nextId: string) {
     if (!photo || nextId === photo.truckId || truckBusy) return
@@ -329,11 +411,11 @@ export function ReviewMode({
   const toast = saves.retries.at(-1)?.error ?? null
 
   return (
-    <div className="review-screen" role="dialog" aria-modal="true" aria-label="Review">
+    <div ref={dialogRef} className="review-screen" role="dialog" aria-modal="true" aria-label="Review">
       <div className="review-main">
         <div className="review-top">
-          <button ref={closeRef} type="button" className="btn" onClick={onClose}>
-            Close
+          <button ref={closeRef} type="button" className="btn" onClick={() => void close()} disabled={closing}>
+            {closing ? 'Saving' : 'Close'}
           </button>
           <p>{photo ? `${left} of ${session.total} remaining` : 'Review'}</p>
         </div>

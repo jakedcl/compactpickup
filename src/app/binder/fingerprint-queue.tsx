@@ -10,6 +10,7 @@ import {
   enqueueJob,
   jobCounts,
   queueBusy,
+  refusedFingerprint,
   retryFailedJobs,
   settleJob,
   type FingerprintJob,
@@ -142,8 +143,12 @@ export function useFingerprintRunner() {
           method: 'POST',
           body: JSON.stringify({ items: [{ id: job.id, embedding: Array.from(vector) }] }),
         })
-        if (abandoned() || saved.skipped.includes(job.id)) {
-          finish('dropped')
+        if (abandoned()) {
+          finish(refusedFingerprint(true))
+          return
+        }
+        if (saved.skipped.includes(job.id)) {
+          finish(refusedFingerprint(false), 'The fingerprint was not saved.')
           return
         }
         setPhotoPercent(null)

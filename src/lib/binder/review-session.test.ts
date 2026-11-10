@@ -5,6 +5,7 @@ import {
   appendItems,
   choose,
   claimJob,
+  clearPhotoRetries,
   createReviewSession,
   currentItem,
   dropJob,
@@ -14,8 +15,9 @@ import {
   forgetRetry,
   jobCounts,
   noteSave,
-  rememberRetry,
   prefetchItems,
+  refusedFingerprint,
+  rememberRetry,
   remainingCount,
   retryFailedJobs,
   settleJob,
@@ -79,6 +81,55 @@ test('approve advances, a rejection stays off the fingerprint queue, and undo re
   assert.equal(currentItem(again.session)?.status, 'pending')
   assert.equal(failedSaves(again.session).length, 0)
   assert.equal(again.session.retries.length, 0)
+})
+
+test('a newer save replaces an older retry for the same photo', () => {
+  const session = createReviewSession([item('p1'), item('p2')], 2)
+  const older = rememberRetry(session, {
+    token: 'old',
+    id: 'p1',
+    status: 'approved',
+    angle: 'front',
+    faceTagId: null,
+    error: 'The photo was not updated.',
+  })
+  const newer = rememberRetry(older, {
+    token: 'new',
+    id: 'p1',
+    status: 'rejected',
+    angle: null,
+    faceTagId: null,
+    error: 'The photo was not updated.',
+  })
+  assert.equal(newer.retries.length, 1)
+  assert.equal(newer.retries[0]?.token, 'new')
+  assert.equal(newer.retries[0]?.status, 'rejected')
+  const both = rememberRetry(newer, {
+    token: 'other',
+    id: 'p2',
+    status: 'approved',
+    angle: 'side',
+    faceTagId: null,
+    error: 'The photo was not updated.',
+  })
+  assert.deepEqual(
+    both.retries.map((write) => write.id),
+    ['p1', 'p2'],
+  )
+  assert.equal(clearPhotoRetries(both, 'p1').retries.length, 1)
+  assert.equal(forgetRetry(both, 'old').retries.length, 2)
+  const chosen = choose(session, { status: 'approved', angle: null, faceTagId: null }, 't1')
+  const stale = rememberRetry(chosen, {
+    token: 'stale',
+    id: 'p1',
+    status: 'rejected',
+    angle: null,
+    faceTagId: null,
+    error: 'The photo was not updated.',
+  })
+  assert.equal(undo(stale).session.retries.length, 0)
+  assert.equal(refusedFingerprint(false), 'failed')
+  assert.equal(refusedFingerprint(true), 'dropped')
 })
 
 test('skip moves on without a saved decision and undo returns to that photo', () => {

@@ -66,7 +66,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
   const [matched, setMatched] = useState(0)
   const [reviewing, setReviewing] = useState(false)
   const runner = useFingerprintRunner()
-  const saves = useReviewSaves()
+  const saves = useReviewSaves((item) => runner.enqueue(item))
   const [coverage, setCoverage] = useState<CoverageItem[] | null>(null)
   const [coverageError, setCoverageError] = useState<string | null>(null)
   const [coverageLoading, setCoverageLoading] = useState(false)
@@ -593,9 +593,13 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
           runner={runner}
           saves={saves}
           onLoadMore={loadMoreReview}
-          onClose={() => {
-            setReviewing(false)
-            void loadPhotos('pending', truckFilter, null)
+          onClose={async () => {
+            await saves.settle()
+            try {
+              await loadPhotos('pending', truckFilter, null)
+            } finally {
+              setReviewing(false)
+            }
           }}
         />
       ) : null}

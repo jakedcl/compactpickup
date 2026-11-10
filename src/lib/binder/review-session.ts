@@ -157,7 +157,7 @@ export function undo(session: ReviewSession): { session: ReviewSession; step: Re
       items,
       index: step.index,
       steps: session.steps.slice(0, -1),
-      retries: session.retries.filter((item) => item.token !== step.token),
+      retries: session.retries.filter((item) => item.id !== step.id),
     },
     step,
   }
@@ -176,12 +176,24 @@ export function failedSaves(session: ReviewSession): ReviewStep[] {
   return session.steps.filter((step) => step.kind === 'choice' && step.save === 'failed')
 }
 
+/** One retry per photo. A newer save replaces whatever was waiting for that photo. */
 export function rememberRetry(session: ReviewSession, write: ReviewWrite): ReviewSession {
-  return { ...session, retries: [...session.retries.filter((item) => item.token !== write.token), write] }
+  return { ...session, retries: [...session.retries.filter((item) => item.id !== write.id), write] }
+}
+
+export function clearPhotoRetries(session: ReviewSession, id: string): ReviewSession {
+  return { ...session, retries: session.retries.filter((item) => item.id !== id) }
 }
 
 export function forgetRetry(session: ReviewSession, token: string): ReviewSession {
-  return { ...session, retries: session.retries.filter((item) => item.token !== token) }
+  const match = session.retries.find((item) => item.token === token)
+  if (!match) return session
+  return clearPhotoRetries(session, match.id)
+}
+
+/** The server did not store this fingerprint. Undo hides it. Any other refusal stays visible for retry. */
+export function refusedFingerprint(undone: boolean): 'dropped' | 'failed' {
+  return undone ? 'dropped' : 'failed'
 }
 
 export function retarget(
