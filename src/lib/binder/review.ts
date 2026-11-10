@@ -1,3 +1,4 @@
+import { THUMB_CACHE_VERSION } from '@/lib/binder/limits'
 import { PHOTO_ANGLES, PHOTO_STATUSES, type PhotoAngle, type PhotoStatus } from '@/lib/binder/types'
 
 export const UUID_RE =
@@ -182,6 +183,14 @@ export function parseListQuery(url: string):
   }
 }
 
+/** Cache-busting path for a stored photo. `v` changes when the bytes would. */
+export function photoImagePath(id: string, sha256: string, size: 'full' | 'thumb' = 'full'): string {
+  const version = size === 'thumb' ? `${sha256}-${THUMB_CACHE_VERSION}` : sha256
+  const params = new URLSearchParams({ v: version })
+  if (size === 'thumb') params.set('size', 'thumb')
+  return `/api/admin/photos/${id}?${params}`
+}
+
 export function imageSizeParam(url: string): 'full' | 'thumb' | null {
   const size = new URL(url).searchParams.get('size')
   if (size === null || size === '' || size === 'full') return 'full'
@@ -250,6 +259,7 @@ export type ReviewPhoto = {
   height: number | null
   createdAt: string
   notes: string | null
+  sha256: string
   hasEmbedding: boolean
 }
 

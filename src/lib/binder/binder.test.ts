@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import { CLIP_EMBEDDING_DIM } from './clip'
 import { sortCoverage } from './coverage'
+import { THUMB_CACHE_VERSION } from './limits'
+import { photoImagePath } from './review'
 import { normalizeEmbedding, vectorLiteral } from './embedding'
 import { adminEmail } from './env'
 import { SHARP_PIXEL_LIMIT, THUMB_LONG_EDGE, assertUploadFormat, compressToThumb, compressToWebp, sha256Hex } from './images'
@@ -256,6 +258,10 @@ test('thumb long edge stays small and upload fit does not enlarge', async () => 
   assert.equal(Math.max(meta.width ?? 0, meta.height ?? 0), THUMB_LONG_EDGE)
   assert.deepEqual(fittedSize(4000, 2000), { width: 2000, height: 1000 })
   assert.deepEqual(fittedSize(320, 200), { width: 320, height: 200 })
+  const id = '00000000-0000-4000-8000-000000000001'
+  const sha = 'a'.repeat(64)
+  assert.equal(photoImagePath(id, sha), `/api/admin/photos/${id}?v=${sha}`)
+  assert.equal(photoImagePath(id, sha, 'thumb'), `/api/admin/photos/${id}?v=${sha}-${THUMB_CACHE_VERSION}&size=thumb`)
 })
 
 test('robots keeps the binder and the api out of the crawl', () => {

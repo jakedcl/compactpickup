@@ -1,14 +1,12 @@
 import { createHash } from 'node:crypto'
 import sharp from 'sharp'
+import { THUMB_LONG_EDGE, THUMB_QUALITY } from '@/lib/binder/limits'
 
-export { MAX_UPLOAD_BYTES } from '@/lib/binder/limits'
+export { MAX_UPLOAD_BYTES, THUMB_CACHE_VERSION, THUMB_LONG_EDGE, THUMB_QUALITY } from '@/lib/binder/limits'
 
 /** Long edge of the single stored copy. Smaller originals are not enlarged. */
 export const WEBP_LONG_EDGE = 1600
 export const WEBP_QUALITY = 80
-/** Grid variant. The full WebP stays the only file used for fingerprints and detail. */
-export const THUMB_LONG_EDGE = 480
-export const THUMB_QUALITY = 60
 export const MAX_ORIGINAL_BYTES = 25 * 1024 * 1024
 /** Rejects decompression bombs before sharp allocates the pixels. */
 export const SHARP_PIXEL_LIMIT = 40_000_000

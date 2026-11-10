@@ -6,7 +6,7 @@ import { CoverageList, type CoverageItem } from '@/app/binder/coverage-list'
 import { LogoutButton } from '@/app/binder/logout-button'
 import { UploadPanel } from '@/app/binder/upload-panel'
 import type { EmbedProgress } from '@/lib/clip/browser'
-import { MAX_EMBED_ITEMS, MAX_STATUS_IDS, type ReviewFace, type ReviewPhoto, type ReviewTruck } from '@/lib/binder/review'
+import { MAX_EMBED_ITEMS, MAX_STATUS_IDS, photoImagePath, type ReviewFace, type ReviewPhoto, type ReviewTruck } from '@/lib/binder/review'
 import { PHOTO_ANGLES, type PhotoAngle, type PhotoStatus } from '@/lib/binder/types'
 
 type Tab = PhotoStatus | 'coverage' | 'add'
@@ -68,6 +68,15 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
   const requestId = useRef(0)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const staleList = useRef(false)
+  const shaById = useRef(new Map<string, string>())
+
+  function remember(items: ReviewPhoto[]) {
+    for (const photo of items) shaById.current.set(photo.id, photo.sha256)
+  }
+
+  function shaFor(id: string) {
+    return shaById.current.get(id) ?? ''
+  }
 
   const photoTab: PhotoStatus | null = tab === 'pending' || tab === 'approved' || tab === 'rejected' ? tab : null
 
@@ -90,6 +99,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
     try {
       const data = await binderApi<ListResponse>(listUrl(status, filter, nextCursor))
       if (id !== requestId.current) return
+      for (const photo of data.photos) shaById.current.set(photo.id, photo.sha256)
       setPhotos((current) => (nextCursor ? [...current, ...data.photos] : data.photos))
       setCursor(data.nextCursor)
       setCounts(data.counts)
@@ -157,7 +167,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
     }
     for (let index = 0; index < ids.length; index += 1) {
       setProgress(`Fingerprint ${index + 1} of ${ids.length}`)
-      const response = await fetch(`/api/admin/photos/${ids[index]}`)
+      const response = await fetch(photoImagePath(ids[index], shaFor(ids[index])))
       if (!response.ok) throw new Error('A photo did not load for fingerprinting.')
       const blob = await response.blob()
       const onProgress: EmbedProgress = (update) => {
@@ -254,6 +264,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
       let next: string | null = null
       do {
         const page: ListResponse = await binderApi(listUrl(photoTab, truckFilter, next, 48))
+        remember(page.photos)
         for (const photo of page.photos) ids.push(photo.id)
         next = page.nextCursor
         setCounts(page.counts)
@@ -275,6 +286,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
       let next: string | null = null
       do {
         const page: ListResponse = await binderApi(listUrl('approved', '', next, 48, true))
+        remember(page.photos)
         for (const photo of page.photos) ids.push(photo.id)
         next = page.nextCursor
       } while (next && ids.length < 5000)
@@ -450,7 +462,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
                   <button type="button" className="binder-card-open" onClick={() => setOpenId(photo.id)}>
                     {/* Private bytes. next/image would send them through the paid optimizer. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/api/admin/photos/${photo.id}?size=thumb`} alt="" />
+                    <img src={photoImagePath(photo.id, photo.sha256, 'thumb')} alt="" />
                     <span className="binder-card-copy">
                       <strong>{title}</strong>
                       <span>
@@ -657,7 +669,7 @@ function PhotoDetail({
       ) : null}
       {/* Private bytes. next/image would send them through the paid optimizer. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={`/api/admin/photos/${photo.id}`} alt={title} />
+      <img src={photoImagePath(photo.id, photo.sha256)} alt={title} />
       <p>{title}</p>
       {credit ? <p className="binder-meta">{credit}</p> : null}
       {photo.notes ? <p>{photo.notes}</p> : null}

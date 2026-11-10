@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
       'node_modules/onnxruntime-node/**',
       'node_modules/onnxruntime-web/**',
     ],
+    '/api/admin/**': ['node_modules/@img/*linuxmusl*/**'],
   },
   images: {
     deviceSizes: [640, 750, 828, 1080, 1200, 1600],

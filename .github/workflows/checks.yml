@@ -16,3 +16,4 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test:binder
+      - run: npm run build

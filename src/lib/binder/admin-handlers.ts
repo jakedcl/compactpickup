@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { getSession } from '@/lib/binder/session-cookie'
 import { isSameOrigin } from '@/lib/binder/origin'
 import { query, withPooledClient } from '@/lib/binder/db'
@@ -87,6 +86,7 @@ type PhotoDbRow = {
   height: number | null
   created_at: Date | string
   notes: string | null
+  sha256: string
   has_embedding: boolean
 }
 
@@ -106,6 +106,7 @@ function toPhoto(row: PhotoDbRow): ReviewPhoto {
     height: row.height,
     createdAt: iso(row.created_at) ?? new Date(0).toISOString(),
     notes: row.notes,
+    sha256: row.sha256,
     hasEmbedding: Boolean(row.has_embedding),
   }
 }
@@ -141,7 +142,7 @@ export async function handlePhotoList(
     const limitSql = `$${params.push(parsed.limit + 1)}`
     const listed = await db.query<PhotoDbRow>(
       `select id, truck_id, truck_slug, status, angle, face_tag_id, source, source_url,
-              author, license, width, height, created_at, notes,
+              author, license, width, height, created_at, notes, sha256,
               (embedding is not null) as has_embedding
        from photos
        where status = $1
@@ -337,9 +338,7 @@ async function readStoredImage(id: string, size: 'full' | 'thumb'): Promise<Uint
   })
 }
 
-function entityTag(bytes: Uint8Array): string {
-  return `"${createHash('sha256').update(bytes).digest('base64url')}"`
-}
+const IMAGE_CACHE = 'private, max-age=86400, immutable'
 
 export async function handlePhotoImage(
   request: Request,
@@ -356,20 +355,13 @@ export async function handlePhotoImage(
   try {
     const bytes = await readImage(id, size)
     if (!bytes) return new Response('Not found', { status: 404, headers: { 'cache-control': 'no-store' } })
-    const tag = entityTag(bytes)
-    const headers = {
-      etag: tag,
-      'cache-control': 'private, no-cache',
-      'x-content-type-options': 'nosniff',
-    }
-    const matches = request.headers
-      .get('if-none-match')
-      ?.split(',')
-      .some((part) => part.trim() === tag)
-    if (matches) return new Response(null, { status: 304, headers })
     return new Response(new Uint8Array(bytes), {
       status: 200,
-      headers: { ...headers, 'content-type': 'image/webp' },
+      headers: {
+        'content-type': 'image/webp',
+        'cache-control': IMAGE_CACHE,
+        'x-content-type-options': 'nosniff',
+      },
     })
   } catch (error) {
     console.error(`binder: photo read failed (${error instanceof Error ? error.name : 'Error'})`)

@@ -241,16 +241,14 @@ test('list and image routes validate the query before reading a photo', async ()
     readImage: async () => payload,
   })
   assert.equal(full.status, 200)
-  assert.equal(full.headers.get('cache-control'), 'private, no-cache')
-  const etag = full.headers.get('etag')
-  assert.ok(etag)
-  const cached = await handlePhotoImage(
-    new Request(`https://compactpickup.local/api/admin/photos/${ID}`, { headers: { 'if-none-match': etag ?? '' } }),
+  assert.equal(full.headers.get('cache-control'), 'private, max-age=86400, immutable')
+  const thumb = await handlePhotoImage(
+    new Request(`https://compactpickup.local/api/admin/photos/${ID}?size=thumb&v=abc-480-60`),
     ID,
     { session: signedIn, readImage: async () => payload },
   )
-  assert.equal(cached.status, 304)
-  assert.equal(cached.headers.get('cache-control'), 'private, no-cache')
+  assert.equal(thumb.status, 200)
+  assert.equal(thumb.headers.get('cache-control'), 'private, max-age=86400, immutable')
 })
 
 test('upload requires a catalog truck and marks the photo as an owner upload', async () => {
