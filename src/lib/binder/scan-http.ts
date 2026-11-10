@@ -1,15 +1,16 @@
 import 'server-only'
 
 import { getPool } from '@/lib/binder/db'
-import { clientIp } from '@/lib/binder/http'
 import { isSameOrigin } from '@/lib/binder/origin'
 import { putPhoto } from '@/lib/binder/r2'
 import {
   SCAN_BODY_MAX_BYTES,
   SUBMIT_BODY_MAX_BYTES,
   VISITOR_MAX_BYTES,
+  hashVisitorKey,
   normalizeScanEmbedding,
   runScan,
+  scannerClientIp,
   submitVisitorPhoto,
   type ScanDeps,
   type SubmitDeps,
@@ -24,12 +25,6 @@ const PHOTO_TYPES = new Set([
   'image/pjpeg',
   'image/png',
   'image/webp',
-  'image/gif',
-  'image/heic',
-  'image/heif',
-  'image/heic-sequence',
-  'image/heif-sequence',
-  'image/avif',
 ])
 
 function json(body: unknown, status = 200): Response {
@@ -63,6 +58,7 @@ const defaultScanDeps: ScanDeps = {
   connect: defaultConnect,
   catalog: defaultCatalog,
   now: () => Date.now(),
+  hashSubject: (subject) => hashVisitorKey(subject),
 }
 
 const defaultSubmitDeps: SubmitDeps = {
@@ -115,7 +111,7 @@ export async function scanPost(request: Request, deps: ScanDeps = defaultScanDep
     )
   }
   try {
-    const result = await runScan(vector, clientIp(request), deps)
+    const result = await runScan(vector, scannerClientIp(request), deps)
     if (!result.ok) return json({ ok: false, error: result.error, message: result.message }, result.status)
     return json({ ok: true, ...result.outcome })
   } catch (error) {
@@ -183,7 +179,7 @@ export async function submitPost(request: Request, deps: SubmitDeps = defaultSub
         guessedTruckSlug,
         correctedTruckId,
         correctedTruckSlug,
-        ip: clientIp(request),
+        ip: scannerClientIp(request),
       },
       deps,
     )

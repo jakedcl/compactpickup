@@ -2,9 +2,12 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import { embedImage } from '@/lib/clip/browser'
+import { ClipError, embedImage } from '@/lib/clip/browser'
 import { SCAN_CONSENT_VALUE, SCAN_FIELDS, type ScanCatalogTruck, type ScanMatch } from '@/lib/binder/scan-types'
 import './scan.css'
+
+const UPLOAD_LONG_EDGE = 1600
+const UPLOAD_JPEG_QUALITY = 0.85
 
 type Phase = 'idle' | 'working' | 'results' | 'error'
 type SubmitPhase = 'idle' | 'sending' | 'sent' | 'duplicate' | 'error'
@@ -41,11 +44,34 @@ function readScan(value: unknown): ScanSuccess | null {
 }
 
 function clientMessage(error: unknown): string {
-  if (error instanceof Error) {
-    if (error.message === 'Could not read the photo') return 'That photo could not be read. Try another.'
-    if (error.message.startsWith('Scanner model returned')) return 'The scanner could not read that photo. Try another.'
+  if (error instanceof ClipError) {
+    if (error.code === 'photo') return 'That photo could not be read. Try another.'
+    if (error.code === 'model') return 'The scanner could not read that photo. Try another.'
   }
   return 'The scanner did not load. Check the connection and try the photo again.'
+}
+
+async function shrinkVisitorJpeg(file: Blob): Promise<File> {
+  const bitmap = await createImageBitmap(file)
+  try {
+    if (bitmap.width < 1 || bitmap.height < 1) throw new ClipError('photo', 'Could not read the photo')
+    const scale = Math.min(1, UPLOAD_LONG_EDGE / Math.max(bitmap.width, bitmap.height))
+    const width = Math.max(1, Math.round(bitmap.width * scale))
+    const height = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new ClipError('photo', 'Could not read the photo')
+    ctx.drawImage(bitmap, 0, 0, width, height)
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', UPLOAD_JPEG_QUALITY)
+    })
+    if (!blob || blob.size === 0) throw new ClipError('photo', 'Could not read the photo')
+    return new File([blob], 'truck.jpg', { type: 'image/jpeg' })
+  } finally {
+    bitmap.close()
+  }
 }
 
 function messageFrom(value: unknown, fallback: string): string {
@@ -132,7 +158,12 @@ export default function Scanner({
     setSubmitMessage('')
     setStatus('Reading the photo. The first time downloads the scanner (about 90 MB) onto this phone and keeps it there.')
     try {
-      const vector = await embedImage(next)
+      const vector = await embedImage(next, (progress) => {
+        if (runId.current !== id) return
+        if (progress.status === 'progress' && typeof progress.progress === 'number') {
+          setStatus(`Downloading the scanner. ${Math.round(progress.progress)}%`)
+        }
+      })
       if (runId.current !== id) return
       setStatus('Checking the library')
       const response = await fetch('/api/scan', {
@@ -182,8 +213,16 @@ export default function Scanner({
     if (!file || !top || !verdict || !canSend) return
     setSubmitPhase('sending')
     setSubmitMessage('Sending')
+    let upload: File
+    try {
+      upload = await shrinkVisitorJpeg(file)
+    } catch (error) {
+      setSubmitPhase('error')
+      setSubmitMessage(clientMessage(error))
+      return
+    }
     const body = new FormData()
-    body.set(SCAN_FIELDS.photo, file)
+    body.set(SCAN_FIELDS.photo, upload)
     body.set(SCAN_FIELDS.consent, SCAN_CONSENT_VALUE)
     body.set(SCAN_FIELDS.verdict, verdict)
     body.set(SCAN_FIELDS.guessedTruckId, top.id)

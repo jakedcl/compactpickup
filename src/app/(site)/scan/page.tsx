@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import PageHeader from '@/components/ui/PageHeader'
 import { getCatalog } from '@/lib/getCatalog'
 import { toScanTruck, type ScanCatalogTruck } from '@/lib/binder/scan-types'
-import Scanner from './scanner'
+import ScannerSlot from './scanner-slot'
 
 export const revalidate = 3600
 
@@ -33,7 +33,7 @@ export default async function ScanPage() {
           title="Scan a truck"
           lede="Take a photo of a compact pickup. The scanner names the closest model in the catalog."
         />
-        <Scanner trucks={trucks} catalogStatus={catalogStatus} />
+        <ScannerSlot trucks={trucks} catalogStatus={catalogStatus} />
       </div>
     </main>
   )

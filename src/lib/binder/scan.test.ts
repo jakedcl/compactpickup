@@ -8,20 +8,28 @@ import { POST as scanRoute } from '../../app/api/scan/route'
 import { POST as submitRoute } from '../../app/api/scan/submit/route'
 import { scanPost, submitPost } from './scan-http'
 import { CLIP_EMBEDDING_DIM, l2Normalize } from './clip'
-import { sha256Hex } from './images'
+import { MAX_INPUT_PIXELS, pixelCountAllowed, sha256Hex } from './images'
 import {
+  SCAN_BUSY_MESSAGE,
   SCAN_EF_SEARCH,
   SCAN_LIMIT,
+  SCAN_MATCH_MIN_MARGIN,
   SCAN_MATCH_MIN_SIMILARITY,
   SCAN_NEIGHBOR_LIMIT,
+  SCAN_SITE_LIMIT,
+  SCAN_SITE_SUBJECT,
+  SCAN_SITE_WINDOW_SECONDS,
   SCAN_WINDOW_SECONDS,
   SUBMIT_LIMIT,
   SUBMIT_SITE_LIMIT,
   SUBMIT_SITE_WINDOW_SECONDS,
+  SUBMIT_WINDOW_SECONDS,
   VISITOR_MAX_BYTES,
   VISITOR_NOTE,
   aggregateTruckScores,
+  hashVisitorKey,
   labelMatches,
+  rateSubject,
   sniffImage,
   vectorLiteral,
   windowStart,
@@ -32,6 +40,7 @@ import { SCAN_FIELDS, toScanTruck, type ScanCatalogTruck } from './scan-types'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 const ORIGIN = 'https://compactpickup.local'
+const TEST_SECRET = 'scanner-test-secret-32-chars-min'
 
 const RANGER: ScanCatalogTruck = {
   id: 'truck-ranger',
@@ -100,6 +109,7 @@ class Memory {
   feedback: Feedback[] = []
   buckets: Bucket[] = []
   queries: string[] = []
+  settings: string[] = []
   lastVector = ''
   puts: Buffer[] = []
   private nextId = 1
@@ -124,6 +134,7 @@ class Memory {
         return catalog
       },
       now: () => this.now,
+      hashSubject: (subject) => hashVisitorKey(subject, TEST_SECRET),
       putPhoto: async (_key, body) => {
         this.puts.push(body)
       },
@@ -182,12 +193,15 @@ class Memory {
       return [{ hits: row.hits }]
     }
     if (sql.startsWith('select set_config')) {
-      assert.equal(params[0], String(SCAN_EF_SEARCH))
+      this.settings.push(String(params[0]))
       return [{}]
     }
     if (sql.includes('embedding <=>')) {
       this.lastVector = String(params[0])
-      const filtered = sql.includes("status = 'approved'") && sql.includes('embedding is not null')
+      const filtered =
+        sql.includes("status = 'approved'")
+        && sql.includes('embedding is not null')
+        && sql.includes('truck_id is not null')
       let rows = filtered ? this.library.filter((row) => row.status === 'approved' && row.hasEmbedding) : this.library
       if (sql.includes('order by embedding <=>')) {
         rows = [...rows].sort((a, b) => b.similarity - a.similarity)
@@ -317,12 +331,15 @@ test('image sniff accepts photos and rejects other bytes', () => {
   const heic = Buffer.alloc(12)
   heic.write('ftyp', 4)
   heic.write('heic', 8)
-  assert.equal(sniffImage(heic), 'heif')
+  assert.equal(sniffImage(heic), null)
+  const gif = Buffer.alloc(12)
+  gif.write('GIF89a', 0)
+  assert.equal(sniffImage(gif), null)
   assert.equal(sniffImage(Buffer.from('<svg></svg>')), null)
   assert.equal(sniffImage(Buffer.from('not-a-photo!!')), null)
 })
 
-test('truck score is the mean of its best three photos, then the top three trucks', () => {
+test('truck score fills three slots and a close runner-up stays a guess', () => {
   const ranked = aggregateTruckScores([
     { truckId: 'a', truckSlug: 'a', similarity: 0.9 },
     { truckId: 'a', truckSlug: 'a', similarity: 0.8 },
@@ -332,10 +349,11 @@ test('truck score is the mean of its best three photos, then the top three truck
     { truckId: 'c', truckSlug: 'c', similarity: 0.4 },
     { truckId: 'd', truckSlug: 'd', similarity: 0.2 },
   ])
-  assert.deepEqual(ranked.map((row) => row.truckId), ['b', 'a', 'c'])
-  assert.equal(ranked[0].score, 0.85)
-  assert.ok(Math.abs(ranked[1].score - 0.8) < 1e-9)
+  assert.deepEqual(ranked.map((row) => row.truckId), ['a', 'b', 'c'])
+  assert.ok(Math.abs(ranked[0].score - 0.8) < 1e-9)
+  assert.ok(Math.abs(ranked[1].score - (0.85 + 0.1 + 0.1) / 3) < 1e-9)
   assert.equal(SCAN_MATCH_MIN_SIMILARITY, 0.82)
+  assert.equal(SCAN_MATCH_MIN_MARGIN, 0.02)
   const sure = labelMatches([{ truckId: 'truck-ranger', truckSlug: 'old', similarity: 0.82 }], [RANGER])
   assert.equal(sure.state, 'match')
   assert.equal(sure.matches[0]?.href, '/ford/ranger')
@@ -343,6 +361,32 @@ test('truck score is the mean of its best three photos, then the top three truck
   const unsure = labelMatches([{ truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.81 }], [RANGER])
   assert.equal(unsure.state, 'guess')
   assert.equal(unsure.matches[0]?.title, 'Ranger')
+  const close = labelMatches(
+    [
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.9 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.9 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.9 },
+      { truckId: 'truck-hilux', truckSlug: 'hilux', similarity: 0.885 },
+      { truckId: 'truck-hilux', truckSlug: 'hilux', similarity: 0.885 },
+      { truckId: 'truck-hilux', truckSlug: 'hilux', similarity: 0.885 },
+    ],
+    [RANGER, HILUX],
+  )
+  assert.equal(close.state, 'guess')
+  assert.equal(close.matches[0]?.title, 'Ranger')
+  const separated = labelMatches(
+    [
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.9 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.9 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.9 },
+      { truckId: 'truck-hilux', truckSlug: 'hilux', similarity: 0.87 },
+      { truckId: 'truck-hilux', truckSlug: 'hilux', similarity: 0.87 },
+      { truckId: 'truck-hilux', truckSlug: 'hilux', similarity: 0.87 },
+    ],
+    [RANGER, HILUX],
+  )
+  assert.equal(separated.state, 'match')
+  assert.equal(separated.matches[1]?.title, 'Hilux')
   assert.deepEqual(labelMatches([], [RANGER]), { state: 'learning', matches: [], threshold: 0.82 })
   assert.equal(labelMatches([{ truckId: 'missing', truckSlug: 'x', similarity: 0.99 }], [RANGER]).state, 'guess')
 })
@@ -357,6 +401,11 @@ test('migration stores consenting feedback and does not approve photos', () => {
   assert.match(sql, /'scan'/)
   assert.match(sql, /'submit'/)
   assert.match(sql, /'submit-site'/)
+  assert.match(sql, /'scan-site'/)
+  assert.match(sql, /ip_hash/)
+  assert.match(sql, /photos_approved_embedding_hnsw_idx/)
+  assert.match(sql, /where status = 'approved'/)
+  assert.doesNotMatch(sql, /\bip text\b/)
   assert.doesNotMatch(sql, /^\s*update\s+photos/im)
   assert.equal(toScanTruck(RANGER)?.slug, 'ranger')
   assert.equal(toScanTruck({ ...RANGER, href: '/ford/ranger/extra' }), null)
@@ -410,7 +459,14 @@ test('scan normalizes the vector, ignores unapproved photos, and reports learnin
   assert.equal(body.state, 'learning')
   assert.deepEqual(body.matches, [])
   assert.equal(db.catalogCalls, 0)
-  assert.ok(db.queries.some((sql) => sql.includes("status = 'approved'") && sql.includes('embedding is not null')))
+  assert.ok(db.queries.some((sql) =>
+    sql.includes("status = 'approved'")
+    && sql.includes('embedding is not null')
+    && sql.includes('truck_id is not null'),
+  ))
+  assert.ok(db.settings.includes(String(SCAN_EF_SEARCH)))
+  assert.ok(db.settings.includes('relaxed_order'))
+  assert.ok(db.queries.some((sql) => sql.includes('hnsw.iterative_scan')))
   const first = Number(db.lastVector.slice(1).split(',')[0])
   assert.ok(Math.abs(first - 1 / Math.sqrt(CLIP_EMBEDDING_DIM)) < 1e-5)
   assert.equal(db.lastVector.split(',').length, CLIP_EMBEDDING_DIM)
@@ -425,6 +481,8 @@ test('scan returns the closest trucks and says not sure under the threshold', as
     db.library.push({ truckId: id, truckSlug: id, status: 'approved', hasEmbedding: true, similarity: 0.5 })
   }
   trucks.push({ id: 'best', slug: 'best-slug', title: 'B2600', maker: 'Mazda', href: '/mazda/best-slug', years: '1986' })
+  db.library.push({ truckId: 'best', truckSlug: 'old-slug', status: 'approved', hasEmbedding: true, similarity: 0.91 })
+  db.library.push({ truckId: 'best', truckSlug: 'old-slug', status: 'approved', hasEmbedding: true, similarity: 0.91 })
   db.library.push({ truckId: 'best', truckSlug: 'old-slug', status: 'approved', hasEmbedding: true, similarity: 0.91 })
   db.library.push({ truckId: 'truck-hilux', truckSlug: 'hilux', status: 'rejected', hasEmbedding: true, similarity: 0.99 })
   const deps = db.deps(trucks)
@@ -469,12 +527,21 @@ test('scan rate limit is per IP and resets on the next window', async () => {
   assert.equal((await scanPost(scanRequest(vector(), '203.0.113.8'), deps)).status, 200)
 })
 
-test('old rate buckets are deleted', async () => {
+test('old rate buckets are deleted on a cleanup sample', async () => {
   const db = new Memory()
   const old = new Date(db.now - 3 * 24 * 60 * 60 * 1000).toISOString()
   db.buckets.push({ ip: '203.0.113.8', route: 'scan', bucket: old, hits: 4 })
-  await scanPost(scanRequest(vector()), db.deps())
-  assert.equal(db.buckets.some((row) => row.bucket === old), false)
+  const random = Math.random
+  Math.random = () => 0.99
+  try {
+    await scanPost(scanRequest(vector()), db.deps())
+    assert.equal(db.buckets.some((row) => row.bucket === old), true)
+    Math.random = () => 0
+    await scanPost(scanRequest(vector(), '198.51.100.4'), db.deps())
+    assert.equal(db.buckets.some((row) => row.bucket === old), false)
+  } finally {
+    Math.random = random
+  }
   assert.equal(windowStart(db.now, SCAN_WINDOW_SECONDS).getTime() <= db.now, true)
 })
 
@@ -500,6 +567,14 @@ test('submit requires same-origin consent and a real catalog truck', async () =>
     deps,
   )
   assert.equal(sloppy.status, 400)
+  const gif = Buffer.alloc(12)
+  gif.write('GIF89a', 0)
+  const animated = await submitPost(
+    submitRequest(photoForm(gif, { ...fields, [SCAN_FIELDS.consent]: 'yes' }, 'image/gif')),
+    deps,
+  )
+  assert.equal(animated.status, 400)
+  assert.equal(db.connects, 0)
   const unknown = await submitPost(
     submitRequest(photoForm(bytes, {
       ...fields,
@@ -554,7 +629,8 @@ test('submit requires same-origin consent and a real catalog truck', async () =>
     deps,
   )
   assert.equal(oversized.status, 413)
-  assert.equal(db.connects, 0)
+  assert.ok(db.connects > 0)
+  assert.ok(db.catalogCalls > 0)
   assert.equal(db.photos.length, 0)
   assert.equal(db.puts.length, 0)
   assert.equal(db.feedback.length, 0)
@@ -593,6 +669,10 @@ test('a consented photo is stored pending from a visitor and is not approved', a
   assert.equal(db.feedback[0].verdict, 'wrong')
   assert.equal(db.feedback[0].correctedId, HILUX.id)
   assert.equal(db.feedback[0].photoId, db.photos[0].id)
+  const ipHash = hashVisitorKey(rateSubject('203.0.113.10'), TEST_SECRET)
+  assert.equal(db.feedback[0].ip, ipHash)
+  assert.equal(db.buckets.some((row) => row.ip === '203.0.113.10'), false)
+  assert.equal(db.buckets.some((row) => row.ip === ipHash), true)
   assert.ok(db.queries.some((sql) => sql.startsWith('insert into photos') && sql.includes("'pending'")))
   assert.equal(db.photos.some((row) => row.status === 'approved'), false)
 })
@@ -654,13 +734,14 @@ test('submit rate limit is separate from scans and a storage failure stores noth
 
   const capped = new Memory()
   capped.buckets.push({
-    ip: '*',
+    ip: hashVisitorKey(SCAN_SITE_SUBJECT, TEST_SECRET),
     route: 'submit-site',
     bucket: windowStart(capped.now, SUBMIT_SITE_WINDOW_SECONDS).toISOString(),
     hits: SUBMIT_SITE_LIMIT,
   })
   const site = await submitPost(submitRequest(photoForm(bytes, fields)), capped.deps())
   assert.equal(site.status, 429)
+  assert.equal(capped.catalogCalls, 0)
   assert.equal(capped.photos.length, 0)
   assert.equal(capped.puts.length, 0)
 
@@ -685,4 +766,95 @@ test('submit rate limit is separate from scans and a storage failure stores noth
   } finally {
     console.error = original
   }
+})
+
+test('visitor keys are hmac hashes and huge pixel counts are rejected', () => {
+  const hash = hashVisitorKey('203.0.113.8', TEST_SECRET)
+  assert.match(hash, /^[a-f0-9]{64}$/)
+  assert.equal(hash, hashVisitorKey('203.0.113.8', TEST_SECRET))
+  assert.notEqual(hash, hashVisitorKey('198.51.100.4', TEST_SECRET))
+  assert.notEqual(hash, '203.0.113.8')
+  assert.throws(() => hashVisitorKey('203.0.113.8', 'short'))
+  assert.equal(pixelCountAllowed(100, 100), true)
+  assert.equal(pixelCountAllowed(6325, 6325), false)
+  assert.equal(pixelCountAllowed(undefined, 10), false)
+  assert.equal(MAX_INPUT_PIXELS, 40_000_000)
+  assert.equal(rateSubject('2001:db8:85a3::1'), '2001:db8:85a3:0')
+  assert.equal(rateSubject('2001:db8:85a3:0:ffff:ffff:ffff:ffff'), rateSubject('2001:DB8:85A3::9'))
+  assert.notEqual(rateSubject('2001:db8:85a3::1'), rateSubject('2001:db8:85a4::1'))
+  assert.equal(rateSubject('::ffff:203.0.113.8'), '203.0.113.8')
+})
+
+test('ipv6 visitors in one /64 share a scan bucket and x-real-ip wins', async () => {
+  const db = new Memory()
+  const deps = db.deps()
+  const prefix = rateSubject('2001:db8:85a3::1')
+  db.buckets.push({
+    ip: hashVisitorKey(prefix, TEST_SECRET),
+    route: 'scan',
+    bucket: windowStart(db.now, SCAN_WINDOW_SECONDS).toISOString(),
+    hits: SCAN_LIMIT,
+  })
+  assert.equal((await scanPost(scanRequest(vector(), '2001:db8:85a3::1'), deps)).status, 429)
+  assert.equal((await scanPost(scanRequest(vector(), '2001:db8:85a3:0:ffff:ffff:ffff:ffff'), deps)).status, 429)
+  assert.equal((await scanPost(scanRequest(vector(), '2001:db8:85a4::1'), deps)).status, 200)
+
+  const trusted = new Memory()
+  trusted.buckets.push({
+    ip: hashVisitorKey(rateSubject('203.0.113.8'), TEST_SECRET),
+    route: 'scan',
+    bucket: windowStart(trusted.now, SCAN_WINDOW_SECONDS).toISOString(),
+    hits: SCAN_LIMIT,
+  })
+  const spoofed = new Request(`${ORIGIN}/api/scan`, {
+    method: 'POST',
+    headers: {
+      origin: ORIGIN,
+      'content-type': 'application/json',
+      'x-real-ip': '203.0.113.8',
+      'x-forwarded-for': '198.51.100.4',
+    },
+    body: JSON.stringify({ embedding: vector() }),
+  })
+  assert.equal((await scanPost(spoofed, trusted.deps())).status, 429)
+  assert.equal((await scanPost(scanRequest(vector(), '198.51.100.4'), trusted.deps())).status, 200)
+})
+
+test('a full day of scans tells the visitor to try later', async () => {
+  const db = new Memory()
+  db.buckets.push({
+    ip: hashVisitorKey(SCAN_SITE_SUBJECT, TEST_SECRET),
+    route: 'scan-site',
+    bucket: windowStart(db.now, SCAN_SITE_WINDOW_SECONDS).toISOString(),
+    hits: SCAN_SITE_LIMIT,
+  })
+  const response = await scanPost(scanRequest(vector()), db.deps())
+  assert.equal(response.status, 429)
+  const body = await response.json()
+  assert.equal(body.error, 'busy')
+  assert.equal(body.message, SCAN_BUSY_MESSAGE)
+  assert.equal(db.catalogCalls, 0)
+  assert.equal(db.queries.some((sql) => sql.includes('embedding <=>')), false)
+})
+
+test('submit spends a rate slot before the catalog and the decoder', async () => {
+  const db = new Memory()
+  const bytes = await png()
+  const fields = {
+    [SCAN_FIELDS.consent]: 'yes',
+    [SCAN_FIELDS.verdict]: 'right',
+    [SCAN_FIELDS.guessedTruckId]: RANGER.id,
+    [SCAN_FIELDS.guessedTruckSlug]: RANGER.slug,
+  }
+  db.buckets.push({
+    ip: hashVisitorKey(rateSubject('203.0.113.10'), TEST_SECRET),
+    route: 'submit',
+    bucket: windowStart(db.now, SUBMIT_WINDOW_SECONDS).toISOString(),
+    hits: SUBMIT_LIMIT,
+  })
+  const response = await submitPost(submitRequest(photoForm(bytes, fields)), db.deps())
+  assert.equal(response.status, 429)
+  assert.equal(db.catalogCalls, 0)
+  assert.equal(db.puts.length, 0)
+  assert.equal(db.photos.length, 0)
 })
