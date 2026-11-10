@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { binderApi, BinderApiError } from '@/app/binder/api'
 import { CoverageList, type CoverageItem } from '@/app/binder/coverage-list'
+import { useFingerprintRunner, FingerprintPanel } from '@/app/binder/fingerprint-queue'
 import { LogoutButton } from '@/app/binder/logout-button'
+import { ReviewMode, useReviewSaves } from '@/app/binder/review-mode'
 import { UploadPanel } from '@/app/binder/upload-panel'
 import type { ClipProgress } from '@/lib/clip/browser'
 import { MAX_EMBED_ITEMS, MAX_STATUS_IDS, photoImagePath, type ReviewFace, type ReviewPhoto, type ReviewTruck } from '@/lib/binder/review'
@@ -16,6 +18,7 @@ type ListResponse = {
   photos: ReviewPhoto[]
   nextCursor: string | null
   counts: Counts
+  matched: number
   missingEmbeddings: number
 }
 
@@ -60,6 +63,10 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
   const [progress, setProgress] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [missingEmbeddings, setMissingEmbeddings] = useState(0)
+  const [matched, setMatched] = useState(0)
+  const [reviewing, setReviewing] = useState(false)
+  const runner = useFingerprintRunner()
+  const saves = useReviewSaves()
   const [coverage, setCoverage] = useState<CoverageItem[] | null>(null)
   const [coverageError, setCoverageError] = useState<string | null>(null)
   const [coverageLoading, setCoverageLoading] = useState(false)
@@ -103,6 +110,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
       setPhotos((current) => (nextCursor ? [...current, ...data.photos] : data.photos))
       setCursor(data.nextCursor)
       setCounts(data.counts)
+      setMatched(data.matched)
       setMissingEmbeddings(data.missingEmbeddings)
     } catch (error) {
       if (id !== requestId.current) return
@@ -280,33 +288,23 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
   }
 
   async function fingerprintMissing() {
-    if (busy) return
-    setBusy(true)
     setNotice(null)
     try {
-      const ids: string[] = []
-      let next: string | null = null
-      do {
-        const page: ListResponse = await binderApi(listUrl('approved', '', next, 48, true))
-        remember(page.photos)
-        for (const photo of page.photos) ids.push(photo.id)
-        next = page.nextCursor
-      } while (next && ids.length < 5000)
-      if (ids.length === 0) {
-        setNotice('Every approved photo already has a fingerprint.')
-        return
-      }
-      await fingerprint(ids)
-      setNotice('Fingerprints saved.')
-      setMissingEmbeddings(0)
-      if (photoTab) await loadPhotos(photoTab, truckFilter, null)
+      const count = await runner.catchUp()
+      setNotice(
+        count === 0
+          ? 'Every approved photo already has a fingerprint.'
+          : `Queued ${count} photos for fingerprints.`,
+      )
     } catch (error) {
-      setNotice(messageFrom(error, 'The fingerprint did not save.'))
-    } finally {
-      setProgress(null)
-      setBusy(false)
+      setNotice(messageFrom(error, 'The fingerprint list did not load.'))
     }
   }
+
+  const loadMoreReview = useCallback(() => {
+    if (!cursor) return
+    void loadPhotos('pending', truckFilter, cursor)
+  }, [cursor, loadPhotos, truckFilter])
 
   async function importSanity() {
     if (busy) return
@@ -389,13 +387,21 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
         <button type="button" className="btn" onClick={() => void importSanity()} disabled={busy}>
           Import Sanity photos
         </button>
-        <button type="button" className="btn" onClick={() => void fingerprintMissing()} disabled={busy}>
+        <button type="button" className="btn" onClick={() => void fingerprintMissing()}>
           Fingerprint missing{missingEmbeddings > 0 ? ` (${missingEmbeddings})` : ''}
         </button>
         <LogoutButton />
       </div>
       {progress ? <p role="status">{progress}</p> : null}
       {notice ? <p role="status">{notice}</p> : null}
+      {saves.retries.length > 0 ? (
+        <p className="binder-note is-bad" role="alert">
+          {saves.retries.length === 1 ? '1 photo did not save.' : `${saves.retries.length} photos did not save.`}{' '}
+          <button type="button" className="btn" onClick={saves.retryAll}>
+            Retry
+          </button>
+        </p>
+      ) : null}
       {trucksError ? (
         <p className="binder-note is-bad" role="alert">
           {trucksError}{' '}
@@ -417,6 +423,11 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
                 </option>
               ))}
             </select>
+            {photoTab === 'pending' ? (
+              <button type="button" className="btn btn-accent" onClick={() => setReviewing(true)} disabled={photos.length === 0}>
+                Review
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn"
@@ -570,6 +581,29 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
           <p>That photo is not on this page.</p>
         )}
       </dialog>
+      {reviewing && photoTab === 'pending' ? (
+        <ReviewMode
+          photos={photos}
+          matched={matched}
+          cursor={cursor}
+          loading={listLoading}
+          listError={listError}
+          trucks={trucks ?? []}
+          faces={faces}
+          runner={runner}
+          saves={saves}
+          onLoadMore={loadMoreReview}
+          onClose={() => {
+            setReviewing(false)
+            void loadPhotos('pending', truckFilter, null)
+          }}
+        />
+      ) : null}
+      {!reviewing && runner.busy ? (
+        <div className="fp-float">
+          <FingerprintPanel runner={runner} />
+        </div>
+      ) : null}
     </div>
   )
 }

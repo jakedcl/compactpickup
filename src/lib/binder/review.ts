@@ -51,6 +51,45 @@ export function parseStatusBody(
   return { ok: true, ids, status: status as PhotoStatus }
 }
 
+export type ReviewDecision = {
+  id: string
+  status: PhotoStatus
+  angle: PhotoAngle | null
+  faceTagId: string | null
+}
+
+/** One review action: status plus the angle and face to store with it. */
+export function parseReviewBody(
+  body: unknown,
+): { ok: true; decision: ReviewDecision } | { ok: false; error: string } {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { ok: false, error: 'The photo was not updated.' }
+  }
+  const record = body as Record<string, unknown>
+  if (typeof record.id !== 'string' || !UUID_RE.test(record.id)) {
+    return { ok: false, error: 'The photo was not found.' }
+  }
+  if (typeof record.status !== 'string' || !(PHOTO_STATUSES as readonly string[]).includes(record.status)) {
+    return { ok: false, error: 'Choose pending, approved, or rejected.' }
+  }
+  if (!('angle' in record) || !('faceTagId' in record)) {
+    return { ok: false, error: 'The photo was not updated.' }
+  }
+  let angle: PhotoAngle | null
+  if (record.angle === null) angle = null
+  else if (typeof record.angle === 'string' && (PHOTO_ANGLES as readonly string[]).includes(record.angle)) {
+    angle = record.angle as PhotoAngle
+  } else return { ok: false, error: 'That angle is not one this library stores.' }
+  let faceTagId: string | null
+  if (record.faceTagId === null) faceTagId = null
+  else if (typeof record.faceTagId === 'string' && UUID_RE.test(record.faceTagId)) faceTagId = record.faceTagId
+  else return { ok: false, error: 'That face tag is not on this truck.' }
+  return {
+    ok: true,
+    decision: { id: record.id, status: record.status as PhotoStatus, angle, faceTagId },
+  }
+}
+
 export type PhotoPatch = {
   truckId?: string
   angle?: PhotoAngle | null

@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import sharp from 'sharp'
 import { POST as embeddingsPost } from '../../app/api/admin/photos/embeddings/route'
 import { GET as imageGet, PATCH as imagePatch } from '../../app/api/admin/photos/[id]/route'
+import { POST as reviewPost } from '../../app/api/admin/photos/review/route'
 import { POST as statusPost } from '../../app/api/admin/photos/status/route'
 import { POST as uploadPost } from '../../app/api/admin/uploads/route'
 import { CLIP_EMBEDDING_DIM, l2Normalize } from './clip'
@@ -14,6 +15,7 @@ import {
   handlePhotoImage,
   handlePhotoList,
   handlePhotoPatch,
+  handlePhotoReview,
   handlePhotoStatus,
   handleSanitySync,
   handleTrucks,
@@ -416,4 +418,57 @@ test('sanity sync ignores a bad skip list and reports the batch', async () => {
   )
   assert.equal(response.status, 200)
   assert.deepEqual(seen, ['image-abc-10x10-jpg'])
+})
+
+test('review saves status, angle, and face in one update', async () => {
+  const url = 'https://compactpickup.local/api/admin/photos/review'
+  const decision = { id: ID, status: 'approved', angle: 'front', faceTagId: FACE }
+  assert.equal((await reviewPost(post(url, decision))).status, 401)
+  assert.equal((await reviewPost(post(url, decision, 'https://evil.example'))).status, 403)
+
+  const empty = fakeDb()
+  const badAngle = await handlePhotoReview(post(url, { ...decision, angle: 'overhead' }), { session: signedIn, db: empty })
+  assert.equal(badAngle.status, 400)
+  assert.equal(empty.calls.length, 0)
+
+  const missing = fakeDb(() => ({ rows: [] }))
+  const gone = await handlePhotoReview(post(url, decision), { session: signedIn, db: missing })
+  assert.equal(gone.status, 404)
+
+  const wrongFace = fakeDb((sql) => {
+    if (sql.startsWith('select truck_id')) return { rows: [{ truck_id: 'truck-1' }] }
+    return { rows: [] }
+  })
+  const face = await handlePhotoReview(post(url, decision), { session: signedIn, db: wrongFace })
+  assert.equal(face.status, 400)
+  assert.equal(wrongFace.calls.some((call) => call.sql.startsWith('update')), false)
+
+  const saved = fakeDb((sql) => {
+    if (sql.startsWith('select truck_id')) return { rows: [{ truck_id: 'truck-1' }] }
+    if (sql.includes('from truck_faces')) return { rows: [{ id: FACE }] }
+    return { rows: [{ id: ID }] }
+  })
+  const approved = await handlePhotoReview(post(url, decision), { session: signedIn, db: saved })
+  assert.equal(approved.status, 200)
+  const update = saved.calls.find((call) => call.sql.startsWith('update'))
+  assert.match(update?.sql ?? '', /embedding = case when \$1::text = 'approved' then embedding else null end/)
+  assert.equal(update?.params[0], 'approved')
+  assert.equal(update?.params[1], 'front')
+  assert.equal(update?.params[2], FACE)
+  assert.equal(update?.params[4], 'truck-1')
+
+  const rejected = await handlePhotoReview(
+    post(url, { id: ID, status: 'rejected', angle: null, faceTagId: null }),
+    {
+      session: signedIn,
+      db: fakeDb((sql) => (sql.startsWith('select truck_id') ? { rows: [{ truck_id: 'truck-1' }] } : { rows: [{ id: ID }] })),
+    },
+  )
+  assert.equal(rejected.status, 200)
+
+  const conflict = await handlePhotoReview(post(url, { id: ID, status: 'pending', angle: 'side', faceTagId: null }), {
+    session: signedIn,
+    db: fakeDb((sql) => (sql.startsWith('select truck_id') ? { rows: [{ truck_id: 'truck-1' }] } : { rows: [] })),
+  })
+  assert.equal(conflict.status, 409)
 })

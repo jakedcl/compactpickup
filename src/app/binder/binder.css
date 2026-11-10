@@ -329,3 +329,147 @@
     padding: 24px;
   }
 }
+
+.review-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--osd);
+  color: var(--ink);
+}
+
+.review-main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 12px 12px 16px;
+}
+
+.review-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.review-top p,
+.review-title {
+  margin: 0;
+}
+
+.review-title span,
+.review-key {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.review-key { margin-left: 8px; }
+
+.review-photo {
+  width: 100%;
+  max-height: 42vh;
+  object-fit: contain;
+  background: var(--osd-deep);
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.review-grid .btn {
+  width: 100%;
+  min-height: 52px;
+}
+
+.review-truck {
+  display: grid;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.fp-panel {
+  flex: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.45);
+  background: #00115a;
+}
+
+.fp-toggle {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.fp-body {
+  display: none;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+.fp-panel.is-open .fp-body {
+  display: grid;
+  max-height: 38vh;
+  overflow: auto;
+}
+
+.fp-current {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fp-current img {
+  width: 72px;
+  height: 54px;
+  object-fit: cover;
+  background: var(--osd-deep);
+}
+
+.fp-float {
+  position: fixed;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+@media (min-width: 600px) {
+  .review-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (min-width: 900px) {
+  .review-screen { flex-direction: row; }
+  .review-photo { max-height: 58vh; }
+  .fp-panel {
+    width: 300px;
+    border-top: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.45);
+    overflow: auto;
+  }
+  .fp-toggle { display: none; }
+  .fp-body {
+    display: grid;
+    max-height: none;
+    padding: 16px;
+  }
+  .fp-float {
+    left: auto;
+    top: 0;
+    bottom: 0;
+    width: 300px;
+  }
+  .fp-float .fp-panel {
+    min-height: 100%;
+    border-left: 1px solid rgba(255, 255, 255, 0.45);
+  }
+}

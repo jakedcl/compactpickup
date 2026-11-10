@@ -21,6 +21,7 @@ import {
   parsePhotoPatch,
   parseSkipRefs,
   isTruckId,
+  parseReviewBody,
   parseStatusBody,
   resolvePhotoPatch,
   statusSql,
@@ -158,21 +159,74 @@ export async function handlePhotoList(
     const page = hasMore ? listed.rows.slice(0, parsed.limit) : listed.rows
     const last = page.at(-1)
     const createdAt = last ? iso(last.created_at) : null
-    const [counts, missing] = await Promise.all([
+    const [counts, missing, matched] = await Promise.all([
       countMap(db),
       db.query<{ n: number | string }>(
         `select count(*)::int as n from photos where status = 'approved' and embedding is null`,
+      ),
+      db.query<{ n: number | string }>(
+        `select count(*)::int as n from photos
+         where status = $1 and ($2::text is null or truck_id = $2)`,
+        [parsed.status, parsed.truckId],
       ),
     ])
     return json({
       photos: page.map(toPhoto),
       nextCursor: hasMore && last && createdAt ? encodeCursor(createdAt, last.id) : null,
       counts,
+      matched: Number(matched.rows[0]?.n) || 0,
       missingEmbeddings: Number(missing.rows[0]?.n) || 0,
     })
   } catch (error) {
     console.error(`binder: photo list failed (${error instanceof Error ? error.name : 'Error'})`)
     return json({ error: 'The photos did not load.' }, 500)
+  }
+}
+
+export async function handlePhotoReview(
+  request: Request,
+  deps: { session?: SessionFn; db?: AdminSql } = {},
+): Promise<Response> {
+  const session = deps.session ?? getSession
+  const db = deps.db ?? defaultDb
+  const denied = await guard(request, session, true)
+  if (denied) return denied
+  const body = await readJsonObject(request)
+  const parsed = parseReviewBody(body)
+  if (!parsed.ok) return json({ error: parsed.error }, 400)
+  const { decision } = parsed
+  try {
+    const current = await db.query<{ truck_id: string }>(
+      `select truck_id from photos where id = $1::uuid`,
+      [decision.id],
+    )
+    const row = current.rows[0]
+    if (!row) return json({ error: 'The photo was not found.' }, 404)
+    if (decision.faceTagId) {
+      const face = await db.query<{ id: string }>(
+        `select id from truck_faces where id = $1::uuid and truck_id = $2`,
+        [decision.faceTagId, row.truck_id],
+      )
+      if (face.rows.length === 0) return json({ error: 'That face tag is not on this truck.' }, 400)
+    }
+    const updated = await db.query<{ id: string }>(
+      `update photos
+       set status = $1,
+           reviewed_at = case when $1::text = 'pending' then null else now() end,
+           embedding = case when $1::text = 'approved' then embedding else null end,
+           angle = $2,
+           face_tag_id = $3
+       where id = $4::uuid and truck_id = $5
+       returning id`,
+      [decision.status, decision.angle, decision.faceTagId, decision.id, row.truck_id],
+    )
+    if (updated.rows.length === 0) {
+      return json({ error: 'The photo changed. Reload it and try again.' }, 409)
+    }
+    return json({ ok: true, id: decision.id, status: decision.status })
+  } catch (error) {
+    console.error(`binder: review update failed (${error instanceof Error ? error.name : 'Error'})`)
+    return json({ error: 'The photo was not updated.' }, 500)
   }
 }
 
