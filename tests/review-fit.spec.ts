@@ -38,6 +38,21 @@ const photos = [
     notes: null,
     sha256: 'abc',
     hasEmbedding: false,
+    aiReview: {
+      outcome: 'wrong_truck',
+      suggestedTruckSlug: 'ranger-1',
+      angle: 'front-3q',
+      confidence: 0.88,
+      reasons: [
+        'Grille has the horizontal bars and blue oval used on early Rangers, not the Rampage egg-crate grille.',
+        'Single rectangular headlights per side match the Ranger, while the Rampage uses a different lamp shape.',
+        'Bed and cab proportions look like a body-on-frame mini truck rather than a car-based ute.',
+      ],
+      questions: ['Is the badge on the tailgate readable?', 'Could this be a Courier instead?'],
+      rejectReason: null,
+      generationYearsGuess: '1983-1988',
+      reviewedAt: '2026-11-10T20:00:00.000Z',
+    },
   },
   {
     id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -56,6 +71,7 @@ const photos = [
     notes: null,
     sha256: 'def',
     hasEmbedding: false,
+    aiReview: null,
   },
 ]
 
@@ -97,8 +113,10 @@ for (const viewport of [
 ] as const) {
   test(`review fits ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
+    let writes = 0
     await page.route('**/api/admin/**', async (route) => {
       const url = new URL(route.request().url())
+      if (route.request().method() !== 'GET') writes += 1
       if (url.pathname === '/api/admin/trucks') {
         await route.fulfill({ json: { trucks, faces } })
         return
@@ -126,7 +144,11 @@ for (const viewport of [
     await expect(start).toBeEnabled()
     await start.click()
     await expect(page.getByRole('dialog', { name: 'Review' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Approve as suggested/ })).toBeVisible()
+    await expect(page.getByText(/AI says: /)).toBeVisible()
     await fits(page)
+    // Opening a wrong-truck photo must not save anything until a tap.
+    expect(writes).toBe(0)
     await page.locator('#review-model').focus()
     await expect(page.getByRole('listbox')).toBeVisible()
     await fits(page)
