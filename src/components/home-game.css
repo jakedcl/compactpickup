@@ -262,6 +262,15 @@
   width: 100%;
 }
 
+.home-scan {
+  width: min(720px, calc(100% - 32px));
+  margin: var(--space-3) auto 0;
+}
+
+.home-scan .btn {
+  width: 100%;
+}
+
 .game-page {
   width: min(860px, calc(100% - 32px));
   margin: var(--space-4) auto var(--space-7);
@@ -449,6 +458,7 @@
   }
 
   .home-find,
+  .home-scan,
   .home-reel {
     width: min(720px, calc(100% - 64px));
   }

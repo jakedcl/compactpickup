@@ -276,6 +276,9 @@ export default function HomeScreen({
             Filters
           </Link>
         </form>
+        <div className="home-scan">
+          <Link href="/scan" className="btn">Scan a truck</Link>
+        </div>
         <TruckSlideshow
           stills={slides}
           status={photoStatus}
