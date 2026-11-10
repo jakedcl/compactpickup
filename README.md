@@ -29,7 +29,9 @@ npm run dev
 
 Open http://localhost:3000. The Sanity project id and dataset are set in `src/lib/sanity.ts` and the data is public, so the public site runs without any environment variables.
 
-The binder (photo library at `/binder`, not linked in the nav) needs the variables in `.env.example`. `/admin` redirects to `/studio`. Sign-in allows only `ADMIN_EMAIL` via a one-time email code. Migrations and imports use the direct Neon URL and stay a dry run until `BINDER_CONFIRM=1`:
+The binder (photo library at `/binder`, not linked in the nav) needs the variables in `.env.example`. `/admin` redirects to `/studio`. Sign-in allows only `ADMIN_EMAIL` via a one-time email code. The signed-in page is the review dashboard: pending, approved, and rejected photos, bulk approve or reject, upload, a coverage list, and a Sanity import. Approving a photo builds its fingerprint in your browser. Rejected photos stay in the library. A folder import takes each truck from the Sanity slug and ignores a truck id written in the manifest.
+
+Migrations and imports use the direct Neon URL and stay a dry run until `BINDER_CONFIRM=1`:
 
 ```sh
 npm run db:migrate
@@ -46,11 +48,12 @@ To work on content locally, use the site at `/studio` (`npm run dev`) or run `np
 
 ```
 src/app/(site)/       pages (home, [manufacturer], timeline, browse, game)
-src/app/binder/       binder sign-in and photo counts
-src/app/api/          catalog API, auth, admin photo bytes
+src/app/binder/       review dashboard (sign-in, approve, upload, coverage)
+src/app/api/          catalog API, auth, admin review routes
 src/components/       ImageCarousel and the 3D truck viewer
 src/lib/sanity.ts     Sanity client and queries
 src/lib/binder/       database, R2, image compress, session
+src/lib/clip/         shared browser fingerprint
 db/migrations/        binder SQL
 data/truck-faces.json optional face labels
 scripts/              migrate, import, seed

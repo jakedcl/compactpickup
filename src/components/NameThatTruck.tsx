@@ -11,6 +11,7 @@ import {
   writeBestStreak,
   type GameStill,
 } from '@/lib/gameDeck'
+import { displayModelTitle } from '@/lib/makes'
 import { prefersReducedMotion } from '@/lib/vhsSession'
 
 export default function NameThatTruck({ stills }: { stills: GameStill[] }) {
@@ -209,7 +210,7 @@ export default function NameThatTruck({ stills }: { stills: GameStill[] }) {
           <p className={hit ? 'quiz-note is-right' : 'quiz-note is-wrong'}>
             {hit ? 'Correct' : selected == null ? "Time's up" : 'Not that one'}
           </p>
-          <h2 className="game-reveal-title">{still?.manufacturerName} {still?.truckTitle}</h2>
+          <h2 className="game-reveal-title">{still ? displayModelTitle(still.manufacturerName, still.truckTitle) : ''}</h2>
           {years ? <p className="game-years">{years}</p> : null}
           <div className="quiz-actions">
             {truckHref ? <Link href={truckHref} className="btn">See more</Link> : null}

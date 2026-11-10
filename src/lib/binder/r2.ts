@@ -23,9 +23,26 @@ function bucket(): string {
   return requireEnv('R2_BUCKET')
 }
 
-export function photoObjectKey(sha256: string): string {
+function assertSha256(sha256: string) {
   if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error('sha256 is not 64 hex characters')
+}
+
+export function photoObjectKey(sha256: string): string {
+  assertSha256(sha256)
   return `photos/${sha256}.webp`
+}
+
+export function thumbObjectKey(sha256: string): string {
+  assertSha256(sha256)
+  return `thumbs/${sha256}.webp`
+}
+
+export function isMissingObject(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const name = 'name' in error ? String((error as { name: unknown }).name) : ''
+  if (name === 'NoSuchKey' || name === 'NotFound') return true
+  const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
+  return status === 404
 }
 
 export async function putPhoto(key: string, body: Buffer): Promise<void> {
@@ -38,6 +55,15 @@ export async function putPhoto(key: string, body: Buffer): Promise<void> {
       CacheControl: 'private, max-age=31536000',
     }),
   )
+}
+
+export async function readPhotoIfExists(key: string): Promise<Uint8Array | null> {
+  try {
+    return await getPhotoBytes(key)
+  } catch (error) {
+    if (isMissingObject(error)) return null
+    throw error
+  }
 }
 
 export async function getPhotoBytes(key: string): Promise<Uint8Array> {

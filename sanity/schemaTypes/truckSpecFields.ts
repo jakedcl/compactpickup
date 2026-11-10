@@ -283,4 +283,12 @@ export const manufacturerProfileFields = [
     description: 'True for the "More..." entry that groups several small brands.',
     initialValue: false,
   }),
+  defineField({
+    name: 'featured',
+    title: 'Featured on the homepage',
+    type: 'boolean',
+    group: 'profile',
+    description: 'Shows this make as its own tape. Other makes stay under More...',
+    initialValue: false,
+  }),
 ]

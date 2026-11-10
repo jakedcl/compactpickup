@@ -9,6 +9,7 @@ import VhsBoot from '@/components/VhsBoot'
 import type { ShelfManufacturer } from '@/components/TapeShelf'
 import { EMPTY_FILTERS, filtersToQuery, searchSuggestions, suggestionHref, type CatalogTruck, type SearchSuggestion } from '@/lib/catalog'
 import type { GameStill } from '@/lib/gameDeck'
+import { modelTitle } from '@/lib/makes'
 import { hasSeenBoot, markBootSeen, prefersReducedMotion } from '@/lib/vhsSession'
 import '@/components/find.css'
 import '@/components/home-game.css'
@@ -68,7 +69,7 @@ function TruckSlideshow({
           </span>
           <span className="home-slide-copy">
             {slide.manufacturerName ? <span className="home-slide-make">{slide.manufacturerName}</span> : null}
-            <span className="home-slide-name">{slide.truckTitle}</span>
+            <span className="home-slide-name">{modelTitle(slide.manufacturerName, slide.truckTitle)}</span>
             {slide.yearRange?.trim() ? <span className="home-slide-years">{slide.yearRange.trim()}</span> : null}
           </span>
         </Link>
