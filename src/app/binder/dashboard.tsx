@@ -515,13 +515,6 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
                   : 'No rejected photos.'}
             </p>
           ) : null}
-          {photos.length > 0 ? (
-            <div className="binder-actions binder-review-start">
-              <button type="button" className="btn btn-accent" onClick={() => startReview()}>
-                Start review
-              </button>
-            </div>
-          ) : null}
           <ul className="binder-grid">
             {photos.map((photo) => {
               const title = titleFor(photo)
