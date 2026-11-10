@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { binderApi, BinderApiError } from '@/app/binder/api'
+import { binderApi, BinderApiError, SANITY_SYNC_TIMEOUT_MS } from '@/app/binder/api'
 import { CoverageList, type CoverageItem } from '@/app/binder/coverage-list'
 import { useFingerprintRunner, FingerprintPanel } from '@/app/binder/fingerprint-queue'
 import { LogoutButton } from '@/app/binder/logout-button'
@@ -323,6 +323,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
         }>('/api/admin/sanity-sync', {
           method: 'POST',
           body: JSON.stringify({ skipRefs }),
+          signal: AbortSignal.timeout(SANITY_SYNC_TIMEOUT_MS),
         })
         inserted += result.inserted
         failed += result.failed
