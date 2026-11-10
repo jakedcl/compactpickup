@@ -71,13 +71,6 @@ export const truckSpecFields = [
     description: 'Proposed consistent title. The site still shows `title` until that field is changed.',
   }),
   defineField({
-    name: 'originalYearRange',
-    title: 'Original year range',
-    type: 'string',
-    group: 'identity',
-    description: 'Previous yearRange text, kept when the displayed range was corrected.',
-  }),
-  defineField({
     name: 'nameplate',
     title: 'Nameplate(s)',
     type: 'string',

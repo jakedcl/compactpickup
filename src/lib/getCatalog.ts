@@ -34,7 +34,6 @@ type RawTruck = {
   nameplate?: string | null
   generation?: string | null
   yearRange?: string | null
-  originalYearRange?: string | null
   productionStart?: number | null
   productionEnd?: number | null
   productionNotes?: string | null
@@ -67,7 +66,6 @@ const catalogQuery = `*[_type == "truckModel" && defined(slug.current) && define
   yearRange,
   productionStart,
   productionEnd,
-  originalYearRange,
   internalCodes,
   markets,
   assemblyPlants,
@@ -117,7 +115,7 @@ function toCatalogTruck(truck: RawTruck): CatalogTruck | null {
   const makerSlug = clean(truck.maker?.slug)
   if (!maker || !makerSlug || !truck.slug) return null
 
-  const parsedYears = yearsFromText(`${clean(truck.yearRange)} ${clean(truck.originalYearRange)}`)
+  const parsedYears = yearsFromText(clean(truck.yearRange))
   const start = typeof truck.productionStart === 'number' ? truck.productionStart : parsedYears.start
   const rawEnd = typeof truck.productionEnd === 'number' ? truck.productionEnd : parsedYears.end
   const end = rawEnd ?? (start ? new Date().getFullYear() : null)
@@ -130,7 +128,7 @@ function toCatalogTruck(truck: RawTruck): CatalogTruck | null {
   const rank = {
     title: searchBlob([truck.title, truck.displayTitle, truck.generation]),
     maker: searchBlob([maker, truck.maker?.slug]),
-    years: searchBlob([years, truck.originalYearRange, start, rawEnd]),
+    years: searchBlob([years, start, rawEnd]),
     engine: searchBlob((truck.engines ?? []).flatMap((engine) => [
       engine.name,
       engine.config,
