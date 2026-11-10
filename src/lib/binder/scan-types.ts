@@ -11,6 +11,13 @@ export type ScanMatch = ScanCatalogTruck & {
   score: number
 }
 
+/** Visitor-facing match strength. Underlying score stays 0–1 cosine similarity. */
+export function formatScanScorePercent(score: number): string {
+  if (!Number.isFinite(score)) return '—%'
+  const clamped = Math.min(1, Math.max(0, score))
+  return `${Math.round(clamped * 100)}%`
+}
+
 export type ScanState = 'learning' | 'match' | 'guess'
 
 export const SCAN_CONSENT_VALUE = 'yes'
@@ -23,7 +30,10 @@ export const SCAN_FIELDS = {
   guessedTruckSlug: 'guessedTruckSlug',
   correctedTruckId: 'correctedTruckId',
   correctedTruckSlug: 'correctedTruckSlug',
+  correctedTruckCustomText: 'correctedTruckCustomText',
 } as const
+
+export type ScanVerdict = 'right' | 'wrong' | 'idk'
 
 /** Catalog href is /maker/slug. Returns null when that shape is missing. */
 export function toScanTruck(truck: {

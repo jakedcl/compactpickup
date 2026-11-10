@@ -154,13 +154,11 @@ export async function submitPost(request: Request, deps: SubmitDeps = defaultSub
   const guessedTruckSlug = formText(form, SCAN_FIELDS.guessedTruckSlug)
   const correctedTruckId = formText(form, SCAN_FIELDS.correctedTruckId)
   const correctedTruckSlug = formText(form, SCAN_FIELDS.correctedTruckSlug)
-  if (
-    verdict == null
-    || guessedTruckId == null
-    || guessedTruckSlug == null
-    || correctedTruckId == null
-    || correctedTruckSlug == null
-  ) {
+  const correctedTruckCustomText = formText(form, SCAN_FIELDS.correctedTruckCustomText)
+  if (verdict == null || guessedTruckId == null || guessedTruckSlug == null) {
+    return json({ ok: false, error: 'invalid', message: 'The report was not readable.' }, 400)
+  }
+  if (correctedTruckId == null || correctedTruckSlug == null || correctedTruckCustomText == null) {
     return json({ ok: false, error: 'invalid', message: 'The report was not readable.' }, 400)
   }
   let original: Buffer
@@ -179,6 +177,7 @@ export async function submitPost(request: Request, deps: SubmitDeps = defaultSub
         guessedTruckSlug,
         correctedTruckId,
         correctedTruckSlug,
+        correctedTruckCustomText,
         ip: scannerClientIp(request),
       },
       deps,

@@ -36,7 +36,7 @@ import {
   type ScanClient,
   type SubmitDeps,
 } from './scan'
-import { SCAN_FIELDS, toScanTruck, type ScanCatalogTruck } from './scan-types'
+import { SCAN_FIELDS, formatScanScorePercent, toScanTruck, type ScanCatalogTruck } from './scan-types'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 const ORIGIN = 'https://compactpickup.local'
@@ -85,6 +85,7 @@ type Feedback = {
   verdict: string
   correctedId: string | null
   correctedSlug: string | null
+  correctedCustomText: string | null
   consent: boolean
   ip: string
 }
@@ -238,17 +239,28 @@ class Memory {
     }
     if (sql.startsWith('insert into scanner_feedback')) {
       if (!sql.includes('true')) throw new Error('feedback consent must be the literal true')
-      const [photoId, guessedId, guessedSlug, verdict, correctedId, correctedSlug, ip] = params as [
+      const [photoId, guessedId, guessedSlug, verdict, correctedId, correctedSlug, correctedCustomText, ip] = params as [
         string,
         string,
         string,
         string,
+        string | null,
         string | null,
         string | null,
         string,
       ]
-      if (verdict === 'right' && (correctedId || correctedSlug)) throw new Error('right verdict stored a correction')
-      if (verdict === 'wrong' && (!correctedId || !correctedSlug)) throw new Error('wrong verdict missing a correction')
+      if (verdict === 'right' && (correctedId || correctedSlug || correctedCustomText)) {
+        throw new Error('right verdict stored a correction')
+      }
+      if (verdict === 'idk' && (correctedId || correctedSlug || correctedCustomText)) {
+        throw new Error('idk verdict stored a correction')
+      }
+      if (verdict === 'wrong' && !correctedCustomText && (!correctedId || !correctedSlug)) {
+        throw new Error('wrong verdict missing a correction')
+      }
+      if (verdict === 'wrong' && correctedCustomText && (correctedId || correctedSlug)) {
+        throw new Error('wrong verdict mixed correction types')
+      }
       this.feedback.push({
         photoId,
         guessedId,
@@ -256,6 +268,7 @@ class Memory {
         verdict,
         correctedId,
         correctedSlug,
+        correctedCustomText,
         consent: true,
         ip,
       })
@@ -857,4 +870,11 @@ test('submit spends a rate slot before the catalog and the decoder', async () =>
   assert.equal(db.catalogCalls, 0)
   assert.equal(db.puts.length, 0)
   assert.equal(db.photos.length, 0)
+})
+
+test('scan match scores are shown to visitors as whole-number percents', () => {
+  assert.equal(formatScanScorePercent(0.874), '87%')
+  assert.equal(formatScanScorePercent(0.825), '83%')
+  assert.equal(formatScanScorePercent(1.2), '100%')
+  assert.equal(formatScanScorePercent(-0.1), '0%')
 })
