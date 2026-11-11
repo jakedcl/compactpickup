@@ -11,10 +11,14 @@ export type ScanMatch = ScanCatalogTruck & {
   score: number
 }
 
-/** Raw cosine floor for display rescaling (SigLIP scores sit lower than CLIP). */
-export const SCAN_SCORE_DISPLAY_FLOOR = 0.22
+/**
+ * Raw cosine floor for display rescaling. SigLIP2 photo-to-photo cosine for the
+ * best truck sits around 0.79-0.89, so 0.70 shows as 0%, the 0.80 match line as 50%,
+ * and 0.90+ as 100%.
+ */
+export const SCAN_SCORE_DISPLAY_FLOOR = 0.7
 /** Span from floor to “strong match” on the visitor-facing meter. */
-export const SCAN_SCORE_DISPLAY_SPAN = 0.38
+export const SCAN_SCORE_DISPLAY_SPAN = 0.2
 
 /** Visitor-facing match strength. Underlying score stays 0–1 (cosine or probe probability). */
 export function formatScanScorePercent(score: number): string {

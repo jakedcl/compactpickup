@@ -365,13 +365,13 @@ test('truck score fills three slots and a close runner-up stays a guess', () => 
   assert.deepEqual(ranked.map((row) => row.truckId), ['a', 'b', 'c'])
   assert.ok(Math.abs(ranked[0].score - 0.8) < 1e-9)
   assert.ok(Math.abs(ranked[1].score - (0.85 + 0.1 + 0.1) / 3) < 1e-9)
-  assert.equal(SCAN_MATCH_MIN_SIMILARITY, 0.52)
-  assert.equal(SCAN_MATCH_MIN_MARGIN, 0.012)
+  assert.equal(SCAN_MATCH_MIN_SIMILARITY, 0.8)
+  assert.equal(SCAN_MATCH_MIN_MARGIN, 0.02)
   const sure = labelMatches(
     [
-      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.62 },
-      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.62 },
-      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.62 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.86 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.86 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.86 },
     ],
     [RANGER],
   )
@@ -380,9 +380,9 @@ test('truck score fills three slots and a close runner-up stays a guess', () => 
   assert.equal(sure.matches[0]?.slug, 'ranger')
   const unsure = labelMatches(
     [
-      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.48 },
-      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.48 },
-      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.48 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.76 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.76 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.76 },
     ],
     [RANGER],
   )
@@ -414,7 +414,7 @@ test('truck score fills three slots and a close runner-up stays a guess', () => 
   )
   assert.equal(separated.state, 'match')
   assert.equal(separated.matches[1]?.title, 'Hilux')
-  assert.deepEqual(labelMatches([], [RANGER]), { state: 'learning', matches: [], threshold: 0.52 })
+  assert.deepEqual(labelMatches([], [RANGER]), { state: 'learning', matches: [], threshold: 0.8 })
   assert.equal(labelMatches([{ truckId: 'missing', truckSlug: 'x', similarity: 0.99 }], [RANGER]).state, 'guess')
 })
 
@@ -892,9 +892,9 @@ test('submit spends a rate slot before the catalog and the decoder', async () =>
 })
 
 test('scan match scores are shown to visitors as whole-number percents', () => {
-  assert.equal(formatScanScorePercent(0.42), '53%')
-  assert.equal(formatScanScorePercent(0.6), '100%')
-  assert.equal(formatScanScorePercent(0.15), '0%')
+  assert.equal(formatScanScorePercent(0.85), '75%')
+  assert.equal(formatScanScorePercent(0.9), '100%')
+  assert.equal(formatScanScorePercent(0.65), '0%')
   assert.equal(formatScanScorePercent(1.2), '100%')
   assert.equal(formatScanScorePercent(-0.1), '0%')
 })

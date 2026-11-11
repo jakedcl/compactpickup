@@ -19,16 +19,19 @@ function envNumber(name: string, fallback: number): number {
 }
 
 /**
- * Cosine similarity cutoff for a confident model name (SigLIP2-base scale).
- * Override with SCAN_MATCH_MIN_SIMILARITY.
+ * Cosine similarity cutoff for a confident model name (SigLIP2-base image-to-image scale).
+ * Photo-to-photo cosine sits around 0.79-0.89 for the top truck (held-out median 0.85),
+ * so text-scale SigLIP numbers (0.3-0.6) do not apply here. Calibrated on 99 held-out
+ * photos: 0.80 with a 0.02 margin fires on about half the scans at about 85% precision
+ * (DB leave-one-out: 63% fire, 97% precision). Override with SCAN_MATCH_MIN_SIMILARITY.
  */
-export const SCAN_MATCH_MIN_SIMILARITY = envNumber('SCAN_MATCH_MIN_SIMILARITY', 0.52)
+export const SCAN_MATCH_MIN_SIMILARITY = envNumber('SCAN_MATCH_MIN_SIMILARITY', 0.8)
 
 /**
  * How far the top truck must lead the runner-up before the page calls it a match.
  * Override with SCAN_MATCH_MIN_MARGIN.
  */
-export const SCAN_MATCH_MIN_MARGIN = envNumber('SCAN_MATCH_MIN_MARGIN', 0.012)
+export const SCAN_MATCH_MIN_MARGIN = envNumber('SCAN_MATCH_MIN_MARGIN', 0.02)
 
 /** When a linear probe is loaded, match confidence uses max class probability instead. */
 export const SCAN_PROBE_MATCH_MIN_PROBABILITY = envNumber('SCAN_PROBE_MATCH_MIN_PROBABILITY', 0.35)
