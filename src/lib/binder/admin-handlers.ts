@@ -282,7 +282,6 @@ export async function handlePhotoReview(
       `update photos
        set status = $1,
            reviewed_at = case when $1::text = 'pending' then null else now() end,
-           embedding = case when $1::text = 'approved' then embedding else null end,
            embedding_siglip = case when $1::text = 'approved' then embedding_siglip else null end,
            angle = $2,
            face_tag_id = $3
