@@ -21,7 +21,6 @@ export default function TruckSpecSheet({truck}: {truck: TruckSpecData}) {
     <section className="section">
       <SectionHeading title="Spec sheet" />
       <DataPanel
-        title="Spec sheet"
         rows={rows.map((row) => ({
           label: row.label,
           value: (

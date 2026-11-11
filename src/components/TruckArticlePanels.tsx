@@ -14,7 +14,6 @@ function ArticlePanelSection({
     <section className="section">
       <SectionHeading title={title} />
       <DataPanel
-        title={title}
         rows={rows.map((row) => ({
           label: row.label,
           value: row.value,
@@ -45,7 +44,6 @@ export default function TruckArticlePanels({
         <section className="section">
           <SectionHeading title="Highlights" />
           <DataPanel
-            title="Highlights"
             rows={highlights.map((row) => ({
               label: row.label,
               value: row.value,
