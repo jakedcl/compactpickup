@@ -598,11 +598,6 @@ export default function Scanner({
         <ScanModal title={modalTitle} onClose={dismissModal}>
           {modalStep === 'results' && result ? (
             <div className="scan-modal-panel">
-              {result.state === 'guess' && result.matches.length > 0 ? (
-                <p className="scan-not-sure" role="status">
-                  Not sure. The strongest match is only {formatScanScorePercent(result.matches[0].score)}.
-                </p>
-              ) : null}
               {result.matches.length > 0 ? (
                 <ol className="scan-results">
                   {result.matches.slice(0, 2).map((match, index) => (
