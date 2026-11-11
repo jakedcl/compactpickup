@@ -230,13 +230,11 @@ export default function Scanner({
       try {
         const prepared = await preparePhotoCrop(blob, (progress) => {
           if (cancelled || cropRunId.current !== id) return
-          if (isDfineProgress(progress)) {
-            const n = clipProgressPercent(progress)
-            if (n != null) setCropProgress(Math.min(90, 6 + n * 0.84))
-          }
-          if (progress.status === 'ready' || progress.status === 'done') {
-            setCropProgress((value) => Math.max(value, 72))
-          }
+          if (!isDfineProgress(progress)) return
+          const n = clipProgressPercent(progress)
+          // Per-file download events restart at 0, so only ever move the bar forward.
+          if (n != null) setCropProgress((value) => Math.max(value, Math.min(90, 6 + n * 0.84)))
+          if (progress.status === 'ready') setCropProgress((value) => Math.max(value, 72))
         })
         if (cancelled || cropRunId.current !== id) return
         if (creep) clearInterval(creep)
@@ -290,13 +288,10 @@ export default function Scanner({
     try {
       const vector = await embedPrepared(prepared, (progress) => {
         if (runId.current !== id) return
-        if (isSiglipProgress(progress)) {
-          const n = clipProgressPercent(progress)
-          if (n != null) setScanProgress(Math.min(70, 8 + n * 0.62))
-        }
-        if (progress.status === 'ready' || progress.status === 'done') {
-          setScanProgress((value) => Math.max(value, 68))
-        }
+        if (!isSiglipProgress(progress)) return
+        const n = clipProgressPercent(progress)
+        if (n != null) setScanProgress((value) => Math.max(value, Math.min(70, 8 + n * 0.62)))
+        if (progress.status === 'ready') setScanProgress((value) => Math.max(value, 68))
       })
       if (runId.current !== id) return
       setScanProgress((value) => Math.max(value, 76))
@@ -582,7 +577,7 @@ export default function Scanner({
           >
             {scanning ? 'Scanning…' : 'Scan'}
           </button>
-          <button type="button" className="btn" disabled={busy} onClick={resetSession}>
+          <button type="button" className="btn" disabled={scanning || submitPhase === 'sending'} onClick={resetSession}>
             Replace photo
           </button>
         </div>

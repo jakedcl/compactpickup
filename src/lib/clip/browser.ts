@@ -59,7 +59,6 @@ export type PreparedPhoto = {
   previewCanvas: HTMLCanvasElement
   /** Input to SigLIP (long edge ≤ 768). */
   embedCanvas: HTMLCanvasElement
-  usedCrop: boolean
 }
 
 type RawImageFactory = {
@@ -124,9 +123,9 @@ async function workingCanvasFromBlob(input: Blob): Promise<HTMLCanvasElement> {
 }
 
 /** Padded vehicle crop, or the whole photo when no vehicle box passed the rule. */
-function cropCanvas(source: HTMLCanvasElement, detections: NormDetection[]): { canvas: HTMLCanvasElement; usedCrop: boolean } {
+function cropCanvas(source: HTMLCanvasElement, detections: NormDetection[]): HTMLCanvasElement {
   const picked = pickVehicleBox(detections)
-  if (!picked) return { canvas: source, usedCrop: false }
+  if (!picked) return source
   const rect = paddedCropNorm(picked)
   const sx = Math.max(0, Math.floor(rect.x0 * source.width))
   const sy = Math.max(0, Math.floor(rect.y0 * source.height))
@@ -136,9 +135,9 @@ function cropCanvas(source: HTMLCanvasElement, detections: NormDetection[]): { c
   cropped.width = sw
   cropped.height = sh
   const ctx = cropped.getContext('2d', { willReadFrequently: true })
-  if (!ctx) return { canvas: source, usedCrop: false }
+  if (!ctx) return source
   ctx.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh)
-  return { canvas: cropped, usedCrop: true }
+  return cropped
 }
 
 function loadSiglipSession(): Promise<SiglipSession> {
@@ -194,6 +193,7 @@ function loadDfineSession(): Promise<DfineSession | null> {
           id2label,
         }
       } catch {
+        // Crop is optional: this scan uses the whole photo, and the next scan retries the download.
         dfinePromise = null
         return null
       }
@@ -202,6 +202,7 @@ function loadDfineSession(): Promise<DfineSession | null> {
   return dfinePromise
 }
 
+/** Progress listeners are owned by the exported callers, so SigLIP progress keeps reporting after detection. */
 async function detectVehicles(source: HTMLCanvasElement): Promise<NormDetection[]> {
   try {
     const session = await loadDfineSession()
@@ -235,10 +236,8 @@ async function preparePhotoCropFromCanvas(source: HTMLCanvasElement): Promise<Pr
   } catch {
     detections = []
   }
-  const { canvas: cropped, usedCrop } = cropCanvas(source, detections)
-  const previewCanvas = usedCrop ? cropped : source
-  const embedCanvas = fitCanvasLongEdge(cropped, MAX_EDGE)
-  return { previewCanvas, embedCanvas, usedCrop }
+  const cropped = cropCanvas(source, detections)
+  return { previewCanvas: cropped, embedCanvas: fitCanvasLongEdge(cropped, MAX_EDGE) }
 }
 
 /** Detect + crop only. Scanner shows previewCanvas; keep embedCanvas for embedPrepared on Scan. */

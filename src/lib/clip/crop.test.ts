@@ -67,6 +67,8 @@ test('postProcessDfineDetections uses sigmoid and original image scale', () => {
   assert.ok(best.score >= dfine.expectBestScore)
   const [x0, y0, x1, y1] = cxcywhNormToXyxyNorm(0.5, 0.5, 0.4, 0.3)
   assert.ok(Math.abs(x0 - 0.3) < 1e-6)
+  assert.ok(Math.abs(y0 - 0.35) < 1e-6)
+  assert.ok(Math.abs(x1 - 0.7) < 1e-6)
   assert.ok(Math.abs(y1 - 0.65) < 1e-6)
 })
 
