@@ -176,7 +176,8 @@ export function statusSql(ids: string[]): string {
   return `update photos
       set status = $1,
           reviewed_at = case when $1::text = 'pending' then null else now() end,
-          embedding = case when $1::text = 'approved' then embedding else null end
+          embedding = case when $1::text = 'approved' then embedding else null end,
+          embedding_siglip = case when $1::text = 'approved' then embedding_siglip else null end
       where id in (${placeholders})
         and ($1::text <> 'approved' or truck_id is not null)
       returning id`

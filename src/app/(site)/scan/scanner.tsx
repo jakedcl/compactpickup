@@ -203,7 +203,7 @@ export default function Scanner({
     runId.current = id
     setPhase('working')
     setResult(null)
-    setStatus('Reading the photo. The first time downloads the scanner (about 90 MB) onto this device and keeps it there.')
+    setStatus('Reading the photo. The first time downloads the scanner (about 63 MB) onto this device and keeps it there.')
     try {
       const vector = await embedImage(file, (progress) => {
         if (runId.current !== id) return
@@ -222,7 +222,14 @@ export default function Scanner({
       if (runId.current !== id) return
       if (!response.ok) {
         setPhase('error')
-        setStatus(messageFrom(payload, 'Signal lost. The scanner did not answer.'))
+        const stale =
+          payload &&
+          typeof payload === 'object' &&
+          (payload as { reload?: unknown }).reload === true
+        const fallback = stale
+          ? 'This tab is still on the old scanner. Reload the page and try again.'
+          : 'Signal lost. The scanner did not answer.'
+        setStatus(messageFrom(payload, fallback))
         return
       }
       const parsed = readScan(payload)

@@ -3,35 +3,36 @@ import 'server-only'
 import { createHmac } from 'node:crypto'
 import type { PoolClient } from 'pg'
 import sharp from 'sharp'
-import { l2Normalize } from '@/lib/binder/clip'
+import { SCAN_EMBEDDING_DIM, isStaleClipFingerprint, l2Normalize } from '@/lib/binder/clip'
+import { loadProbeWeights, probeTruckScores } from '@/lib/scan/probe'
 import { authSecret } from '@/lib/binder/env'
 import { sha256Hex, compressToWebp, MAX_INPUT_PIXELS, pixelCountAllowed } from '@/lib/binder/images'
 import { insertPendingPhoto, photoIdForSha256 } from '@/lib/binder/photos'
 import { photoObjectKey } from '@/lib/binder/r2'
 import type { ScanCatalogTruck, ScanMatch, ScanState } from '@/lib/binder/scan-types'
 
-/**
- * Cosine similarity cutoff for a confident model name.
- * Tunable once an approved photo library exists.
- *
- * CLIP ViT-B/32 puts compact pickups close together. A different truck is
- * often still around 0.75–0.85, and a similar photo of the same model is
- * usually higher. 0.82 asks the best truck (mean of three photo scores)
- * to clear that band. Raise it if guesses are too bold. Lower it if a
- * clear photo of a truck we have several pictures of stays unsure.
- */
-export const SCAN_MATCH_MIN_SIMILARITY = 0.82
+function envNumber(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim()
+  if (!raw) return fallback
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : fallback
+}
 
 /**
- * How far the top truck must lead the runner-up before the page calls it
- * a match. Tunable once an approved photo library exists.
- *
- * Similarity alone was too loose. A match also needs top1 - top2 >= 0.02.
- * When the search returns only one truck, the margin is treated as met.
- * Below the similarity line, or inside the margin, the page says "not sure"
- * and still shows the closest guess.
+ * Cosine similarity cutoff for a confident model name (SigLIP2-base scale).
+ * Override with SCAN_MATCH_MIN_SIMILARITY.
  */
-export const SCAN_MATCH_MIN_MARGIN = 0.02
+export const SCAN_MATCH_MIN_SIMILARITY = envNumber('SCAN_MATCH_MIN_SIMILARITY', 0.52)
+
+/**
+ * How far the top truck must lead the runner-up before the page calls it a match.
+ * Override with SCAN_MATCH_MIN_MARGIN.
+ */
+export const SCAN_MATCH_MIN_MARGIN = envNumber('SCAN_MATCH_MIN_MARGIN', 0.012)
+
+/** When a linear probe is loaded, match confidence uses max class probability instead. */
+export const SCAN_PROBE_MATCH_MIN_PROBABILITY = envNumber('SCAN_PROBE_MATCH_MIN_PROBABILITY', 0.35)
+export const SCAN_PROBE_MIN_MARGIN = envNumber('SCAN_PROBE_MIN_MARGIN', 0.04)
 export const SCAN_TOP_TRUCKS = 3
 export const SCAN_PHOTOS_PER_TRUCK = 3
 export const SCAN_NEIGHBOR_LIMIT = 40
@@ -206,10 +207,15 @@ export function aggregateTruckScores(rows: NeighborPhoto[]): Array<{
   return ranked.slice(0, SCAN_TOP_TRUCKS)
 }
 
-export function labelMatches(neighbors: NeighborPhoto[], catalog: ScanCatalogTruck[]): ScanOutcome {
-  const threshold = SCAN_MATCH_MIN_SIMILARITY
-  if (neighbors.length === 0) return { state: 'learning', matches: [], threshold }
-  const ranked = aggregateTruckScores(neighbors)
+type TruckRank = { truckId: string; truckSlug: string; score: number }
+
+function outcomeFromRanks(
+  ranked: TruckRank[],
+  catalog: ScanCatalogTruck[],
+  options: { threshold: number; minMargin: number },
+): ScanOutcome {
+  const threshold = options.threshold
+  if (ranked.length === 0) return { state: 'learning', matches: [], threshold }
   const byId = new Map(catalog.map((truck) => [truck.id, truck]))
   const matches: ScanMatch[] = []
   for (const group of ranked) {
@@ -217,12 +223,35 @@ export function labelMatches(neighbors: NeighborPhoto[], catalog: ScanCatalogTru
     if (!truck) continue
     matches.push({ ...truck, score: roundScore(group.score) })
   }
-  if (matches.length === 0 || ranked.length === 0) return { state: 'guess', matches: [], threshold }
+  if (matches.length === 0) return { state: 'guess', matches: [], threshold }
   const top = ranked[0]
   const second = ranked[1]
-  const marginOk = !second || top.score - second.score >= SCAN_MATCH_MIN_MARGIN
+  const marginOk = !second || top.score - second.score >= options.minMargin
   const state: ScanState = byId.has(top.truckId) && top.score >= threshold && marginOk ? 'match' : 'guess'
   return { state, matches, threshold }
+}
+
+export function labelMatches(neighbors: NeighborPhoto[], catalog: ScanCatalogTruck[]): ScanOutcome {
+  if (neighbors.length === 0) {
+    return { state: 'learning', matches: [], threshold: SCAN_MATCH_MIN_SIMILARITY }
+  }
+  return outcomeFromRanks(aggregateTruckScores(neighbors), catalog, {
+    threshold: SCAN_MATCH_MIN_SIMILARITY,
+    minMargin: SCAN_MATCH_MIN_MARGIN,
+  })
+}
+
+export function labelProbeMatches(
+  ranked: TruckRank[],
+  catalog: ScanCatalogTruck[],
+): ScanOutcome {
+  if (ranked.length === 0) {
+    return { state: 'learning', matches: [], threshold: SCAN_PROBE_MATCH_MIN_PROBABILITY }
+  }
+  return outcomeFromRanks(ranked, catalog, {
+    threshold: SCAN_PROBE_MATCH_MIN_PROBABILITY,
+    minMargin: SCAN_PROBE_MIN_MARGIN,
+  })
 }
 
 async function takeRateSlot(
@@ -299,10 +328,10 @@ async function takeVisitorSlots(
 async function nearestApproved(client: ScanClient, vector: Float32Array): Promise<NeighborPhoto[]> {
   const result = await client.query<{ truck_id: string; truck_slug: string; similarity: number | string }>(
     `select truck_id, truck_slug,
-            (1 - (embedding <=> $1::vector))::float8 as similarity
+            (1 - (embedding_siglip <=> $1::vector))::float8 as similarity
      from photos
-     where status = 'approved' and embedding is not null and truck_id is not null
-     order by embedding <=> $1::vector
+     where status = 'approved' and embedding_siglip is not null and truck_id is not null
+     order by embedding_siglip <=> $1::vector
      limit $2`,
     [vectorLiteral(vector), SCAN_NEIGHBOR_LIMIT],
   )
@@ -332,6 +361,13 @@ export async function runScan(vector: Float32Array, ip: string | null, deps: Sca
   )
   if (slot === 'personal') return { ok: false, status: 429, error: 'rate', message: SCAN_RATE_MESSAGE }
   if (slot === 'site') return { ok: false, status: 429, error: 'busy', message: SCAN_BUSY_MESSAGE }
+
+  const probe = loadProbeWeights()
+  if (probe) {
+    const catalog = await deps.catalog()
+    const ranked = probeTruckScores(vector, probe, catalog)
+    return { ok: true, outcome: labelProbeMatches(ranked, catalog) }
+  }
 
   const neighbors = await withTransaction(deps, async (client) => {
     await client.query(`select set_config('hnsw.ef_search', $1, true)`, [String(SCAN_EF_SEARCH)])
@@ -529,6 +565,19 @@ export async function submitVisitorPhoto(
   return { ok: true, outcome }
 }
 
-export function normalizeScanEmbedding(value: unknown): Float32Array | null {
-  return l2Normalize(value)
+export type ScanEmbeddingResult =
+  | { ok: true; vector: Float32Array }
+  | { ok: false; stale: boolean }
+
+export function normalizeScanEmbedding(value: unknown): ScanEmbeddingResult {
+  if (isStaleClipFingerprint(value)) return { ok: false, stale: true }
+  const vector = l2Normalize(value, SCAN_EMBEDDING_DIM)
+  if (!vector) return { ok: false, stale: false }
+  return { ok: true, vector }
+}
+
+/** @deprecated Use normalizeScanEmbedding. */
+export function normalizeScanEmbeddingLegacy(value: unknown): Float32Array | null {
+  const result = normalizeScanEmbedding(value)
+  return result.ok ? result.vector : null
 }

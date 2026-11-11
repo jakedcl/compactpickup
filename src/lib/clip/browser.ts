@@ -1,25 +1,31 @@
 'use client'
 
-import { CLIP_EMBEDDING_DIM, l2Normalize } from '@/lib/binder/clip'
+import { SCAN_EMBEDDING_DIM, l2Normalize } from '@/lib/binder/clip'
 
 /**
- * Canonical CLIP extractor for the public scanner and the review tools.
+ * Canonical vision extractor for the public scanner and the review tools.
  * Both sides must import embedImage from this file so stored fingerprints
  * and visitor fingerprints stay in one space.
  *
- * Model: Xenova/clip-vit-base-patch32 (ONNX port of openai/clip-vit-base-patch32).
- * Weights: quantized vision encoder (q8, about 90 MB), loaded once and kept
+ * Model: onnx-community/siglip2-base-patch16-224-ONNX (SiglipVisionModel).
+ * Weights: quantized vision encoder (q4, about 63 MB), loaded once and kept
  * in the browser cache. Device is WASM with one thread so iPhone Safari does
  * not need cross-origin isolation. The image is drawn to a canvas whose long
- * edge is at most 768px, then read with RawImage.fromCanvas. Output is the
- * model's image_embeds, L2-normalized to 512 numbers.
+ * edge is at most 768px, then read with RawImage.fromCanvas. Output is
+ * pooler_output, L2-normalized to 768 numbers.
  *
  * embedImage(blob, onProgress?) forwards transformers.js progress_callback
  * events while that shared load is in flight. Later callers can subscribe
  * to the same load; events that already fired are not repeated.
  */
-export const CLIP_BROWSER_MODEL = 'Xenova/clip-vit-base-patch32'
-export const CLIP_BROWSER_DTYPE = 'q8' as const
+export const EMBED_MODEL = 'siglip2-base-q4'
+export const SIGLIP_BROWSER_MODEL = 'onnx-community/siglip2-base-patch16-224-ONNX'
+export const SIGLIP_BROWSER_DTYPE = 'q4' as const
+
+/** @deprecated Use SIGLIP_BROWSER_MODEL. */
+export const CLIP_BROWSER_MODEL = SIGLIP_BROWSER_MODEL
+/** @deprecated Use SIGLIP_BROWSER_DTYPE. */
+export const CLIP_BROWSER_DTYPE = SIGLIP_BROWSER_DTYPE
 
 const MAX_EDGE = 768
 
@@ -49,14 +55,14 @@ type RawImageFactory = {
   fromCanvas: (canvas: HTMLCanvasElement | OffscreenCanvas) => unknown
 }
 
-type ClipSession = {
+type SiglipSession = {
   RawImage: RawImageFactory
   processor: (image: unknown) => Promise<unknown>
   model: (inputs: unknown) => Promise<unknown>
 }
 
 const progressListeners = new Set<(progress: ClipProgress) => void>()
-let sessionPromise: Promise<ClipSession> | null = null
+let sessionPromise: Promise<SiglipSession> | null = null
 
 function emitProgress(progress: ClipProgress) {
   for (const listener of progressListeners) {
@@ -64,10 +70,10 @@ function emitProgress(progress: ClipProgress) {
   }
 }
 
-function embeddingData(output: unknown): ArrayLike<number> | null {
+function poolerOutput(output: unknown): ArrayLike<number> | null {
   if (!output || typeof output !== 'object') return null
-  const embeds = (output as { image_embeds?: { data?: ArrayLike<number> } }).image_embeds
-  const data = embeds?.data
+  const pooler = (output as { pooler_output?: { data?: ArrayLike<number> } }).pooler_output
+  const data = pooler?.data
   if (!data || typeof data.length !== 'number') return null
   return data
 }
@@ -92,19 +98,19 @@ async function drawFitted(input: Blob): Promise<HTMLCanvasElement> {
   }
 }
 
-function loadSession(): Promise<ClipSession> {
+function loadSession(): Promise<SiglipSession> {
   if (!sessionPromise) {
     sessionPromise = (async () => {
       const transformers = await import('@huggingface/transformers')
-      const { env, AutoProcessor, CLIPVisionModelWithProjection, RawImage } = transformers
+      const { env, AutoProcessor, SiglipVisionModel, RawImage } = transformers
       env.allowLocalModels = false
       env.useBrowserCache = true
       const wasm = env.backends.onnx.wasm
       if (wasm) wasm.numThreads = 1
       const progress_callback = (progress: ClipProgress) => emitProgress(progress)
-      const processor = await AutoProcessor.from_pretrained(CLIP_BROWSER_MODEL, { progress_callback })
-      const model = await CLIPVisionModelWithProjection.from_pretrained(CLIP_BROWSER_MODEL, {
-        dtype: CLIP_BROWSER_DTYPE,
+      const processor = await AutoProcessor.from_pretrained(SIGLIP_BROWSER_MODEL, { progress_callback })
+      const model = await SiglipVisionModel.from_pretrained(SIGLIP_BROWSER_MODEL, {
+        dtype: SIGLIP_BROWSER_DTYPE,
         device: 'wasm',
         progress_callback,
       })
@@ -133,8 +139,8 @@ export async function embedImage(
     const image = session.RawImage.fromCanvas(canvas)
     const inputs = await session.processor(image)
     const output = await session.model(inputs)
-    const data = embeddingData(output)
-    if (!data || data.length !== CLIP_EMBEDDING_DIM) {
+    const data = poolerOutput(output)
+    if (!data || data.length !== SCAN_EMBEDDING_DIM) {
       throw new ClipError('model', 'Scanner model returned an unexpected fingerprint')
     }
     const normalized = l2Normalize(data)

@@ -187,7 +187,7 @@ export async function handlePhotoList(
     const listed = await db.query<PhotoDbRow>(
       `select p.id, p.truck_id, p.truck_slug, p.status, p.angle, p.face_tag_id, p.source, p.source_url,
               p.author, p.license, p.width, p.height, p.created_at, p.notes, p.sha256,
-              (p.embedding is not null) as has_embedding,
+              (p.embedding_siglip is not null) as has_embedding,
               air.outcome as ai_outcome,
               air.suggested_truck_slug as ai_suggested_truck_slug,
               air.angle as ai_angle,
@@ -201,7 +201,7 @@ export async function handlePhotoList(
        left join photo_ai_reviews air on air.photo_id = p.id
        where p.status = $1
          and (${truckSql})
-         and (${missingSql}::boolean = false or p.embedding is null)
+         and (${missingSql}::boolean = false or p.embedding_siglip is null)
          and (${aiSql})
          and (${cursorSql})
        ${orderSql}
@@ -218,7 +218,7 @@ export async function handlePhotoList(
     const [counts, missing, matched] = await Promise.all([
       countMap(db),
       db.query<{ n: number | string }>(
-        `select count(*)::int as n from photos where status = 'approved' and embedding is null`,
+        `select count(*)::int as n from photos where status = 'approved' and embedding_siglip is null`,
       ),
       db.query<{ n: number | string }>(
         `select count(*)::int as n
@@ -283,6 +283,7 @@ export async function handlePhotoReview(
        set status = $1,
            reviewed_at = case when $1::text = 'pending' then null else now() end,
            embedding = case when $1::text = 'approved' then embedding else null end,
+           embedding_siglip = case when $1::text = 'approved' then embedding_siglip else null end,
            angle = $2,
            face_tag_id = $3
        where id = $4::uuid and truck_id is not distinct from $5
@@ -401,7 +402,7 @@ export async function handleEmbeddings(
   if (!parsed.ok) return json({ error: parsed.error }, 400)
   const prepared = parsed.items.map((item) => ({ id: item.id, vector: l2Normalize(item.embedding) }))
   if (prepared.every((item) => !item.vector)) {
-    return json({ error: 'The fingerprint must be 512 numbers.' }, 400)
+    return json({ error: 'The fingerprint must be 768 numbers.' }, 400)
   }
   const updated: string[] = []
   const skipped: string[] = []
@@ -413,7 +414,7 @@ export async function handleEmbeddings(
       }
       const result = await db.query<{ id: string }>(
         `update photos
-         set embedding = $2::vector
+         set embedding_siglip = $2::vector
          where id = $1::uuid and status = 'approved'
          returning id`,
         [item.id, vectorLiteral(item.vector)],
@@ -632,7 +633,7 @@ export async function handleCoverage(
       }>(
         `select truck_id,
                 count(*) filter (where status = 'approved')::int as approved,
-                count(*) filter (where status = 'approved' and embedding is not null)::int as fingerprinted,
+                count(*) filter (where status = 'approved' and embedding_siglip is not null)::int as fingerprinted,
                 count(*) filter (where status = 'approved' and angle = 'front')::int as fronts,
                 count(*) filter (where status = 'approved' and angle = 'side')::int as sides
          from photos

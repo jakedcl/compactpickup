@@ -6,7 +6,7 @@ import { GET as imageGet, PATCH as imagePatch } from '../../app/api/admin/photos
 import { POST as reviewPost } from '../../app/api/admin/photos/review/route'
 import { POST as statusPost } from '../../app/api/admin/photos/status/route'
 import { POST as uploadPost } from '../../app/api/admin/uploads/route'
-import { CLIP_EMBEDDING_DIM, l2Normalize } from './clip'
+import { SCAN_EMBEDDING_DIM, l2Normalize } from './clip'
 import { vectorLiteral } from './embedding'
 import {
   bytesForStoredPhoto,
@@ -108,14 +108,14 @@ test('status changes are validated and never delete a photo', async () => {
     assert.equal(body.status, status)
     const call = db.calls[0]
     assert.match(call.sql, /reviewed_at = case when \$1::text = 'pending' then null else now\(\) end/)
-    assert.match(call.sql, /embedding = case when \$1::text = 'approved' then embedding else null end/)
+    assert.match(call.sql, /embedding_siglip = case when \$1::text = 'approved' then embedding_siglip else null end/)
     assert.equal(call.params[0], status)
     assert.equal(call.params[1], ID)
     assert.equal(/delete\s+from\s+photos/i.test(call.sql), false)
   }
 })
 
-test('a fingerprint must be 512 numbers and is stored only on approved photos', async () => {
+test('a fingerprint must be 768 numbers and is stored only on approved photos', async () => {
   const db = fakeDb((sql) => (sql.startsWith('update') ? { rows: [{ id: ID }] } : { rows: [] }))
   const bad = await handleEmbeddings(
     post('https://compactpickup.local/api/admin/photos/embeddings', {
@@ -126,7 +126,7 @@ test('a fingerprint must be 512 numbers and is stored only on approved photos', 
   assert.equal(bad.status, 400)
   assert.equal(db.calls.length, 0)
 
-  const vector = Array(CLIP_EMBEDDING_DIM).fill(1)
+  const vector = Array(SCAN_EMBEDDING_DIM).fill(1)
   const other = '00000000-0000-4000-8000-000000000003'
   const response = await handleEmbeddings(
     post('https://compactpickup.local/api/admin/photos/embeddings', {
@@ -142,6 +142,7 @@ test('a fingerprint must be 512 numbers and is stored only on approved photos', 
   assert.deepEqual(body.updated, [ID])
   assert.deepEqual(body.skipped, [other])
   assert.match(db.calls[0].sql, /status = 'approved'/)
+  assert.match(db.calls[0].sql, /embedding_siglip/)
   assert.match(db.calls[0].sql, /::vector/)
   const normalized = l2Normalize(vector)
   assert.ok(normalized)
@@ -464,7 +465,7 @@ test('review saves status, angle, and face in one update', async () => {
   const approved = await handlePhotoReview(post(url, decision), { session: signedIn, db: saved })
   assert.equal(approved.status, 200)
   const update = saved.calls.find((call) => call.sql.startsWith('update'))
-  assert.match(update?.sql ?? '', /embedding = case when \$1::text = 'approved' then embedding else null end/)
+  assert.match(update?.sql ?? '', /embedding_siglip = case when \$1::text = 'approved' then embedding_siglip else null end/)
   assert.equal(update?.params[0], 'approved')
   assert.equal(update?.params[1], 'front')
   assert.equal(update?.params[2], FACE)
