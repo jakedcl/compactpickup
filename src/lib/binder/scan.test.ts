@@ -7,7 +7,7 @@ import sharp from 'sharp'
 import { POST as scanRoute } from '../../app/api/scan/route'
 import { POST as submitRoute } from '../../app/api/scan/submit/route'
 import { scanPost, submitPost } from './scan-http'
-import { CLIP_EMBEDDING_DIM, l2Normalize } from './clip'
+import { CLIP_EMBEDDING_DIM, SCAN_EMBEDDING_DIM, l2Normalize } from './clip'
 import { MAX_INPUT_PIXELS, pixelCountAllowed, sha256Hex } from './images'
 import {
   SCAN_BUSY_MESSAGE,
@@ -36,6 +36,7 @@ import {
   type ScanClient,
   type SubmitDeps,
 } from './scan'
+import { EMBED_PIPELINE } from '../clip/pipeline'
 import { SCAN_FIELDS, formatScanScorePercent, toScanTruck, type ScanCatalogTruck } from './scan-types'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -197,14 +198,14 @@ class Memory {
       this.settings.push(String(params[0]))
       return [{}]
     }
-    if (sql.includes('embedding <=>')) {
+    if (sql.includes('embedding_siglip <=>')) {
       this.lastVector = String(params[0])
       const filtered =
         sql.includes("status = 'approved'")
-        && sql.includes('embedding is not null')
+        && sql.includes('embedding_siglip is not null')
         && sql.includes('truck_id is not null')
       let rows = filtered ? this.library.filter((row) => row.status === 'approved' && row.hasEmbedding) : this.library
-      if (sql.includes('order by embedding <=>')) {
+      if (sql.includes('order by embedding_siglip <=>')) {
         rows = [...rows].sort((a, b) => b.similarity - a.similarity)
       }
       const limit = Number(params[1])
@@ -279,14 +280,17 @@ class Memory {
 }
 
 function vector(fill = 1): number[] {
-  return Array.from({ length: CLIP_EMBEDDING_DIM }, () => fill)
+  return Array.from({ length: SCAN_EMBEDDING_DIM }, () => fill)
 }
 
 function scanRequest(embedding: unknown, ip = '203.0.113.8', origin = ORIGIN): Request {
   return new Request(`${ORIGIN}/api/scan`, {
     method: 'POST',
     headers: { origin, 'content-type': 'application/json', 'x-forwarded-for': ip },
-    body: typeof embedding === 'string' ? embedding : JSON.stringify({ embedding }),
+    body:
+      typeof embedding === 'string'
+        ? embedding
+        : JSON.stringify({ embedding, pipeline: EMBED_PIPELINE }),
   })
 }
 
@@ -313,10 +317,10 @@ async function png(): Promise<Buffer> {
     .toBuffer()
 }
 
-test('fingerprints must be finite 512-vectors and come back unit length', () => {
+test('fingerprints must be finite 768-vectors and come back unit length', () => {
   const unit = l2Normalize(vector(2))
   assert.ok(unit)
-  assert.equal(unit.length, 512)
+  assert.equal(unit.length, SCAN_EMBEDDING_DIM)
   let sum = 0
   for (const n of unit) sum += n * n
   assert.ok(Math.abs(sum - 1) < 1e-5)
@@ -330,7 +334,7 @@ test('fingerprints must be finite 512-vectors and come back unit length', () => 
   const text = vector(1).map(String)
   assert.equal(l2Normalize(text), null)
   const literal = vectorLiteral(unit)
-  assert.equal(literal.split(',').length, 512)
+  assert.equal(literal.split(',').length, SCAN_EMBEDDING_DIM)
   assert.match(literal, /^\[[0-9eE.+\-,]+\]$/)
 })
 
@@ -365,13 +369,27 @@ test('truck score fills three slots and a close runner-up stays a guess', () => 
   assert.deepEqual(ranked.map((row) => row.truckId), ['a', 'b', 'c'])
   assert.ok(Math.abs(ranked[0].score - 0.8) < 1e-9)
   assert.ok(Math.abs(ranked[1].score - (0.85 + 0.1 + 0.1) / 3) < 1e-9)
-  assert.equal(SCAN_MATCH_MIN_SIMILARITY, 0.82)
+  assert.equal(SCAN_MATCH_MIN_SIMILARITY, 0.8)
   assert.equal(SCAN_MATCH_MIN_MARGIN, 0.02)
-  const sure = labelMatches([{ truckId: 'truck-ranger', truckSlug: 'old', similarity: 0.82 }], [RANGER])
+  const sure = labelMatches(
+    [
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.86 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.86 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.86 },
+    ],
+    [RANGER],
+  )
   assert.equal(sure.state, 'match')
   assert.equal(sure.matches[0]?.href, '/ford/ranger')
   assert.equal(sure.matches[0]?.slug, 'ranger')
-  const unsure = labelMatches([{ truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.81 }], [RANGER])
+  const unsure = labelMatches(
+    [
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.76 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.76 },
+      { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.76 },
+    ],
+    [RANGER],
+  )
   assert.equal(unsure.state, 'guess')
   assert.equal(unsure.matches[0]?.title, 'Ranger')
   const close = labelMatches(
@@ -379,9 +397,9 @@ test('truck score fills three slots and a close runner-up stays a guess', () => 
       { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.9 },
       { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.9 },
       { truckId: 'truck-ranger', truckSlug: 'ranger', similarity: 0.9 },
-      { truckId: 'truck-hilux', truckSlug: 'hilux', similarity: 0.885 },
-      { truckId: 'truck-hilux', truckSlug: 'hilux', similarity: 0.885 },
-      { truckId: 'truck-hilux', truckSlug: 'hilux', similarity: 0.885 },
+      { truckId: 'truck-hilux', truckSlug: 'hilux', similarity: 0.896 },
+      { truckId: 'truck-hilux', truckSlug: 'hilux', similarity: 0.896 },
+      { truckId: 'truck-hilux', truckSlug: 'hilux', similarity: 0.896 },
     ],
     [RANGER, HILUX],
   )
@@ -400,7 +418,7 @@ test('truck score fills three slots and a close runner-up stays a guess', () => 
   )
   assert.equal(separated.state, 'match')
   assert.equal(separated.matches[1]?.title, 'Hilux')
-  assert.deepEqual(labelMatches([], [RANGER]), { state: 'learning', matches: [], threshold: 0.82 })
+  assert.deepEqual(labelMatches([], [RANGER]), { state: 'learning', matches: [], threshold: 0.8 })
   assert.equal(labelMatches([{ truckId: 'missing', truckSlug: 'x', similarity: 0.99 }], [RANGER]).state, 'guess')
 })
 
@@ -447,7 +465,21 @@ test('scan route rejects a bad origin, a bad fingerprint, and an oversized body'
     deps,
   )
   assert.equal(missing.status, 403)
-  assert.equal((await scanPost(scanRequest(vector().slice(0, 511)), deps)).status, 400)
+  assert.equal((await scanPost(scanRequest(vector().slice(0, 767)), deps)).status, 400)
+  const noPipeline = await scanPost(
+    new Request(`${ORIGIN}/api/scan`, {
+      method: 'POST',
+      headers: { origin: ORIGIN, 'content-type': 'application/json' },
+      body: JSON.stringify({ embedding: vector() }),
+    }),
+    deps,
+  )
+  assert.equal(noPipeline.status, 400)
+  const stale = await scanPost(scanRequest(Array(CLIP_EMBEDDING_DIM).fill(0.1)), deps)
+  const staleBody = (await stale.json()) as { reload?: boolean; error?: string }
+  assert.equal(stale.status, 400)
+  assert.equal(staleBody.reload, true)
+  assert.equal(staleBody.error, 'stale_model')
   assert.equal((await scanPost(scanRequest(vector().map(String)), deps)).status, 400)
   assert.equal((await scanPost(scanRequest({}), deps)).status, 400)
   const inflated = vector(0.1)
@@ -474,15 +506,15 @@ test('scan normalizes the vector, ignores unapproved photos, and reports learnin
   assert.equal(db.catalogCalls, 0)
   assert.ok(db.queries.some((sql) =>
     sql.includes("status = 'approved'")
-    && sql.includes('embedding is not null')
+    && sql.includes('embedding_siglip is not null')
     && sql.includes('truck_id is not null'),
   ))
   assert.ok(db.settings.includes(String(SCAN_EF_SEARCH)))
   assert.ok(db.settings.includes('relaxed_order'))
   assert.ok(db.queries.some((sql) => sql.includes('hnsw.iterative_scan')))
   const first = Number(db.lastVector.slice(1).split(',')[0])
-  assert.ok(Math.abs(first - 1 / Math.sqrt(CLIP_EMBEDDING_DIM)) < 1e-5)
-  assert.equal(db.lastVector.split(',').length, CLIP_EMBEDDING_DIM)
+  assert.ok(Math.abs(first - 1 / Math.sqrt(SCAN_EMBEDDING_DIM)) < 1e-5)
+  assert.equal(db.lastVector.split(',').length, SCAN_EMBEDDING_DIM)
 })
 
 test('scan returns the closest trucks and says not sure under the threshold', async () => {
@@ -533,9 +565,9 @@ test('scan rate limit is per IP and resets on the next window', async () => {
   assert.equal(blocked.status, 429)
   const other = await scanPost(scanRequest(vector(), '198.51.100.4'), deps)
   assert.equal(other.status, 200)
-  const before = db.queries.filter((sql) => sql.includes('embedding <=>')).length
+  const before = db.queries.filter((sql) => sql.includes('embedding_siglip <=>')).length
   assert.equal((await scanPost(scanRequest(vector(), '203.0.113.8'), deps)).status, 429)
-  assert.equal(db.queries.filter((sql) => sql.includes('embedding <=>')).length, before)
+  assert.equal(db.queries.filter((sql) => sql.includes('embedding_siglip <=>')).length, before)
   db.now += SCAN_WINDOW_SECONDS * 1000 + 1
   assert.equal((await scanPost(scanRequest(vector(), '203.0.113.8'), deps)).status, 200)
 })
@@ -827,7 +859,7 @@ test('ipv6 visitors in one /64 share a scan bucket and x-real-ip wins', async ()
       'x-real-ip': '203.0.113.8',
       'x-forwarded-for': '198.51.100.4',
     },
-    body: JSON.stringify({ embedding: vector() }),
+    body: JSON.stringify({ embedding: vector(), pipeline: EMBED_PIPELINE }),
   })
   assert.equal((await scanPost(spoofed, trusted.deps())).status, 429)
   assert.equal((await scanPost(scanRequest(vector(), '198.51.100.4'), trusted.deps())).status, 200)
@@ -847,7 +879,7 @@ test('a full day of scans tells the visitor to try later', async () => {
   assert.equal(body.error, 'busy')
   assert.equal(body.message, SCAN_BUSY_MESSAGE)
   assert.equal(db.catalogCalls, 0)
-  assert.equal(db.queries.some((sql) => sql.includes('embedding <=>')), false)
+  assert.equal(db.queries.some((sql) => sql.includes('embedding_siglip <=>')), false)
 })
 
 test('submit spends a rate slot before the catalog and the decoder', async () => {
@@ -873,8 +905,9 @@ test('submit spends a rate slot before the catalog and the decoder', async () =>
 })
 
 test('scan match scores are shown to visitors as whole-number percents', () => {
-  assert.equal(formatScanScorePercent(0.874), '87%')
-  assert.equal(formatScanScorePercent(0.825), '83%')
+  assert.equal(formatScanScorePercent(0.85), '75%')
+  assert.equal(formatScanScorePercent(0.9), '100%')
+  assert.equal(formatScanScorePercent(0.65), '0%')
   assert.equal(formatScanScorePercent(1.2), '100%')
   assert.equal(formatScanScorePercent(-0.1), '0%')
 })

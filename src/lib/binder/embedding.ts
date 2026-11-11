@@ -1,8 +1,8 @@
-import { CLIP_EMBEDDING_DIM } from '@/lib/binder/clip'
+import { SCAN_EMBEDDING_DIM } from '@/lib/binder/clip'
 
 /** pgvector text form. Built only from a vector that already passed l2Normalize. */
-export function vectorLiteral(values: Float32Array): string {
-  if (values.length !== CLIP_EMBEDDING_DIM) throw new Error('embedding length')
+export function vectorLiteral(values: Float32Array, dim: number = SCAN_EMBEDDING_DIM): string {
+  if (values.length !== dim) throw new Error('embedding length')
   const parts = new Array<string>(values.length)
   for (let i = 0; i < values.length; i += 1) {
     const n = values[i]

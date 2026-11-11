@@ -258,10 +258,6 @@
   z-index: 4;
 }
 
-.home-filters {
-  width: 100%;
-}
-
 .home-scan {
   width: min(720px, calc(100% - 32px));
   margin: var(--space-3) auto 0;

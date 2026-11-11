@@ -11,11 +11,22 @@ export type ScanMatch = ScanCatalogTruck & {
   score: number
 }
 
-/** Visitor-facing match strength. Underlying score stays 0–1 cosine similarity. */
+/**
+ * Raw cosine floor for display rescaling. SigLIP2 photo-to-photo cosine for the
+ * best truck sits around 0.79-0.89, so 0.70 shows as 0%, the 0.80 match line as 50%,
+ * and 0.90+ as 100%.
+ */
+export const SCAN_SCORE_DISPLAY_FLOOR = 0.7
+/** Span from floor to “strong match” on the visitor-facing meter. */
+export const SCAN_SCORE_DISPLAY_SPAN = 0.2
+
+/** Visitor-facing match strength. Underlying score stays 0–1 (cosine or probe probability). */
 export function formatScanScorePercent(score: number): string {
   if (!Number.isFinite(score)) return '—%'
   const clamped = Math.min(1, Math.max(0, score))
-  return `${Math.round(clamped * 100)}%`
+  const scaled = ((clamped - SCAN_SCORE_DISPLAY_FLOOR) / SCAN_SCORE_DISPLAY_SPAN) * 100
+  const display = Math.min(100, Math.max(0, scaled))
+  return `${Math.round(display)}%`
 }
 
 export type ScanState = 'learning' | 'match' | 'guess'

@@ -3,6 +3,7 @@ import 'server-only'
 import { getPool } from '@/lib/binder/db'
 import { isSameOrigin } from '@/lib/binder/origin'
 import { putPhoto } from '@/lib/binder/r2'
+import { EMBED_PIPELINE } from '@/lib/clip/pipeline'
 import {
   SCAN_BODY_MAX_BYTES,
   SUBMIT_BODY_MAX_BYTES,
@@ -103,15 +104,38 @@ export async function scanPost(request: Request, deps: ScanDeps = defaultScanDep
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return json({ ok: false, error: 'invalid', message: 'The scan was not readable.' }, 400)
   }
-  const vector = normalizeScanEmbedding((body as { embedding?: unknown }).embedding)
-  if (!vector) {
+  const record = body as { embedding?: unknown; pipeline?: unknown }
+  if (record.pipeline !== EMBED_PIPELINE) {
     return json(
-      { ok: false, error: 'invalid', message: 'The photo fingerprint was not a 512-number list.' },
+      {
+        ok: false,
+        error: 'stale_model',
+        message: 'This tab is still on the old scanner. Reload the page and try again.',
+        reload: true,
+      },
+      400,
+    )
+  }
+  const embedding = normalizeScanEmbedding(record.embedding)
+  if (!embedding.ok) {
+    if (embedding.stale) {
+      return json(
+        {
+          ok: false,
+          error: 'stale_model',
+          message: 'This tab is still on the old scanner. Reload the page and try again.',
+          reload: true,
+        },
+        400,
+      )
+    }
+    return json(
+      { ok: false, error: 'invalid', message: 'The photo fingerprint was not a 768-number list.' },
       400,
     )
   }
   try {
-    const result = await runScan(vector, scannerClientIp(request), deps)
+    const result = await runScan(embedding.vector, scannerClientIp(request), deps)
     if (!result.ok) return json({ ok: false, error: result.error, message: result.message }, result.status)
     return json({ ok: true, ...result.outcome })
   } catch (error) {

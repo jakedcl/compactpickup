@@ -76,7 +76,6 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
   const [suggestOpen, setSuggestOpen] = useState(false)
   const [narrow, setNarrow] = useState(false)
   const skipQuery = useRef(false)
-  const wantsFilters = useRef(params.get('filters') === 'open')
   const queryTimer = useRef<number | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const launchRef = useRef<HTMLButtonElement>(null)
@@ -120,14 +119,6 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
       }
     }
   }, [q, params, pathname, router])
-
-  useEffect(() => {
-    if (!wantsFilters.current) return
-    wantsFilters.current = false
-    if (window.matchMedia('(max-width: 799px)').matches) setSheet(true)
-    const latest = readFilters(new URLSearchParams(window.location.search))
-    router.replace(`${pathname}${filtersToQuery(latest)}`, { scroll: false })
-  }, [pathname, router])
 
   useEffect(() => {
     if (!sheetOpen) return
