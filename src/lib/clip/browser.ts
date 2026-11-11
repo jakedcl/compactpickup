@@ -5,12 +5,14 @@ import { paddedCropNorm, pickVehicleBox, type NormDetection } from '@/lib/clip/c
 import { fitCanvasLongEdge } from '@/lib/clip/crop-canvas'
 import { postProcessDfineDetections } from '@/lib/clip/dfine-post'
 import {
+  DETECT_SCORE_THRESHOLD,
   DFINE_BROWSER_DTYPE,
   DFINE_BROWSER_MODEL,
   EMBED_MODEL,
   EMBED_PIPELINE,
   SIGLIP_BROWSER_DTYPE,
   SIGLIP_BROWSER_MODEL,
+  WORK_MAX_EDGE,
 } from '@/lib/clip/pipeline'
 
 /**
@@ -89,36 +91,45 @@ function poolerOutput(output: unknown): ArrayLike<number> | null {
   return data
 }
 
-async function bitmapFromBlob(input: Blob): Promise<ImageBitmap> {
+/** Decode once, honor EXIF orientation, and cap the long edge so big phone photos stay under canvas limits. */
+async function workingCanvasFromBlob(input: Blob): Promise<HTMLCanvasElement> {
   if (input.size === 0) throw new ClipError('photo', 'Could not read the photo')
-  const bitmap = await createImageBitmap(input, { imageOrientation: 'from-image' })
-  if (bitmap.width < 1 || bitmap.height < 1) {
-    bitmap.close()
+  let bitmap: ImageBitmap
+  try {
+    bitmap = await createImageBitmap(input, { imageOrientation: 'from-image' })
+  } catch {
     throw new ClipError('photo', 'Could not read the photo')
   }
-  return bitmap
+  try {
+    if (bitmap.width < 1 || bitmap.height < 1) throw new ClipError('photo', 'Could not read the photo')
+    const scale = Math.min(1, WORK_MAX_EDGE / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) throw new ClipError('photo', 'Could not read the photo')
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    return canvas
+  } finally {
+    bitmap.close()
+  }
 }
 
-function cropBitmap(bitmap: ImageBitmap, detections: NormDetection[]): HTMLCanvasElement {
+/** Padded vehicle crop, or the whole photo when no vehicle box passed the rule. */
+function cropCanvas(source: HTMLCanvasElement, detections: NormDetection[]): HTMLCanvasElement {
   const picked = pickVehicleBox(detections)
-  if (!picked) {
-    const full = document.createElement('canvas')
-    full.width = bitmap.width
-    full.height = bitmap.height
-    full.getContext('2d', { willReadFrequently: true })?.drawImage(bitmap, 0, 0)
-    return full
-  }
+  if (!picked) return source
   const rect = paddedCropNorm(picked)
-  const sx = Math.max(0, Math.floor(rect.x0 * bitmap.width))
-  const sy = Math.max(0, Math.floor(rect.y0 * bitmap.height))
-  const sw = Math.max(1, Math.ceil(rect.x1 * bitmap.width) - sx)
-  const sh = Math.max(1, Math.ceil(rect.y1 * bitmap.height) - sy)
+  const sx = Math.max(0, Math.floor(rect.x0 * source.width))
+  const sy = Math.max(0, Math.floor(rect.y0 * source.height))
+  const sw = Math.max(1, Math.min(source.width - sx, Math.ceil(rect.x1 * source.width) - sx))
+  const sh = Math.max(1, Math.min(source.height - sy, Math.ceil(rect.y1 * source.height) - sy))
   const cropped = document.createElement('canvas')
   cropped.width = sw
   cropped.height = sh
   const ctx = cropped.getContext('2d', { willReadFrequently: true })
-  if (!ctx) throw new ClipError('photo', 'Could not read the photo')
-  ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, sw, sh)
+  if (!ctx) return source
+  ctx.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh)
   return cropped
 }
 
@@ -175,6 +186,8 @@ function loadDfineSession(): Promise<DfineSession | null> {
           id2label,
         }
       } catch {
+        // Crop is optional: this scan uses the whole photo, and the next scan retries the download.
+        dfinePromise = null
         return null
       }
     })()
@@ -182,18 +195,13 @@ function loadDfineSession(): Promise<DfineSession | null> {
   return dfinePromise
 }
 
-async function detectVehicles(bitmap: ImageBitmap, onProgress?: (progress: ClipProgress) => void): Promise<NormDetection[]> {
-  if (onProgress) progressListeners.add(onProgress)
+/** Progress listeners are owned by embedImage, so the SigLIP download keeps reporting after detection. */
+async function detectVehicles(source: HTMLCanvasElement): Promise<NormDetection[]> {
   try {
     const session = await loadDfineSession()
     if (!session) return []
     const transformers = await import('@huggingface/transformers')
-    const { RawImage } = transformers
-    const full = document.createElement('canvas')
-    full.width = bitmap.width
-    full.height = bitmap.height
-    full.getContext('2d', { willReadFrequently: true })?.drawImage(bitmap, 0, 0)
-    const image = RawImage.fromCanvas(full)
+    const image = transformers.RawImage.fromCanvas(source)
     const prepared = await session.processor(image)
     const output = await session.model(prepared)
     if (!output || typeof output !== 'object') return []
@@ -205,13 +213,12 @@ async function detectVehicles(bitmap: ImageBitmap, onProgress?: (progress: ClipP
     return postProcessDfineDetections(
       { logits: record.logits, pred_boxes: record.pred_boxes },
       session.id2label,
-      bitmap.width,
-      bitmap.height,
+      source.width,
+      source.height,
+      DETECT_SCORE_THRESHOLD,
     )
   } catch {
     return []
-  } finally {
-    if (onProgress) progressListeners.delete(onProgress)
   }
 }
 
@@ -221,15 +228,15 @@ export async function embedImage(
 ): Promise<Float32Array> {
   if (typeof document === 'undefined') throw new ClipError('runtime', 'The scanner runs in the browser')
   if (onProgress) progressListeners.add(onProgress)
-  const bitmap = await bitmapFromBlob(blob)
   try {
+    const source = await workingCanvasFromBlob(blob)
     let detections: NormDetection[] = []
     try {
-      detections = await detectVehicles(bitmap, onProgress)
+      detections = await detectVehicles(source)
     } catch {
       detections = []
     }
-    const cropped = cropBitmap(bitmap, detections)
+    const cropped = cropCanvas(source, detections)
     const fitted = fitCanvasLongEdge(cropped, MAX_EDGE)
     const session = await loadSiglipSession()
     const image = session.RawImage.fromCanvas(fitted)
@@ -243,7 +250,6 @@ export async function embedImage(
     if (!normalized) throw new ClipError('model', 'Scanner model returned an empty fingerprint')
     return normalized
   } finally {
-    bitmap.close()
     if (onProgress) progressListeners.delete(onProgress)
   }
 }

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { paddedCropNorm, pickVehicleBox, type NormDetection } from '@/lib/clip/crop-select'
+import { DETECT_SCORE_THRESHOLD } from '@/lib/clip/pipeline'
 import { cxcywhNormToXyxyNorm, postProcessDfineDetections, sigmoid } from '@/lib/clip/dfine-post'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -67,4 +68,11 @@ test('postProcessDfineDetections uses sigmoid and original image scale', () => {
   const [x0, y0, x1, y1] = cxcywhNormToXyxyNorm(0.5, 0.5, 0.4, 0.3)
   assert.ok(Math.abs(x0 - 0.3) < 1e-6)
   assert.ok(Math.abs(y1 - 0.65) < 1e-6)
+})
+
+test('default vehicle cutoff fits the onnx-community D-FINE score scale', () => {
+  assert.equal(DETECT_SCORE_THRESHOLD, 0.2)
+  const low = { label: 'truck', score: 0.36, x0: 0.1, y0: 0.2, x1: 0.9, y1: 0.8 }
+  assert.ok(pickVehicleBox([low]))
+  assert.equal(pickVehicleBox([{ ...low, score: 0.15 }]), null)
 })
