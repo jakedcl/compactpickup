@@ -21,7 +21,7 @@ import {
  * and visitor fingerprints stay in one space.
  *
  * Pipeline: D-FINE nano (vehicle box, 15% pad) → SigLIP2-base q4 pooler (768-d).
- * Detector and embedder load lazily with shared progress events and browser cache.
+ * Scanner may call preparePhotoCrop once, then embedPrepared on Scan (no second detect).
  */
 export { EMBED_MODEL, EMBED_PIPELINE }
 export const SIGLIP_BROWSER_DTYPE_EXPORT = SIGLIP_BROWSER_DTYPE
@@ -52,6 +52,14 @@ export type ClipProgress = {
   progress?: number
   loaded?: number
   total?: number
+}
+
+export type PreparedPhoto = {
+  /** Cropped truck or full frame at working resolution (preview). */
+  previewCanvas: HTMLCanvasElement
+  /** Input to SigLIP (long edge ≤ 768). */
+  embedCanvas: HTMLCanvasElement
+  usedCrop: boolean
 }
 
 type RawImageFactory = {
@@ -116,9 +124,9 @@ async function workingCanvasFromBlob(input: Blob): Promise<HTMLCanvasElement> {
 }
 
 /** Padded vehicle crop, or the whole photo when no vehicle box passed the rule. */
-function cropCanvas(source: HTMLCanvasElement, detections: NormDetection[]): HTMLCanvasElement {
+function cropCanvas(source: HTMLCanvasElement, detections: NormDetection[]): { canvas: HTMLCanvasElement; usedCrop: boolean } {
   const picked = pickVehicleBox(detections)
-  if (!picked) return source
+  if (!picked) return { canvas: source, usedCrop: false }
   const rect = paddedCropNorm(picked)
   const sx = Math.max(0, Math.floor(rect.x0 * source.width))
   const sy = Math.max(0, Math.floor(rect.y0 * source.height))
@@ -128,9 +136,9 @@ function cropCanvas(source: HTMLCanvasElement, detections: NormDetection[]): HTM
   cropped.width = sw
   cropped.height = sh
   const ctx = cropped.getContext('2d', { willReadFrequently: true })
-  if (!ctx) return source
+  if (!ctx) return { canvas: source, usedCrop: false }
   ctx.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh)
-  return cropped
+  return { canvas: cropped, usedCrop: true }
 }
 
 function loadSiglipSession(): Promise<SiglipSession> {
@@ -186,7 +194,6 @@ function loadDfineSession(): Promise<DfineSession | null> {
           id2label,
         }
       } catch {
-        // Crop is optional: this scan uses the whole photo, and the next scan retries the download.
         dfinePromise = null
         return null
       }
@@ -195,7 +202,6 @@ function loadDfineSession(): Promise<DfineSession | null> {
   return dfinePromise
 }
 
-/** Progress listeners are owned by embedImage, so the SigLIP download keeps reporting after detection. */
 async function detectVehicles(source: HTMLCanvasElement): Promise<NormDetection[]> {
   try {
     const session = await loadDfineSession()
@@ -222,6 +228,69 @@ async function detectVehicles(source: HTMLCanvasElement): Promise<NormDetection[
   }
 }
 
+async function preparePhotoCropFromCanvas(source: HTMLCanvasElement): Promise<PreparedPhoto> {
+  let detections: NormDetection[] = []
+  try {
+    detections = await detectVehicles(source)
+  } catch {
+    detections = []
+  }
+  const { canvas: cropped, usedCrop } = cropCanvas(source, detections)
+  const previewCanvas = usedCrop ? cropped : source
+  const embedCanvas = fitCanvasLongEdge(cropped, MAX_EDGE)
+  return { previewCanvas, embedCanvas, usedCrop }
+}
+
+/** Detect + crop only. Scanner shows previewCanvas; keep embedCanvas for embedPrepared on Scan. */
+export async function preparePhotoCrop(
+  blob: Blob,
+  onProgress?: (progress: ClipProgress) => void,
+): Promise<PreparedPhoto> {
+  if (typeof document === 'undefined') throw new ClipError('runtime', 'The scanner runs in the browser')
+  if (onProgress) progressListeners.add(onProgress)
+  try {
+    const source = await workingCanvasFromBlob(blob)
+    return await preparePhotoCropFromCanvas(source)
+  } finally {
+    if (onProgress) progressListeners.delete(onProgress)
+  }
+}
+
+async function embedPreparedInner(prepared: PreparedPhoto): Promise<Float32Array> {
+  const session = await loadSiglipSession()
+  const image = session.RawImage.fromCanvas(prepared.embedCanvas)
+  const inputs = await session.processor(image)
+  const output = await session.model(inputs)
+  const data = poolerOutput(output)
+  if (!data || data.length !== SCAN_EMBEDDING_DIM) {
+    throw new ClipError('model', 'Scanner model returned an unexpected fingerprint')
+  }
+  const normalized = l2Normalize(data)
+  if (!normalized) throw new ClipError('model', 'Scanner model returned an empty fingerprint')
+  return normalized
+}
+
+/** Embed a prepared crop (same canvas as embedImage would use). */
+export async function embedPrepared(
+  prepared: PreparedPhoto,
+  onProgress?: (progress: ClipProgress) => void,
+): Promise<Float32Array> {
+  if (typeof document === 'undefined') throw new ClipError('runtime', 'The scanner runs in the browser')
+  if (onProgress) progressListeners.add(onProgress)
+  try {
+    return await embedPreparedInner(prepared)
+  } finally {
+    if (onProgress) progressListeners.delete(onProgress)
+  }
+}
+
+/** Warm the SigLIP weights after crop so Scan can start the fingerprint sooner. */
+export function prefetchSiglip(): void {
+  void loadSiglipSession().catch(() => {
+    /* Next embed will retry. */
+  })
+}
+
 export async function embedImage(
   blob: Blob,
   onProgress?: (progress: ClipProgress) => void,
@@ -230,25 +299,8 @@ export async function embedImage(
   if (onProgress) progressListeners.add(onProgress)
   try {
     const source = await workingCanvasFromBlob(blob)
-    let detections: NormDetection[] = []
-    try {
-      detections = await detectVehicles(source)
-    } catch {
-      detections = []
-    }
-    const cropped = cropCanvas(source, detections)
-    const fitted = fitCanvasLongEdge(cropped, MAX_EDGE)
-    const session = await loadSiglipSession()
-    const image = session.RawImage.fromCanvas(fitted)
-    const inputs = await session.processor(image)
-    const output = await session.model(inputs)
-    const data = poolerOutput(output)
-    if (!data || data.length !== SCAN_EMBEDDING_DIM) {
-      throw new ClipError('model', 'Scanner model returned an unexpected fingerprint')
-    }
-    const normalized = l2Normalize(data)
-    if (!normalized) throw new ClipError('model', 'Scanner model returned an empty fingerprint')
-    return normalized
+    const prepared = await preparePhotoCropFromCanvas(source)
+    return await embedPreparedInner(prepared)
   } finally {
     if (onProgress) progressListeners.delete(onProgress)
   }

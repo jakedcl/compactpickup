@@ -2,7 +2,16 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { ClipError, embedImage, EMBED_PIPELINE } from '@/lib/clip/browser'
+import VhsProgressBar from '@/components/ui/VhsProgressBar'
+import {
+  ClipError,
+  EMBED_PIPELINE,
+  embedPrepared,
+  prefetchSiglip,
+  preparePhotoCrop,
+  type PreparedPhoto,
+} from '@/lib/clip/browser'
+import { clipProgressPercent, isDfineProgress, isSiglipProgress } from '@/lib/clip/progress'
 import {
   SCAN_CONSENT_VALUE,
   SCAN_FIELDS,
@@ -20,6 +29,7 @@ const UPLOAD_LONG_EDGE = 1600
 const UPLOAD_JPEG_QUALITY = 0.85
 
 type Phase = 'idle' | 'preview' | 'working' | 'error'
+type CropPhase = 'idle' | 'cropping' | 'ready' | 'error'
 type ModalStep = 'results' | 'correction' | 'consent' | 'done'
 type SubmitPhase = 'idle' | 'sending' | 'sent' | 'duplicate' | 'error'
 
@@ -99,6 +109,14 @@ async function shrinkVisitorJpeg(file: Blob): Promise<File> {
   }
 }
 
+async function canvasPreviewUrl(canvas: HTMLCanvasElement): Promise<string> {
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/jpeg', 0.92)
+  })
+  if (!blob) throw new ClipError('photo', 'Could not read the photo')
+  return URL.createObjectURL(blob)
+}
+
 export default function Scanner({
   trucks,
   catalogStatus,
@@ -108,13 +126,18 @@ export default function Scanner({
 }) {
   const device = useMobileDevice()
   const runId = useRef(0)
+  const cropRunId = useRef(0)
   const previewRef = useRef<string | null>(null)
+  const preparedRef = useRef<PreparedPhoto | null>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const libraryInputRef = useRef<HTMLInputElement>(null)
   const chooseInputRef = useRef<HTMLInputElement>(null)
   const dragDepth = useRef(0)
 
   const [phase, setPhase] = useState<Phase>('idle')
+  const [cropPhase, setCropPhase] = useState<CropPhase>('idle')
+  const [cropProgress, setCropProgress] = useState(0)
+  const [scanProgress, setScanProgress] = useState(0)
   const [status, setStatus] = useState('Pick a photo, then press Scan when you are ready.')
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
@@ -128,7 +151,10 @@ export default function Scanner({
   const [dragging, setDragging] = useState(false)
   const [chosenTruck, setChosenTruck] = useState<ScanCatalogTruck | null>(null)
 
-  const busy = phase === 'working' || submitPhase === 'sending'
+  const scanning = phase === 'working'
+  const cropBusy = cropPhase === 'cropping'
+  const busy = scanning || cropBusy || submitPhase === 'sending'
+  const scanReady = Boolean(file) && cropPhase === 'ready'
   const top = result?.matches[0] ?? null
   const canFeedback = Boolean(top)
 
@@ -145,10 +171,15 @@ export default function Scanner({
 
   const resetSession = useCallback(() => {
     runId.current += 1
+    cropRunId.current += 1
+    preparedRef.current = null
     clearPreviewUrl()
     setFile(null)
     setPreview(null)
     setPhase('idle')
+    setCropPhase('idle')
+    setCropProgress(0)
+    setScanProgress(0)
     setResult(null)
     setModalOpen(false)
     setModalStep('results')
@@ -166,12 +197,14 @@ export default function Scanner({
       return
     }
     runId.current += 1
-    setFile(next)
+    preparedRef.current = null
     clearPreviewUrl()
-    const url = URL.createObjectURL(next)
-    previewRef.current = url
-    setPreview(url)
+    setFile(next)
+    setPreview(null)
     setPhase('preview')
+    setCropPhase('cropping')
+    setCropProgress(4)
+    setScanProgress(0)
     setResult(null)
     setModalOpen(false)
     setModalStep('results')
@@ -180,8 +213,55 @@ export default function Scanner({
     setSubmitPhase('idle')
     setSubmitMessage('')
     setChosenTruck(null)
-    setStatus('Press Scan when you are ready, or replace the photo.')
+    setStatus('Press Scan when cropping finishes.')
   }, [clearPreviewUrl])
+
+  useEffect(() => {
+    if (!file) return undefined
+    const blob: Blob = file
+    const id = (cropRunId.current += 1)
+    let cancelled = false
+    let creep: ReturnType<typeof setInterval> | null = null
+    creep = setInterval(() => {
+      setCropProgress((value) => Math.min(94, value + (value < 40 ? 1.5 : 0.4)))
+    }, 180)
+
+    async function run() {
+      try {
+        const prepared = await preparePhotoCrop(blob, (progress) => {
+          if (cancelled || cropRunId.current !== id) return
+          if (isDfineProgress(progress)) {
+            const n = clipProgressPercent(progress)
+            if (n != null) setCropProgress(Math.min(90, 6 + n * 0.84))
+          }
+          if (progress.status === 'ready' || progress.status === 'done') {
+            setCropProgress((value) => Math.max(value, 72))
+          }
+        })
+        if (cancelled || cropRunId.current !== id) return
+        if (creep) clearInterval(creep)
+        setCropProgress(100)
+        preparedRef.current = prepared
+        clearPreviewUrl()
+        const url = await canvasPreviewUrl(prepared.previewCanvas)
+        previewRef.current = url
+        setPreview(url)
+        setCropPhase('ready')
+        setStatus('Press Scan when you are ready, or replace the photo.')
+        prefetchSiglip()
+      } catch (error) {
+        if (cancelled || cropRunId.current !== id) return
+        if (creep) clearInterval(creep)
+        setCropPhase('error')
+        setStatus(clientMessage(error))
+      }
+    }
+    void run()
+    return () => {
+      cancelled = true
+      if (creep) clearInterval(creep)
+    }
+  }, [file, clearPreviewUrl])
 
   function pickGuess(match: ScanMatch, index: number) {
     if (!top) return
@@ -198,30 +278,36 @@ export default function Scanner({
   }
 
   const scanPhoto = useCallback(async () => {
-    if (!file) return
-    const id = runId.current + 1
-    runId.current = id
+    const prepared = preparedRef.current
+    if (!prepared || !file) return
+    const id = (runId.current += 1)
     setPhase('working')
     setResult(null)
-    setStatus(
-      'Reading the photo. The first time downloads the scanner and crop model (about 75 MB) onto this device and keeps it there.',
-    )
+    setScanProgress(8)
+    const creep: ReturnType<typeof setInterval> | null = setInterval(() => {
+      setScanProgress((value) => Math.min(97, value + 0.35))
+    }, 120)
     try {
-      const vector = await embedImage(file, (progress) => {
+      const vector = await embedPrepared(prepared, (progress) => {
         if (runId.current !== id) return
-        if (progress.status === 'progress' && typeof progress.progress === 'number') {
-          setStatus(`Downloading the scanner. ${Math.round(progress.progress)}%`)
+        if (isSiglipProgress(progress)) {
+          const n = clipProgressPercent(progress)
+          if (n != null) setScanProgress(Math.min(70, 8 + n * 0.62))
+        }
+        if (progress.status === 'ready' || progress.status === 'done') {
+          setScanProgress((value) => Math.max(value, 68))
         }
       })
       if (runId.current !== id) return
-      setStatus('Checking the library')
+      setScanProgress((value) => Math.max(value, 76))
       const response = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify({ embedding: Array.from(vector), pipeline: EMBED_PIPELINE }),
       })
-      const payload = await response.json().catch(() => null)
       if (runId.current !== id) return
+      setScanProgress((value) => Math.max(value, 92))
+      const payload = await response.json().catch(() => null)
       if (!response.ok) {
         setPhase('error')
         const stale =
@@ -240,6 +326,7 @@ export default function Scanner({
         setStatus('Signal lost. The scanner did not answer.')
         return
       }
+      setScanProgress(100)
       setResult(parsed)
       setPhase('preview')
       setModalOpen(true)
@@ -259,6 +346,8 @@ export default function Scanner({
       if (runId.current !== id) return
       setPhase('error')
       setStatus(clientMessage(error))
+    } finally {
+      if (creep) clearInterval(creep)
     }
   }, [file])
 
@@ -411,15 +500,16 @@ export default function Scanner({
           <p>Drop photo</p>
         </div>
       ) : null}
-      <p className="scan-note">The photo stays on this device until you choose to send a copy.</p>
       <div className="scan-preview">
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt="The photo you chose" />
+          <img src={preview} alt="Cropped truck preview" />
         ) : (
-          <p>No photo yet</p>
+          <p>{cropBusy ? 'Cropping' : 'No photo yet'}</p>
         )}
       </div>
+      <VhsProgressBar label="Cropping the truck…" value={cropProgress} visible={cropBusy} />
+      <VhsProgressBar label="Scanning the truck…" value={scanProgress} visible={scanning} />
       {!file ? (
         <div className={`scan-actions${device === 'desktop' ? ' is-single' : ''}`}>
           {device === 'unknown' ? (
@@ -484,8 +574,13 @@ export default function Scanner({
       ) : null}
       {file ? (
         <div className="scan-preview-actions">
-          <button type="button" className="btn btn-accent" disabled={busy} onClick={() => void scanPhoto()}>
-            {phase === 'working' ? 'Scanning…' : 'Scan'}
+          <button
+            type="button"
+            className="btn btn-accent"
+            disabled={busy || !scanReady}
+            onClick={() => void scanPhoto()}
+          >
+            {scanning ? 'Scanning…' : 'Scan'}
           </button>
           <button type="button" className="btn" disabled={busy} onClick={resetSession}>
             Replace photo
@@ -496,7 +591,7 @@ export default function Scanner({
         {status}
       </p>
       {phase === 'error' && file ? (
-        <button type="button" className="btn" onClick={() => void scanPhoto()}>
+        <button type="button" className="btn" onClick={() => void scanPhoto()} disabled={!scanReady || busy}>
           Try again
         </button>
       ) : null}
