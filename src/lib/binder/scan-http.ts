@@ -3,6 +3,7 @@ import 'server-only'
 import { getPool } from '@/lib/binder/db'
 import { isSameOrigin } from '@/lib/binder/origin'
 import { putPhoto } from '@/lib/binder/r2'
+import { EMBED_PIPELINE } from '@/lib/clip/pipeline'
 import {
   SCAN_BODY_MAX_BYTES,
   SUBMIT_BODY_MAX_BYTES,
@@ -103,7 +104,19 @@ export async function scanPost(request: Request, deps: ScanDeps = defaultScanDep
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return json({ ok: false, error: 'invalid', message: 'The scan was not readable.' }, 400)
   }
-  const embedding = normalizeScanEmbedding((body as { embedding?: unknown }).embedding)
+  const record = body as { embedding?: unknown; pipeline?: unknown }
+  if (record.pipeline !== EMBED_PIPELINE) {
+    return json(
+      {
+        ok: false,
+        error: 'stale_model',
+        message: 'This tab is still on the old scanner. Reload the page and try again.',
+        reload: true,
+      },
+      400,
+    )
+  }
+  const embedding = normalizeScanEmbedding(record.embedding)
   if (!embedding.ok) {
     if (embedding.stale) {
       return json(

@@ -1,30 +1,31 @@
 'use client'
 
 import { SCAN_EMBEDDING_DIM, l2Normalize } from '@/lib/binder/clip'
+import { paddedCropNorm, pickVehicleBox, type NormDetection } from '@/lib/clip/crop-select'
+import { fitCanvasLongEdge } from '@/lib/clip/crop-canvas'
+import { postProcessDfineDetections } from '@/lib/clip/dfine-post'
+import {
+  DFINE_BROWSER_DTYPE,
+  DFINE_BROWSER_MODEL,
+  EMBED_MODEL,
+  EMBED_PIPELINE,
+  SIGLIP_BROWSER_DTYPE,
+  SIGLIP_BROWSER_MODEL,
+} from '@/lib/clip/pipeline'
 
 /**
  * Canonical vision extractor for the public scanner and the review tools.
  * Both sides must import embedImage from this file so stored fingerprints
  * and visitor fingerprints stay in one space.
  *
- * Model: onnx-community/siglip2-base-patch16-224-ONNX (SiglipVisionModel).
- * Weights: quantized vision encoder (q4, about 63 MB), loaded once and kept
- * in the browser cache. Device is WASM with one thread so iPhone Safari does
- * not need cross-origin isolation. The image is drawn to a canvas whose long
- * edge is at most 768px, then read with RawImage.fromCanvas. Output is
- * pooler_output, L2-normalized to 768 numbers.
- *
- * embedImage(blob, onProgress?) forwards transformers.js progress_callback
- * events while that shared load is in flight. Later callers can subscribe
- * to the same load; events that already fired are not repeated.
+ * Pipeline: D-FINE nano (vehicle box, 15% pad) → SigLIP2-base q4 pooler (768-d).
+ * Detector and embedder load lazily with shared progress events and browser cache.
  */
-export const EMBED_MODEL = 'siglip2-base-q4'
-export const SIGLIP_BROWSER_MODEL = 'onnx-community/siglip2-base-patch16-224-ONNX'
-export const SIGLIP_BROWSER_DTYPE = 'q4' as const
-
-/** @deprecated Use SIGLIP_BROWSER_MODEL. */
+export { EMBED_MODEL, EMBED_PIPELINE }
+export const SIGLIP_BROWSER_DTYPE_EXPORT = SIGLIP_BROWSER_DTYPE
+/** @deprecated Use SIGLIP_BROWSER_MODEL from pipeline.ts */
 export const CLIP_BROWSER_MODEL = SIGLIP_BROWSER_MODEL
-/** @deprecated Use SIGLIP_BROWSER_DTYPE. */
+/** @deprecated Use SIGLIP_BROWSER_DTYPE from pipeline.ts */
 export const CLIP_BROWSER_DTYPE = SIGLIP_BROWSER_DTYPE
 
 const MAX_EDGE = 768
@@ -61,8 +62,18 @@ type SiglipSession = {
   model: (inputs: unknown) => Promise<unknown>
 }
 
+type DfineSession = {
+  processor: (images: unknown) => Promise<{
+    pixel_values: unknown
+    pixel_mask?: unknown
+  }>
+  model: (inputs: unknown) => Promise<unknown>
+  id2label: Record<string, string>
+}
+
 const progressListeners = new Set<(progress: ClipProgress) => void>()
-let sessionPromise: Promise<SiglipSession> | null = null
+let siglipPromise: Promise<SiglipSession> | null = null
+let dfinePromise: Promise<DfineSession | null> | null = null
 
 function emitProgress(progress: ClipProgress) {
   for (const listener of progressListeners) {
@@ -78,29 +89,42 @@ function poolerOutput(output: unknown): ArrayLike<number> | null {
   return data
 }
 
-async function drawFitted(input: Blob): Promise<HTMLCanvasElement> {
+async function bitmapFromBlob(input: Blob): Promise<ImageBitmap> {
   if (input.size === 0) throw new ClipError('photo', 'Could not read the photo')
-  const bitmap = await createImageBitmap(input)
-  try {
-    if (bitmap.width < 1 || bitmap.height < 1) throw new ClipError('photo', 'Could not read the photo')
-    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height))
-    const width = Math.max(1, Math.round(bitmap.width * scale))
-    const height = Math.max(1, Math.round(bitmap.height * scale))
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (!ctx) throw new ClipError('photo', 'Could not read the photo')
-    ctx.drawImage(bitmap, 0, 0, width, height)
-    return canvas
-  } finally {
+  const bitmap = await createImageBitmap(input, { imageOrientation: 'from-image' })
+  if (bitmap.width < 1 || bitmap.height < 1) {
     bitmap.close()
+    throw new ClipError('photo', 'Could not read the photo')
   }
+  return bitmap
 }
 
-function loadSession(): Promise<SiglipSession> {
-  if (!sessionPromise) {
-    sessionPromise = (async () => {
+function cropBitmap(bitmap: ImageBitmap, detections: NormDetection[]): HTMLCanvasElement {
+  const picked = pickVehicleBox(detections)
+  if (!picked) {
+    const full = document.createElement('canvas')
+    full.width = bitmap.width
+    full.height = bitmap.height
+    full.getContext('2d', { willReadFrequently: true })?.drawImage(bitmap, 0, 0)
+    return full
+  }
+  const rect = paddedCropNorm(picked)
+  const sx = Math.max(0, Math.floor(rect.x0 * bitmap.width))
+  const sy = Math.max(0, Math.floor(rect.y0 * bitmap.height))
+  const sw = Math.max(1, Math.ceil(rect.x1 * bitmap.width) - sx)
+  const sh = Math.max(1, Math.ceil(rect.y1 * bitmap.height) - sy)
+  const cropped = document.createElement('canvas')
+  cropped.width = sw
+  cropped.height = sh
+  const ctx = cropped.getContext('2d', { willReadFrequently: true })
+  if (!ctx) throw new ClipError('photo', 'Could not read the photo')
+  ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, sw, sh)
+  return cropped
+}
+
+function loadSiglipSession(): Promise<SiglipSession> {
+  if (!siglipPromise) {
+    siglipPromise = (async () => {
       const transformers = await import('@huggingface/transformers')
       const { env, AutoProcessor, SiglipVisionModel, RawImage } = transformers
       env.allowLocalModels = false
@@ -120,11 +144,75 @@ function loadSession(): Promise<SiglipSession> {
         model: (inputs: unknown) => model(inputs),
       }
     })().catch((error: unknown) => {
-      sessionPromise = null
+      siglipPromise = null
       throw error
     })
   }
-  return sessionPromise
+  return siglipPromise
+}
+
+function loadDfineSession(): Promise<DfineSession | null> {
+  if (dfinePromise === null) {
+    dfinePromise = (async () => {
+      try {
+        const transformers = await import('@huggingface/transformers')
+        const { env, AutoProcessor, DFineForObjectDetection } = transformers
+        env.allowLocalModels = false
+        env.useBrowserCache = true
+        const wasm = env.backends.onnx.wasm
+        if (wasm) wasm.numThreads = 1
+        const progress_callback = (progress: ClipProgress) => emitProgress(progress)
+        const processor = await AutoProcessor.from_pretrained(DFINE_BROWSER_MODEL, { progress_callback })
+        const model = await DFineForObjectDetection.from_pretrained(DFINE_BROWSER_MODEL, {
+          dtype: DFINE_BROWSER_DTYPE,
+          device: 'wasm',
+          progress_callback,
+        })
+        const id2label = ((model.config as { id2label?: Record<string, string> }).id2label) ?? {}
+        return {
+          processor: (images: unknown) => processor(images as Parameters<typeof processor>[0]),
+          model: (inputs: unknown) => model(inputs as Parameters<typeof model>[0]),
+          id2label,
+        }
+      } catch {
+        return null
+      }
+    })()
+  }
+  return dfinePromise
+}
+
+async function detectVehicles(bitmap: ImageBitmap, onProgress?: (progress: ClipProgress) => void): Promise<NormDetection[]> {
+  if (onProgress) progressListeners.add(onProgress)
+  try {
+    const session = await loadDfineSession()
+    if (!session) return []
+    const transformers = await import('@huggingface/transformers')
+    const { RawImage } = transformers
+    const full = document.createElement('canvas')
+    full.width = bitmap.width
+    full.height = bitmap.height
+    full.getContext('2d', { willReadFrequently: true })?.drawImage(bitmap, 0, 0)
+    const image = RawImage.fromCanvas(full)
+    const prepared = await session.processor(image)
+    const output = await session.model(prepared)
+    if (!output || typeof output !== 'object') return []
+    const record = output as {
+      logits?: { dims: number[]; data: Float32Array }
+      pred_boxes?: { dims: number[]; data: Float32Array }
+    }
+    if (!record.logits || !record.pred_boxes) return []
+    return postProcessDfineDetections(
+      { logits: record.logits, pred_boxes: record.pred_boxes },
+      session.id2label,
+      bitmap.width,
+      bitmap.height,
+    )
+  } catch {
+    return []
+  } finally {
+    if (onProgress) progressListeners.delete(onProgress)
+  }
 }
 
 export async function embedImage(
@@ -133,10 +221,18 @@ export async function embedImage(
 ): Promise<Float32Array> {
   if (typeof document === 'undefined') throw new ClipError('runtime', 'The scanner runs in the browser')
   if (onProgress) progressListeners.add(onProgress)
+  const bitmap = await bitmapFromBlob(blob)
   try {
-    const session = await loadSession()
-    const canvas = await drawFitted(blob)
-    const image = session.RawImage.fromCanvas(canvas)
+    let detections: NormDetection[] = []
+    try {
+      detections = await detectVehicles(bitmap, onProgress)
+    } catch {
+      detections = []
+    }
+    const cropped = cropBitmap(bitmap, detections)
+    const fitted = fitCanvasLongEdge(cropped, MAX_EDGE)
+    const session = await loadSiglipSession()
+    const image = session.RawImage.fromCanvas(fitted)
     const inputs = await session.processor(image)
     const output = await session.model(inputs)
     const data = poolerOutput(output)
@@ -147,6 +243,7 @@ export async function embedImage(
     if (!normalized) throw new ClipError('model', 'Scanner model returned an empty fingerprint')
     return normalized
   } finally {
+    bitmap.close()
     if (onProgress) progressListeners.delete(onProgress)
   }
 }

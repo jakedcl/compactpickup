@@ -36,6 +36,7 @@ import {
   type ScanClient,
   type SubmitDeps,
 } from './scan'
+import { EMBED_PIPELINE } from '../clip/pipeline'
 import { SCAN_FIELDS, formatScanScorePercent, toScanTruck, type ScanCatalogTruck } from './scan-types'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -286,7 +287,10 @@ function scanRequest(embedding: unknown, ip = '203.0.113.8', origin = ORIGIN): R
   return new Request(`${ORIGIN}/api/scan`, {
     method: 'POST',
     headers: { origin, 'content-type': 'application/json', 'x-forwarded-for': ip },
-    body: typeof embedding === 'string' ? embedding : JSON.stringify({ embedding }),
+    body:
+      typeof embedding === 'string'
+        ? embedding
+        : JSON.stringify({ embedding, pipeline: EMBED_PIPELINE }),
   })
 }
 
@@ -462,6 +466,15 @@ test('scan route rejects a bad origin, a bad fingerprint, and an oversized body'
   )
   assert.equal(missing.status, 403)
   assert.equal((await scanPost(scanRequest(vector().slice(0, 767)), deps)).status, 400)
+  const noPipeline = await scanPost(
+    new Request(`${ORIGIN}/api/scan`, {
+      method: 'POST',
+      headers: { origin: ORIGIN, 'content-type': 'application/json' },
+      body: JSON.stringify({ embedding: vector() }),
+    }),
+    deps,
+  )
+  assert.equal(noPipeline.status, 400)
   const stale = await scanPost(scanRequest(Array(CLIP_EMBEDDING_DIM).fill(0.1)), deps)
   const staleBody = (await stale.json()) as { reload?: boolean; error?: string }
   assert.equal(stale.status, 400)
@@ -846,7 +859,7 @@ test('ipv6 visitors in one /64 share a scan bucket and x-real-ip wins', async ()
       'x-real-ip': '203.0.113.8',
       'x-forwarded-for': '198.51.100.4',
     },
-    body: JSON.stringify({ embedding: vector() }),
+    body: JSON.stringify({ embedding: vector(), pipeline: EMBED_PIPELINE }),
   })
   assert.equal((await scanPost(spoofed, trusted.deps())).status, 429)
   assert.equal((await scanPost(scanRequest(vector(), '198.51.100.4'), trusted.deps())).status, 200)

@@ -275,20 +275,23 @@ test('robots keeps the binder and the api out of the crawl', () => {
   assert.ok(disallow.includes('/studio/'))
 })
 
-test('the shared fingerprint module is the browser SigLIP contract', () => {
+test('the shared fingerprint module is the SigLIP + D-FINE crop contract', () => {
   const source = readFileSync(path.join(root, 'src/lib/clip/browser.ts'), 'utf8')
+  const pipeline = readFileSync(path.join(root, 'src/lib/clip/pipeline.ts'), 'utf8')
   assert.match(source, /export async function embedImage\(\s*blob: Blob/)
   assert.match(source, /ClipProgress/)
   assert.match(source, /ClipError/)
   assert.match(source, /l2Normalize/)
-  assert.match(source, /siglip2-base-patch16-224-ONNX/)
+  assert.match(pipeline, /dfine_n_coco-ONNX/)
   assert.match(source, /Promise<Float32Array>/)
   assert.match(source, /768/)
-  assert.match(source, /EMBED_MODEL/)
+  assert.match(source, /EMBED_PIPELINE/)
   assert.match(source, /SiglipVisionModel/)
+  assert.match(source, /DFineForObjectDetection/)
   assert.match(source, /pooler_output/)
   assert.match(source, /progress_callback/)
-  assert.match(source, /q4/)
+  assert.match(source, /pickVehicleBox/)
+  assert.match(pipeline, /siglip2-base-q4\+dfine-crop15/)
 })
 
 test('SigLIP fingerprint migration adds embedding_siglip', () => {

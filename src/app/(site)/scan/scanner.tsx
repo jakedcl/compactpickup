@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { ClipError, embedImage } from '@/lib/clip/browser'
+import { ClipError, embedImage, EMBED_PIPELINE } from '@/lib/clip/browser'
 import {
   SCAN_CONSENT_VALUE,
   SCAN_FIELDS,
@@ -203,7 +203,9 @@ export default function Scanner({
     runId.current = id
     setPhase('working')
     setResult(null)
-    setStatus('Reading the photo. The first time downloads the scanner (about 63 MB) onto this device and keeps it there.')
+    setStatus(
+      'Reading the photo. The first time downloads the scanner and crop model (about 75 MB) onto this device and keeps it there.',
+    )
     try {
       const vector = await embedImage(file, (progress) => {
         if (runId.current !== id) return
@@ -216,7 +218,7 @@ export default function Scanner({
       const response = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ embedding: Array.from(vector) }),
+        body: JSON.stringify({ embedding: Array.from(vector), pipeline: EMBED_PIPELINE }),
       })
       const payload = await response.json().catch(() => null)
       if (runId.current !== id) return
