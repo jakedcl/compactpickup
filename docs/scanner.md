@@ -117,13 +117,13 @@ After a scan, a visitor can say the answer was right or wrong (and name the righ
 | Store | What | Notes |
 |---|---|---|
 | **Sanity** (project `xbw6uf6e`, dataset `production`) | Manufacturers and truck models: everything on the public pages, including page photos | Edited at `/studio`. Public, read without a token. Pages revalidate hourly. |
-| **Neon Postgres** (pgvector) | `photos`: binder photos and fingerprints | Key columns: `truck_id` (the Sanity `_id`), `truck_slug`, `status` (`pending`/`approved`/`rejected`), `source`, `sha256`, `r2_key`, `angle`, `embedding_siglip vector(768)` (current), `embedding vector(512)` (legacy CLIP, unused). |
+| **Neon Postgres** (pgvector) | `photos`: binder photos and fingerprints | Key columns: `truck_id` (the Sanity `_id`), `truck_slug`, `status` (`pending`/`approved`/`rejected`), `source`, `sha256`, `r2_key`, `angle`, `embedding_siglip vector(768)`. The legacy CLIP `embedding vector(512)` column was dropped in migration 007. |
 | | `scanner_feedback`, `scanner_rate_buckets` | Visitor verdicts (consent required by a DB constraint), and rate-limit counters (old buckets are pruned automatically) |
 | | `photo_ai_reviews`, `truck_faces` | Offline review notes, and optional face labels (`npm run seed:faces`). Faces never affect matching. |
 | | `login_codes`, `login_attempts` | Binder sign-in |
 | **Cloudflare R2** (private bucket) | Binder photo files (WebP + thumb) | Served to the signed-in admin only, via `/api/admin/photos/[id]` |
 
-**Why a truck page can have no photos while the scanner still knows the truck:** truck pages show Sanity images. The scanner uses binder photos in Neon/R2. They are separate on purpose. Scanner reference photos (auction listings, Commons, uploads) don't have to be good enough or licensed for the public page, and page images don't automatically become reference photos until imported and approved. Schema lives in `db/migrations/` (001–006).
+**Why a truck page can have no photos while the scanner still knows the truck:** truck pages show Sanity images. The scanner uses binder photos in Neon/R2. They are separate on purpose. Scanner reference photos (auction listings, Commons, uploads) don't have to be good enough or licensed for the public page, and page images don't automatically become reference photos until imported and approved. Schema lives in `db/migrations/` (001–007).
 
 ## Rate limits, abuse and cost
 
@@ -201,7 +201,7 @@ Never compare vectors across pipelines, and never run a server-side (Python/Node
 
 ## Known follow-ups
 
-- **Cleanup after the new scanner is confirmed live:** drop the legacy `photos.embedding` (512-d CLIP) column and its indexes, and delete the 123 rejected photos (after moving any good wrong-truck photos to their right truck). Both are kept only until then.
+- ~~Cleanup after the new scanner is confirmed live~~ (done Nov 11, 2026): the legacy CLIP column and its indexes are dropped (migration 007), misfiled Sonoma photos were moved off S-15, and the rejected photos were deleted.
 - **Probe scorer:** train on the current fingerprints and ship `src/lib/scan/probe.json` (about +10 points top-1 on the test set).
 - **Fine-tuning** SigLIP2 on the binder photos, for a bigger jump. Needs a careful train/test split and re-export to ONNX q4.
 - **Optional OpenAI double-check** on low-confidence scans. It costs money per scan, so only with a hard daily cap.

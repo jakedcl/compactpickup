@@ -23,7 +23,7 @@ The framework repo is private. Cloud agents open it with `git clone --depth 1 ht
 - `src/app/api/auth/` one-time code. `src/app/api/admin/` review routes for the signed-in admin.
 - `src/components/` ImageCarousel, 3D truck viewer, `ui/`. `src/lib/`. `src/lib/binder/` db, R2, WebP, session. `src/lib/clip/` shared browser crop + fingerprint (`browser.ts`, `pipeline.ts` = EMBED_PIPELINE and crop constants). `src/lib/binder/scan.ts` matching, thresholds, rate limits. `src/lib/scan/probe.ts` optional probe scorer.
 - `sanity/schemaTypes/` manufacturer, truckModel, truckSpecFields.
-- `db/migrations/` (001–006), `data/truck-faces.json`, `scripts/` (migrate, import:sanity, import:folder, import:ai-reviews, seed:faces, fix:makes; `scanner-eval/` for the accuracy eval).
+- `db/migrations/` (001–007), `data/truck-faces.json`, `scripts/` (migrate, import:sanity, import:folder, import:ai-reviews, seed:faces, fix:makes; `scanner-eval/` for the accuracy eval).
 - `docs/scanner.md` (scanner architecture, data, costs, eval, how to change the model), `docs/screenshot.png`.
 
 ## Commands
@@ -38,7 +38,7 @@ The framework repo is private. Cloud agents open it with `git clone --depth 1 ht
 - Binder photos: one ~1600px WebP in private R2, plus a 480px thumb. sha256 of the bytes handed to the importer, for dedupe. status `pending` until the owner approves at `/binder`. Visitor scanner submissions also land as `pending` (source `visitor`), and only with consent.
 - Scanner fingerprints: 768-d SigLIP2-base q4 on a D-FINE vehicle crop (score ≥ 0.2, 15% pad, full-photo fallback). Always computed in the browser by `src/lib/clip/browser.ts` (`embedImage`, or `preparePhotoCrop` + `embedPrepared` on /scan; identical output). Stored in `photos.embedding_siglip` on approve and cleared on reject. Matching uses `approved` rows with `embedding_siglip` not null: 40 nearest by cosine, mean of the best 3 per truck, match at ≥ 0.80 with a ≥ 0.02 margin. Optional probe weights load from `src/lib/scan/probe.json` when present. `truck_faces` labels never affect matching. Add faces in `data/truck-faces.json`.
 - **Changing the model, dtype, crop or sizing makes every stored fingerprint stale.** Bump `EMBED_PIPELINE` in `src/lib/clip/pipeline.ts` (`/api/scan` rejects other ids with `stale_model`), re-fingerprint all approved photos, and re-run the eval. See docs/scanner.md. Never ship SigLIP2 as q8 (broken in the browser).
-- The legacy `photos.embedding` (512-d CLIP) is unused. It is kept only until the post-launch cleanup, together with the rejected photos.
+- The legacy `photos.embedding` (512-d CLIP) column was dropped in migration 007. Rejected photos were cleaned out on Nov 11, 2026 (rows and R2 files), after moving the good wrong-truck ones.
 - Sign-in allows only `ADMIN_EMAIL` (see `.env.example`). Codes are hashed, emailed with Resend, and the session is an httpOnly SameSite=Lax cookie signed with `AUTH_SECRET`. No shared password. Code sends are capped per day. Lockout counts failures against codes that were actually issued.
 - The old `compactpickup-2` and `compactpickup-2-api` class repos were deleted from GitHub. This repo is the live one.
 

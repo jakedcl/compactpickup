@@ -1,17 +1,18 @@
 /**
- * Scanner fingerprints. SigLIP2-base in the browser; legacy CLIP column kept in Postgres.
+ * Scanner fingerprints. SigLIP2-base in the browser.
  *
  * Active model: onnx-community/siglip2-base-patch16-224-ONNX (q4), 768-d, pooler_output, cosine.
  * Browser weights: src/lib/clip/browser.ts
  * Column: photos.embedding_siglip (db/migrations/006_embedding_siglip.sql)
  *
- * Legacy CLIP ViT-B/32: 512-d in photos.embedding (rollback only).
+ * The legacy CLIP ViT-B/32 column (photos.embedding, 512-d) was dropped in 007.
+ * CLIP_EMBEDDING_DIM stays only to spot old tabs that still send 512 numbers.
  * The public scanner embeds on the device and sends only the vector.
  * Match rows where status = 'approved' and embedding_siglip is not null.
  */
 
 export const CLIP_MODEL = 'openai/clip-vit-base-patch32'
-/** @deprecated Legacy column only. Scanner uses {@link SCAN_EMBEDDING_DIM}. */
+/** @deprecated Old CLIP clients only (stale_model check). Scanner uses {@link SCAN_EMBEDDING_DIM}. */
 export const CLIP_EMBEDDING_DIM = 512
 
 export const SIGLIP_MODEL = 'onnx-community/siglip2-base-patch16-224-ONNX'
