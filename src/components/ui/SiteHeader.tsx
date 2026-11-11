@@ -18,7 +18,7 @@ export default function SiteHeader() {
   return (
     <header className="site-header">
       <Link href="/" className="site-mark">
-        <Image src="/Pick-up.ico" alt="" width={32} height={32} unoptimized />
+        <Image src="/truck-icon.png" alt="" width={32} height={32} unoptimized />
         <span>Compact Pickup</span>
       </Link>
       <nav className="site-nav" aria-label="Sections">
