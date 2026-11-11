@@ -157,7 +157,6 @@ export default function HomeScreen({
 
   const showSuggest = suggestOpen && q.trim().length > 0
   const browseHref = `/browse${filtersToQuery({ ...EMPTY_FILTERS, q })}`
-  const filtersHref = `${browseHref}${browseHref.includes('?') ? '&' : '?'}filters=open`
 
   function blurSearch() {
     const input = searchRef.current
@@ -272,12 +271,11 @@ export default function HomeScreen({
               </div>
             ) : null}
           </div>
-          <Link href={filtersHref} className="btn btn-accent home-filters" onClick={() => searchRef.current?.blur()}>
-            Filters
-          </Link>
         </form>
         <div className="home-scan">
-          <Link href="/scan" className="btn">Scan a truck</Link>
+          <Link href="/scan" className="btn btn-accent">
+            Scan a truck
+          </Link>
         </div>
         <TruckSlideshow
           stills={slides}
