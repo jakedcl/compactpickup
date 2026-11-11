@@ -49,7 +49,7 @@ The scanner and the binder (the private photo library at `/binder`, not linked i
 - upload, a coverage list, and a Sanity import
 - offline AI review notes, and **Finish missing fingerprints**
 
-Approving a photo builds its scanner fingerprint in your browser. Only approved photos are used by the scanner. Visitors' "teach the scanner" photos arrive as pending, and only when they tick the consent box. Rejected photos stay in the library. A folder import takes each truck from the Sanity slug and ignores a truck id written in the manifest. Details are in [docs/scanner.md](docs/scanner.md#the-binder-how-reference-photos-get-in).
+Approving a photo builds its scanner fingerprint in your browser. Only approved photos are used by the scanner. The photo rule is: if it looks like that truck from the outside, it counts. Visitors' "teach the scanner" photos arrive as pending, and only when they say yes on the consent popup. Rejected photos stay in the Rejected library so they can be undone; they are not used for matching. (A one-time cleanup on November 11, 2026 deleted 119 old rejected photos; 0 remain as of that date.) A folder import takes each truck from the Sanity slug and ignores a truck id written in the manifest. Details are in [docs/scanner.md](docs/scanner.md#the-binder-how-reference-photos-get-in).
 
 Migrations, imports and scripts stay a dry run until `BINDER_CONFIRM=1`. Migrations and imports use the direct Neon URL:
 

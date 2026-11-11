@@ -6,7 +6,17 @@ Each section starts with the plain-language version and then gives the details a
 
 ## The idea in one paragraph
 
-The scanner never "understands" a truck the way a person does. It turns a photo into a **fingerprint**: a list of 768 numbers (an *embedding*) produced by a vision model. Photos of the same truck model end up with similar fingerprints. To identify a visitor's photo, the scanner compares its fingerprint against the fingerprints of about 1,500 approved reference photos and asks which truck's photos are closest. No AI service is called and nothing is trained at scan time; it is a nearest-neighbour lookup.
+The scanner never "understands" a truck the way a person does. It turns a photo into a **fingerprint**: a list of 768 numbers (an *embedding*) produced by a vision model. Photos of the same truck model end up with similar fingerprints. To identify a visitor's photo, the scanner compares its fingerprint against the fingerprints of the approved reference photos and asks which truck's photos are closest. No AI service is called and nothing is trained at scan time; it is a nearest-neighbour lookup. This is Compact Pickup's own vision pipeline, not an OpenAI wrapper. An earlier CLIP plus vision-LLM attempt (PR #30) was closed unmerged, and its branch has been deleted.
+
+### Library status (November 11, 2026)
+
+| Library | Count |
+|---|---|
+| Approved | **1,500** photos, all fingerprinted with SigLIP2 on a D-FINE crop. These are the only photos the scanner compares against. |
+| Pending | **4** Sonoma photos, moved off the S-15, waiting in `/binder`. |
+| Rejected | **0**. A one-time cleanup deleted 119 rejected photos. A local backup was kept outside the repo. |
+
+A live spot-check after the cleanup scored a Sonoma at 0.945, a Ranger at 0.918, and a Tacoma at 0.933 (raw cosine similarity, all well above the 0.80 cutoff). The photo rule is: if it looks like that truck from the outside, it counts. Every photo is approved in `/binder` before it can help the scanner. `/admin` redirects to `/studio`.
 
 ## End-to-end flow
 
@@ -23,10 +33,10 @@ visitor's photo
   ├─ 5. pgvector: 40 nearest approved photos by cosine similarity (Neon)
   ├─ 6. score each truck from its best 3 photos, rank, decide "match" vs "guess"
   ▼
-top 3 trucks + scores → results modal on /scan
+top 3 trucks ranked → results modal shows the two closest with percentages
 ```
 
-The photo itself never leaves the device during a scan. Only the 768 numbers are sent. A photo is uploaded only if the visitor later chooses to "teach the scanner" and ticks the consent box (see [Visitor submissions](#visitor-submissions-teach-the-scanner)).
+The visitor sees the crop, with a bar labeled **Cropping the truck…**, and presses Scan only after that preview is ready. A second bar, **Scanning the truck…**, covers the fingerprint and the server match. The models are cached in the browser after the first use. The photo itself never leaves the device during a scan. Only the 768 numbers are sent. A photo is uploaded only if the visitor later chooses to "teach the scanner" and says yes on the consent popup (see [Visitor submissions](#visitor-submissions-teach-the-scanner)).
 
 ### 1–2. The crop (D-FINE)
 
@@ -89,18 +99,18 @@ limit 40
 
 ### 6. Scoring per truck, and the thresholds
 
-**Plain version:** a single lucky photo shouldn't win, so each truck is scored by its 3 closest photos. If the best truck clearly beats the runner-up, the scanner says it's a match. Otherwise it shows its best guesses.
+**Plain version:** a single lucky photo shouldn't win, so each truck is scored by its 3 closest photos. The results popup goes straight to the two closest trucks, each with a percentage. If the best truck clearly beats the runner-up, the first card says Closest. Otherwise it says Closest guess.
 
-**Details** (`aggregateTruckScores` and `outcomeFromRanks` in `src/lib/binder/scan.ts`):
+**Details** (`aggregateTruckScores` and `outcomeFromRanks` in `src/lib/binder/scan.ts`, results UI in `src/app/(site)/scan/scanner.tsx`):
 - Group the 40 neighbours by truck. A truck's score is the mean of its best **3** similarities. Missing slots are padded with the 40th neighbour's score, so a truck with 1 close photo doesn't beat one with 3.
-- Return the top **3** trucks.
-- **Confident match** when the top score ≥ **0.80** (`SCAN_MATCH_MIN_SIMILARITY`) **and** it beats the second truck by ≥ **0.02** (`SCAN_MATCH_MIN_MARGIN`). Otherwise the result is a "guess". Both can be overridden with Vercel env vars.
+- The API returns the top **3** trucks. The results popup shows the **two** closest (`matches.slice(0, 2)`), each with a percentage. There is no "Not sure. The strongest match is only X%." paragraph in the popup (removed in PR #55). The status text under the photo can still say the scanner is not sure when the result is a weak guess.
+- **Confident match** when the top score ≥ **0.80** (`SCAN_MATCH_MIN_SIMILARITY`) **and** it beats the second truck by ≥ **0.02** (`SCAN_MATCH_MIN_MARGIN`). Then the first card is labeled **Closest**. Otherwise the result is a "guess" and the first card says **Closest guess**. Both cutoffs can be overridden with Vercel env vars.
 - **Displayed percent** (`src/lib/binder/scan-types.ts`): similarity 0.70 shows as 0%, 0.80 (the match line) as 50%, and 0.90 or more as 100%. Photo-to-photo cosine for the right truck usually sits between 0.79 and 0.89, so raw cosine would look like "85%" for every answer, right or wrong.
 - Optional **probe scorer**: if `src/lib/scan/probe.json` exists (a trained 57×768 linear classifier), `/api/scan` ranks with it instead, using its own thresholds (`SCAN_PROBE_MATCH_MIN_PROBABILITY` 0.35, `SCAN_PROBE_MIN_MARGIN` 0.04). It isn't shipped yet.
 
 ## The binder: how reference photos get in
 
-The binder at `/binder` is the private photo library behind the scanner. Only `ADMIN_EMAIL` can sign in (one-time email code via Resend, session cookie signed with `AUTH_SECRET`). It isn't linked in the nav. `/admin` redirects to `/studio`.
+The binder at `/binder` is the private photo library behind the scanner. Only `ADMIN_EMAIL` can sign in (one-time email code via Resend, session cookie signed with `AUTH_SECRET`). It isn't linked in the nav. `/admin` redirects to `/studio`. The photo rule is: if it looks like that truck from the outside, it counts.
 
 1. **In:** photos arrive from the Sanity import (truck page images), folder imports (`npm run import:folder`), uploads on the binder page, or visitor submissions. Each photo is compressed to one ~1600 px WebP plus a 480 px thumb, stored in private R2, and deduplicated by sha256.
 2. **Pending:** every new photo starts as `pending` and is never used for matching.
@@ -110,7 +120,7 @@ The binder at `/binder` is the private photo library behind the scanner. Only `A
 
 ### Visitor submissions ("teach the scanner")
 
-After a scan, a visitor can say the answer was right or wrong (and name the right truck). Nothing is stored unless they tick the consent box. With consent, `POST /api/scan/submit` stores the photo (shrunk in the browser to a 1600 px JPEG, then WebP on the server) as a `pending` photo with `source = 'visitor'`, plus a `scanner_feedback` row. Visitor photos never affect matching until you approve them in the binder. Duplicates (same sha256) are recognized and not stored twice. Visitor IPs are never stored, only an HMAC of the IP (keyed with `AUTH_SECRET`) for rate limiting.
+After a scan, a visitor can tap the right truck, or say Wrong or Not sure. A short popup then asks whether we can keep the photo to help improve the scanner. Nothing is stored unless they say yes. With consent, `POST /api/scan/submit` stores the photo (shrunk in the browser to a 1600 px JPEG, then WebP on the server) as a `pending` photo with `source = 'visitor'`, plus a `scanner_feedback` row. Visitor photos never affect matching until you approve them in the binder. Duplicates (same sha256) are recognized and not stored twice. Visitor IPs are never stored, only an HMAC of the IP (keyed with `AUTH_SECRET`) for rate limiting.
 
 ## Where the data lives
 
@@ -144,7 +154,7 @@ Also: same-origin check on both routes, a 64 KB body cap on scans and 4.5 MB on 
 
 - **Held-out test set:** 100 photos of 50 catalog trucks from 96 Bring a Trailer listings, mostly sellers' phone shots, at mixed angles. The right answer comes from the listing title plus a visual check. None are in the DB (sha256 checked). One photo showed the same physical truck as a DB photo and is excluded, so **99 are scored**. Not covered (no listings): b-1, b-3, i-series, maverick, mitsubishi-raider, suzuki-equator, p100. The photos are third-party and are **not** in this repo.
 - Fingerprints are made with the real browser code in headless Chrome, then scored with an exact copy of the server matching.
-- Metrics: **top-1** (first guess right), **top-3** (right truck among the 3 shown), **top-5**, **make** (first guess has the right manufacturer), and how often the confident-match banner fires and how often it is right.
+- Metrics: **top-1** (first guess right), **top-3** (right truck among the top 3 ranked; the popup shows the two closest), **top-5**, **make** (first guess has the right manufacturer), and how often the first card is labeled Closest (a confident match) and how often that is right.
 - **DB leave-one-out:** each DB photo is scored against all the others. Flattering, because many DB photos are near-duplicates.
 
 ### Model history
@@ -201,10 +211,14 @@ Never compare vectors across pipelines, and never run a server-side (Python/Node
 
 ## Known follow-ups
 
-- ~~Cleanup after the new scanner is confirmed live~~ (done Nov 11, 2026): the legacy CLIP column and its indexes are dropped (migration 007), misfiled Sonoma photos were moved off S-15, and the rejected photos were deleted.
+These are optional later ideas, not a current to-do list. The main scanner work is done.
+
+- ~~Cleanup after the new scanner is confirmed live~~ (done Nov 11, 2026): the legacy CLIP column and its indexes were dropped in PR #56 (migration 007), misfiled Sonoma photos were moved off the S-15 (4 remain pending), and 119 rejected photos were deleted (0 remain). A local backup was kept outside the repo.
+- **Empty galleries:** show scanner photos on truck pages that have no Sanity gallery yet, like the Raider.
+- **Second photo pass** for thin trucks (b-1 still has 7 approved photos).
 - **Probe scorer:** train on the current fingerprints and ship `src/lib/scan/probe.json` (about +10 points top-1 on the test set).
 - **Fine-tuning** SigLIP2 on the binder photos, for a bigger jump. Needs a careful train/test split and re-export to ONNX q4.
 - **Optional OpenAI double-check** on low-confidence scans. It costs money per scan, so only with a hard daily cap.
+- **Sitemap** so search engines can index every truck page, and a **Cloudflare spending alert** so the R2 bill stays at zero.
 - **Exact crop parity:** self-export `ustc-community/dfine-nano-coco` to ONNX so browser crops match PyTorch exactly. Needs free hosting for an 8–15 MB file.
 - **HNSW index:** not used at 1,500 rows (exact scan). It will start to matter in the tens of thousands of rows. `SCAN_EF_SEARCH` is already set for then.
-- More photos for thin trucks (b-1 has 7).
