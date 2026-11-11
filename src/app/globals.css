@@ -475,8 +475,8 @@ button, input { font: inherit; color: inherit; }
 
 .glance { grid-template-columns: 1fr 1fr; }
 
-.glance div,
-.spec-list div {
+.glance > div,
+.spec-list > div {
   background: rgba(0, 12, 48, 0.45);
   padding: 12px 14px;
 }
@@ -1061,7 +1061,7 @@ button, input { font: inherit; color: inherit; }
   .glance { grid-template-columns: repeat(4, 1fr); }
   .spec-list,
   .data-panel__rows { grid-template-columns: 200px 1fr; }
-  .spec-list div { display: contents; }
+  .spec-list > div { display: contents; }
   .spec-list dt, .spec-list dd {
     background: rgba(0, 12, 48, 0.45);
     padding: 12px 14px;
