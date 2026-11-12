@@ -912,8 +912,9 @@ test('submit spends a rate slot before the catalog and the decoder', async () =>
 })
 
 test('scan match scores are shown to visitors as whole-number percents', () => {
-  assert.equal(formatScanScorePercent(0.85), '75%')
-  assert.equal(formatScanScorePercent(0.9), '100%')
+  assert.equal(formatScanScorePercent(0.85), '60%')
+  assert.equal(formatScanScorePercent(0.95), '100%')
+  assert.equal(formatScanScorePercent(0.9), '80%')
   assert.equal(formatScanScorePercent(0.65), '0%')
   assert.equal(formatScanScorePercent(1.2), '100%')
   assert.equal(formatScanScorePercent(-0.1), '0%')

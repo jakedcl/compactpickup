@@ -105,7 +105,7 @@ limit 40
 - Group the 40 neighbours by truck. A truck's score is the mean of its best **3** similarities. Missing slots are padded with the 40th neighbour's score, so a truck with 1 close photo doesn't beat one with 3.
 - The API returns the top **3** trucks. The results section on `/scan` calls `visibleScanMatches` in `src/lib/binder/scan-types.ts` on those scores: let `m12 = score1 − score2` and `m13 = score1 − score3`. If `m12 ≥ 0.05` (`SCAN_RESULTS_SCORE_GAP`), show only the first; else if `m13 ≥ 0.05`, show the first two; else show all three. Gaps use raw cosine, not the displayed percent. This is separate from the confident-match margin (`SCAN_MATCH_MIN_MARGIN`).
 - **Confident match** when the top score ≥ **0.80** (`SCAN_MATCH_MIN_SIMILARITY`) **and** it beats the second truck by ≥ **0.02** (`SCAN_MATCH_MIN_MARGIN`). Then the first card is labeled **Closest**. Otherwise the result is a "guess" and the first card says **Closest guess**. Both cutoffs can be overridden with Vercel env vars.
-- **Displayed percent** (`src/lib/binder/scan-types.ts`): similarity 0.70 shows as 0%, 0.80 (the match line) as 50%, and 0.90 or more as 100%. Photo-to-photo cosine for the right truck usually sits between 0.79 and 0.89, so raw cosine would look like "85%" for every answer, right or wrong.
+- **Displayed percent** (`src/lib/binder/scan-types.ts`): raw cosine 0.70 shows as 0%, 0.95 or more as 100% (`assignVisibleScanDisplayPercents` cascades so lower guesses never show the same integer as a higher one unless raw scores tie). Display-only; matching still uses raw cosine.
 - Optional **probe scorer**: if `src/lib/scan/probe.json` exists (a trained 57×768 linear classifier), `/api/scan` ranks with it instead, using its own thresholds (`SCAN_PROBE_MATCH_MIN_PROBABILITY` 0.35, `SCAN_PROBE_MIN_MARGIN` 0.04). It isn't shipped yet.
 
 ## The binder: how reference photos get in
@@ -207,7 +207,7 @@ A fingerprint only means something next to fingerprints made the same way. Any c
    - embed all approved photos with `embed.mjs` first, then write them in one transaction at the moment you switch.
 
    Spot-check that re-embedding a few DB photos in the browser gives cosine ≈ 1.0 against the stored vectors.
-5. Re-check the thresholds (0.80 / 0.02 and the 0.70–0.90 display) against the new score distribution.
+5. Re-check the thresholds (0.80 / 0.02 and the 0.70–0.95 display) against the new score distribution.
 6. If the vector length changes, a new column is required (`vector(N)` is fixed), and `nearestApproved` plus the embeddings endpoint must point at it.
 
 Never compare vectors across pipelines, and never run a server-side (Python/Node) embedder for the DB unless you've proven it matches the browser output to cosine ≈ 1.0.

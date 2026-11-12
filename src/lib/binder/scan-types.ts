@@ -14,7 +14,7 @@ export type ScanMatch = ScanCatalogTruck & {
 /**
  * Min raw cosine gap between the top score and a lower guess before the results popup hides that guess.
  * Compared as score1 − score2 and score1 − score3 only (never score2 − score3). About 25 points on the
- * 0.70–0.90 → 0–100% meter ({@link formatScanScorePercent}).
+ * 0.70–0.95 → 0–100% meter ({@link formatScanScorePercent}).
  */
 export const SCAN_RESULTS_SCORE_GAP = 0.05
 
@@ -30,21 +30,48 @@ export function visibleScanMatches<T extends { score: number }>(matches: T[]): T
 }
 
 /**
- * Raw cosine floor for display rescaling. SigLIP2 photo-to-photo cosine for the
- * best truck sits around 0.79-0.89, so 0.70 shows as 0%, the 0.80 match line as 50%,
- * and 0.90+ as 100%.
+ * Raw cosine floor for display rescaling. 0.70 shows as 0%, 0.95+ as 100%.
  */
 export const SCAN_SCORE_DISPLAY_FLOOR = 0.7
-/** Span from floor to “strong match” on the visitor-facing meter. */
-export const SCAN_SCORE_DISPLAY_SPAN = 0.2
+/** Top of the visitor-facing meter (raw cosine at or above reads as 100%). */
+export const SCAN_SCORE_DISPLAY_CEIL = 0.95
+export const SCAN_SCORE_DISPLAY_SPAN = SCAN_SCORE_DISPLAY_CEIL - SCAN_SCORE_DISPLAY_FLOOR
 
-/** Visitor-facing match strength. Underlying score stays 0–1 (cosine or probe probability). */
-export function formatScanScorePercent(score: number): string {
-  if (!Number.isFinite(score)) return '—%'
+/** Rounded 0–100 display percent for one raw cosine (display-only; not used alone on multi-guess UI). */
+export function rawScanScorePercent(score: number): number {
+  if (!Number.isFinite(score)) return 0
   const clamped = Math.min(1, Math.max(0, score))
   const scaled = ((clamped - SCAN_SCORE_DISPLAY_FLOOR) / SCAN_SCORE_DISPLAY_SPAN) * 100
-  const display = Math.min(100, Math.max(0, scaled))
-  return `${Math.round(display)}%`
+  return Math.round(Math.min(100, Math.max(0, scaled)))
+}
+
+/** Cascade so lower guesses never show ≥ the guess above unless raw scores are equal. */
+export function assignVisibleScanDisplayPercents<T extends { score: number }>(matches: T[]): number[] {
+  const rows = matches.map((match) => rawScanScorePercent(match.score))
+  for (let i = 1; i < rows.length; i++) {
+    if (matches[i].score === matches[i - 1].score) continue
+    if (rows[i] >= rows[i - 1]) {
+      rows[i] = Math.max(0, rows[i - 1] - 1)
+    }
+  }
+  return rows
+}
+
+/** Visitor-facing match strength for a single score (tests, single-value callers). */
+export function formatScanScorePercent(score: number): string {
+  if (!Number.isFinite(score)) return '—%'
+  return `${rawScanScorePercent(score)}%`
+}
+
+export function sentenceCaseMake(maker: string): string {
+  const trimmed = maker.trim()
+  if (!trimmed) return ''
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
+}
+
+export function scanGuessCardTitle(maker: string, title: string): string {
+  const make = sentenceCaseMake(maker)
+  return make ? `${make} ${title}`.trim() : title.trim()
 }
 
 export type ScanState = 'learning' | 'match' | 'guess'
