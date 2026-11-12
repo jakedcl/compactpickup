@@ -27,13 +27,6 @@
   transition: width 0.2s ease-out;
 }
 
-.scan-hint {
-  margin: var(--space-2) 0 0;
-  color: var(--muted);
-  font-size: 13px;
-  letter-spacing: 0.06em;
-}
-
 .scan-device-wait {
   margin: 0;
   color: var(--muted);
@@ -44,11 +37,28 @@
 
 .scan-preview {
   position: relative;
-  aspect-ratio: 4 / 3;
-  margin-bottom: var(--space-4);
+  min-height: 0;
   background: var(--osd-deep);
   border: 1px solid var(--line);
   overflow: hidden;
+}
+
+.scan-shell.is-idle .scan-preview {
+  aspect-ratio: 4 / 3;
+  margin-bottom: var(--space-3);
+}
+
+.scan-stage {
+  display: grid;
+  grid-template-columns: 5fr 3fr;
+  gap: var(--space-2);
+  align-items: stretch;
+  margin-bottom: var(--space-3);
+}
+
+.scan-preview-crop {
+  aspect-ratio: 4 / 3;
+  min-height: 0;
 }
 
 .scan-preview img {
@@ -58,16 +68,43 @@
   display: block;
 }
 
-.scan-preview p {
+.scan-preview-empty p,
+.scan-preview-crop p {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
   margin: 0;
+  padding: var(--space-3);
+  text-align: center;
   color: var(--muted);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-size: 12px;
+  letter-spacing: 0.08em;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.scan-preview-empty p {
+  text-transform: none;
+}
+
+.scan-stage-actions {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.scan-stage-actions.is-replace-only {
+  grid-template-rows: 1fr;
+}
+
+.scan-stage-actions.is-dual {
+  grid-template-rows: auto auto;
+}
+
+.scan-stage-actions .btn,
+.scan-stage-actions .scan-save-photo {
+  width: 100%;
+  min-height: 44px;
 }
 
 .scan-actions {
@@ -89,15 +126,15 @@
   clip: rect(0, 0, 0, 0);
 }
 
-.scan-preview-actions {
-  display: grid;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
+.scan-status {
+  margin: 0 0 var(--space-3);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.45;
 }
 
-.scan-status {
-  min-height: 1.5em;
-  margin: var(--space-4) 0 0;
+.scan-inline-actions {
+  margin: 0 0 var(--space-3);
 }
 
 .scan-drop-overlay {
@@ -119,12 +156,18 @@
   color: var(--accent);
 }
 
+.scan-page-panel {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+}
+
 .scan-results {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .scan-hit {
@@ -161,10 +204,6 @@
   gap: var(--space-2);
 }
 
-.scan-choice-triple {
-  grid-template-columns: 1fr 1fr 1fr;
-}
-
 .scan-field {
   width: 100%;
   min-height: 44px;
@@ -186,69 +225,22 @@
   color: var(--muted);
 }
 
-.scan-consent-copy {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.45;
-  color: var(--ink);
-}
-
-.scan-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: var(--space-3);
-  background: rgba(0, 0, 0, 0.72);
-}
-
-.scan-modal {
-  width: min(100%, 480px);
-  max-height: min(92dvh, 640px);
-  display: flex;
-  flex-direction: column;
-  background: var(--osd-deep);
-  border: 1px solid var(--line);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-}
-
-.scan-modal-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border-bottom: 1px solid var(--line);
-}
-
-.scan-modal-title {
-  margin: 0;
+.scan-save-photo {
+  min-height: 44px;
+  padding: 8px 12px;
+  font: inherit;
   font-size: 13px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-.scan-modal-body {
-  overflow: auto;
-  padding: var(--space-3);
-  overscroll-behavior: contain;
-}
-
-.scan-modal-panel {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.scan-modal-heading {
-  margin: 0;
-  font-size: 15px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent);
-  font-weight: 400;
+  background: transparent;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.scan-save-photo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .scan-typeahead {
@@ -261,7 +253,7 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 220px;
+  max-height: min(40dvh, 220px);
   overflow: auto;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.55);
@@ -284,22 +276,6 @@
 .scan-typeahead-list button.is-on,
 .scan-typeahead-list button:hover {
   background: rgba(255, 140, 0, 0.12);
-}
-
-.scan-modal-thumb {
-  aspect-ratio: 4 / 3;
-  max-height: 120px;
-  width: 100%;
-  border: 1px solid var(--line);
-  background: var(--osd-deep);
-  overflow: hidden;
-}
-
-.scan-modal-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
 }
 
 .scan-consent-island {
@@ -331,65 +307,10 @@
   font-weight: 400;
 }
 
-.scan-consent-island-copy {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.45;
-  color: var(--ink);
-}
-
 .scan-consent-island-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-2);
-}
-
-.scan-modal-photo-actions {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.scan-modal-photo-actions.is-single {
-  grid-template-columns: 1fr;
-}
-
-.scan-modal-photo-actions.is-single .btn,
-.scan-modal-photo-actions.is-single .scan-save-photo {
-  width: 100%;
-}
-
-.scan-modal-photo-actions.is-split {
-  grid-template-columns: 1fr 1fr;
-}
-
-.scan-modal-photo-actions.is-split .btn,
-.scan-modal-photo-actions.is-split .scan-save-photo {
-  width: 100%;
-}
-
-.scan-save-photo {
-  min-height: 44px;
-  padding: 8px 12px;
-  font: inherit;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent);
-  background: transparent;
-  border: 1px solid var(--line);
-  cursor: pointer;
-}
-
-.scan-save-photo:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.scan-consent-island-secondary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
 }
 
 .scan-consent-island-quiet {
@@ -431,14 +352,6 @@ html.scan-island-open .site-footer {
 @media (min-width: 640px) {
   .scan-actions:not(.is-single) {
     grid-template-columns: 1fr 1fr;
-  }
-
-  .scan-preview-actions {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .scan-modal-backdrop {
-    align-items: center;
   }
 
   .scan-consent-island:not(.is-compact) {

@@ -12,6 +12,7 @@ import {
   prefetchSiglip,
   preparePhotoCrop,
   type PreparedPhoto,
+  type ClipProgress,
 } from '@/lib/clip/browser'
 import {
   clipProgressPercent,
@@ -19,7 +20,6 @@ import {
   isModelDownloadProgress,
   isSiglipProgress,
 } from '@/lib/clip/progress'
-import type { ClipProgress } from '@/lib/clip/browser'
 import {
   formatScanScorePercent,
   visibleScanMatches,
@@ -29,23 +29,23 @@ import {
 } from '@/lib/binder/scan-types'
 import {
   correctionFromGuessIndex,
-  modalPhotoActionLayout,
+  pagePhotoActionLayout,
   shouldAutoScanAfterCrop,
   shouldBeginConsentIsland,
+  shouldShowScanStatus,
   verdictFromGuessIndex,
   visitorProgressLabel,
   visitorProgressValue,
   visitorProgressVisible,
 } from '@/lib/scan/visitor-session'
 import { shouldOfferSavePhoto, type VisitorPhotoSource } from '@/lib/scan/visitor-save-photo'
-import ScanModal from './scan-modal'
 import { ScanTruckSearch } from './scan-truck-search'
 import { useMobileDevice } from './use-mobile-device'
 import './scan.css'
 
 type Phase = 'idle' | 'preview' | 'working' | 'error'
 type CropPhase = 'idle' | 'cropping' | 'ready' | 'error'
-type ModalStep = 'results' | 'correction'
+type PageStep = 'results' | 'correction'
 
 type ScanSuccess = {
   state: 'learning' | 'match' | 'guess'
@@ -131,12 +131,11 @@ export default function Scanner({
   const [cropPhase, setCropPhase] = useState<CropPhase>('idle')
   const [cropProgress, setCropProgress] = useState(0)
   const [scanProgress, setScanProgress] = useState(0)
-  const [status, setStatus] = useState('Pick a photo to scan.')
+  const [status, setStatus] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [result, setResult] = useState<ScanSuccess | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [modalStep, setModalStep] = useState<ModalStep>('results')
+  const [pageStep, setPageStep] = useState<PageStep | null>(null)
   const [dragging, setDragging] = useState(false)
   const [photoSource, setPhotoSource] = useState<VisitorPhotoSource | null>(null)
   const [modelDownloading, setModelDownloading] = useState(false)
@@ -145,6 +144,7 @@ export default function Scanner({
   const cropBusy = cropPhase === 'cropping'
   const cropError = cropPhase === 'error'
   const busy = scanning || cropBusy
+  const idle = !file
   const top = result?.matches[0] ?? null
   const canFeedback = Boolean(top)
   const topCatalog = top
@@ -175,10 +175,9 @@ export default function Scanner({
     setScanProgress(0)
     setModelDownloading(false)
     setResult(null)
-    setModalOpen(false)
-    setModalStep('results')
+    setPageStep(null)
     setPhotoSource(null)
-    setStatus('Pick a photo to scan.')
+    setStatus('')
   }, [clearPreviewUrl])
 
   useEffect(() => {
@@ -218,11 +217,10 @@ export default function Scanner({
     setCropProgress(4)
     setScanProgress(0)
     setResult(null)
-    setModalOpen(false)
-    setModalStep('results')
+    setPageStep(null)
     setPhotoSource(source)
     setModelDownloading(false)
-    setStatus('Cropping and scanning your photo…')
+    setStatus('')
   }, [clearPreviewUrl, clearSession])
 
   useEffect(() => {
@@ -254,7 +252,6 @@ export default function Scanner({
         previewRef.current = url
         setPreview(url)
         setCropPhase('ready')
-        setStatus('Scanning your photo…')
         prefetchSiglip()
       } catch (error) {
         if (cancelled || cropRunId.current !== id) return
@@ -277,6 +274,7 @@ export default function Scanner({
     const id = (runId.current += 1)
     setPhase('working')
     setResult(null)
+    setPageStep(null)
     setScanProgress(8)
     const creep: ReturnType<typeof setInterval> | null = setInterval(() => {
       setScanProgress((value) => Math.min(97, value + 0.35))
@@ -321,16 +319,13 @@ export default function Scanner({
       setScanProgress(100)
       setResult(parsed)
       setPhase('preview')
-      setModalOpen(true)
-      setModalStep('results')
+      setPageStep('results')
       if (parsed.state === 'learning') {
         setStatus('The scanner is still learning. Reference photos are not ready yet.')
       } else if (parsed.matches.length === 0) {
         setStatus('Not sure. The closest photos are not on a truck page yet.')
-      } else if (parsed.state === 'guess') {
-        setStatus(`Not sure. Closest guess is ${formatScanScorePercent(parsed.matches[0].score)}.`)
       } else {
-        setStatus(`Closest match at ${formatScanScorePercent(parsed.matches[0].score)}.`)
+        setStatus('')
       }
     } catch (error) {
       if (runId.current !== id) return
@@ -371,7 +366,6 @@ export default function Scanner({
   }
 
   function onNotSure() {
-    setModalOpen(false)
     resetSession()
   }
 
@@ -380,7 +374,6 @@ export default function Scanner({
     const verdict = verdictFromGuessIndex(index)
     const correction = correctionFromGuessIndex(index, match)
     handoffToIsland(verdict, correction)
-    setModalOpen(false)
     router.push(match.href)
   }
 
@@ -453,54 +446,36 @@ export default function Scanner({
     if (next) pickFile(next, 'desktop')
   }
 
-  function dismissModal() {
-    resetSession()
-  }
-
-  const modalTitle = modalStep === 'results' ? 'Scan results' : 'Which truck was it?'
-
   const progressInput = { modelDownloading, scanning, cropBusy }
   const progressVisible = visitorProgressVisible(progressInput)
   const progressLabel = visitorProgressLabel(progressInput)
   const progressValue = visitorProgressValue(progressInput, cropProgress, scanProgress)
   const offerSave = Boolean(file && photoSource && shouldOfferSavePhoto(photoSource))
-  const photoActionLayout = modalPhotoActionLayout(offerSave, device)
+  const photoActionLayout = pagePhotoActionLayout(offerSave)
+  const showStatus = shouldShowScanStatus(status, {
+    phase,
+    cropError,
+    hasResult: Boolean(result && result.matches.length > 0 && pageStep === 'results'),
+  })
 
-  function modalPhotoActions() {
-    return (
-      <div className={`scan-modal-photo-actions is-${photoActionLayout}`}>
-        <button type="button" className="btn" onClick={dismissModal}>
-          Replace photo
-        </button>
-        {offerSave && file ? <ScanSavePhotoButton file={file} /> : null}
-      </div>
-    )
-  }
+  const emptyCopy =
+    device === 'mobile' ? 'Take or choose a photo' : 'Drop a photo here'
 
   return (
-    <div className="scan-shell">
+    <div className={`scan-shell${idle ? ' is-idle' : ' has-photo'}`}>
       {dragging ? (
         <div className="scan-drop-overlay" aria-hidden="true">
           <p>Drop photo</p>
         </div>
       ) : null}
-      <div className="scan-preview">
-        {preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt="Cropped truck preview" />
-        ) : (
-          <p>{cropBusy ? 'Cropping' : 'No photo yet'}</p>
-        )}
-      </div>
-      <VhsProgressBar label={progressLabel} value={progressValue} visible={progressVisible} />
-      {!file ? (
-        <div className={`scan-actions${device === 'desktop' ? ' is-single' : ''}`}>
-          {device === 'unknown' ? (
-            <p className="scan-device-wait" role="status">
-              Preparing camera controls
-            </p>
-          ) : device === 'mobile' ? (
-            <>
+
+      {idle ? (
+        <>
+          <div className="scan-preview scan-preview-empty">
+            <p>{device === 'unknown' ? 'Preparing camera controls' : emptyCopy}</p>
+          </div>
+          {device === 'mobile' ? (
+            <div className="scan-actions">
               <button
                 type="button"
                 className="btn btn-accent"
@@ -512,19 +487,54 @@ export default function Scanner({
               <button type="button" className="btn" disabled={busy} onClick={() => libraryInputRef.current?.click()}>
                 Choose photo
               </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="btn btn-accent"
-              disabled={busy}
-              onClick={() => chooseInputRef.current?.click()}
-            >
-              Choose photo
-            </button>
-          )}
-        </div>
-      ) : null}
+            </div>
+          ) : device === 'desktop' ? (
+            <div className="scan-actions is-single">
+              <button
+                type="button"
+                className="btn btn-accent"
+                disabled={busy}
+                onClick={() => chooseInputRef.current?.click()}
+              >
+                Choose photo
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <div className="scan-stage">
+            <div className="scan-preview scan-preview-crop">
+              {preview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={preview} alt="Cropped truck preview" />
+              ) : (
+                <p>{cropBusy ? 'Cropping' : 'Working'}</p>
+              )}
+            </div>
+            <div className={`scan-stage-actions is-${photoActionLayout}`}>
+              <button type="button" className="btn" disabled={busy} onClick={resetSession}>
+                Replace photo
+              </button>
+              {offerSave && file ? <ScanSavePhotoButton file={file} disabled={busy} /> : null}
+            </div>
+          </div>
+          <VhsProgressBar label={progressLabel} value={progressValue} visible={progressVisible} />
+          {showStatus ? (
+            <p className="scan-status" role="status">
+              {status}
+            </p>
+          ) : null}
+          {phase === 'error' && file && cropPhase === 'ready' ? (
+            <div className="scan-inline-actions">
+              <button type="button" className="btn" onClick={() => void scanPhoto()} disabled={busy}>
+                Try again
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
+
       {device === 'mobile' ? (
         <>
           <input
@@ -555,123 +565,79 @@ export default function Scanner({
           onChange={onChooseChange}
         />
       ) : null}
-      {(cropError || phase === 'error') && file ? (
-        <div className="scan-preview-actions">
-          <button type="button" className="btn" disabled={busy} onClick={resetSession}>
-            Replace photo
-          </button>
-        </div>
-      ) : null}
-      <p className="scan-status" role="status">
-        {status}
-      </p>
-      {phase === 'error' && file && cropPhase === 'ready' ? (
-        <button type="button" className="btn" onClick={() => void scanPhoto()} disabled={busy}>
-          Try again
-        </button>
-      ) : null}
-      {device === 'desktop' && !file ? (
-        <p className="scan-hint">Drop a photo anywhere on this page, or paste from the clipboard.</p>
-      ) : null}
 
-      {modalOpen ? (
-        <ScanModal title={modalTitle} onClose={dismissModal}>
-          {modalStep === 'results' && result ? (
-            <div className="scan-modal-panel">
-              {preview ? (
-                <div className="scan-modal-thumb">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={preview} alt="Cropped truck preview" />
-                </div>
-              ) : null}
-              {modalPhotoActions()}
-              {result.matches.length > 0 ? (
-                <ol className="scan-results">
-                  {visibleScanMatches(result.matches).map((match, index) => (
-                    <li key={match.id}>
-                      <button type="button" className="scan-guess" onClick={() => pickGuess(match, index)}>
-                        <span className="card scan-hit">
-                          <span className="card-copy">
-                            <span className="card-label">
-                              {index === 0 ? (result.state === 'match' ? 'Closest' : 'Closest guess') : 'Next closest'}
-                            </span>
-                            <span className="card-label">{match.maker}</span>
-                            <span className="card-title">{match.title}</span>
-                            {match.years ? <span>{match.years}</span> : null}
-                            <span className="meta">Match {formatScanScorePercent(match.score)}</span>
-                          </span>
+      {pageStep === 'results' && result ? (
+        <section className="scan-page-panel" aria-label="Scan results">
+          {result.matches.length > 0 ? (
+            <ol className="scan-results">
+              {visibleScanMatches(result.matches).map((match, index) => (
+                <li key={match.id}>
+                  <button type="button" className="scan-guess" onClick={() => pickGuess(match, index)}>
+                    <span className="card scan-hit">
+                      <span className="card-copy">
+                        <span className="card-label">
+                          {index === 0 ? (result.state === 'match' ? 'Closest' : 'Closest guess') : 'Next closest'}
                         </span>
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p role="status">Not sure yet. There is no truck page close enough to show.</p>
-              )}
-              {canFeedback ? (
-                <>
-                  <p className="scan-pick-prompt">Tap the right truck, or:</p>
-                  <div className="scan-choice">
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => setModalStep('correction')}
-                    >
-                      Wrong
-                    </button>
-                    <button type="button" className="btn" onClick={onNotSure}>
-                      Not sure
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <button type="button" className="btn" onClick={dismissModal}>
-                  Scan another
+                        <span className="card-label">{match.maker}</span>
+                        <span className="card-title">{match.title}</span>
+                        {match.years ? <span>{match.years}</span> : null}
+                        <span className="meta">Match {formatScanScorePercent(match.score)}</span>
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p role="status">Not sure yet. There is no truck page close enough to show.</p>
+          )}
+          {canFeedback ? (
+            <>
+              <p className="scan-pick-prompt">Tap the right truck, or:</p>
+              <div className="scan-choice">
+                <button type="button" className="btn" onClick={() => setPageStep('correction')}>
+                  Wrong
                 </button>
-              )}
-            </div>
-          ) : null}
+                <button type="button" className="btn" onClick={onNotSure}>
+                  Not sure
+                </button>
+              </div>
+            </>
+          ) : (
+            <button type="button" className="btn" onClick={resetSession}>
+              Scan another
+            </button>
+          )}
+        </section>
+      ) : null}
 
-          {modalStep === 'correction' ? (
-            <div className="scan-modal-panel">
-              {preview ? (
-                <div className="scan-modal-thumb">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={preview} alt="Cropped truck preview" />
-                </div>
-              ) : null}
-              <button type="button" className="btn" onClick={dismissModal}>
-                Replace photo
-              </button>
-              {catalogStatus === 'error' ? (
-                <p role="status">The truck list did not load. Try again later.</p>
-              ) : (
-                <>
-                  <ScanTruckSearch
-                    trucks={trucks}
-                    disabled={busy}
-                    onPick={(pick) => {
-                      if (pick.kind === 'catalog') {
-                        handoffToIsland('wrong', { kind: 'catalog', truck: pick.truck })
-                        setModalOpen(false)
-                        router.push(pick.truck.href)
-                      } else {
-                        handoffToIsland('wrong', { kind: 'custom', text: pick.text })
-                        setModalOpen(false)
-                        resetScannerToPicker()
-                      }
-                    }}
-                  />
-                  <div className="scan-choice">
-                    <button type="button" className="btn" onClick={onNotSure}>
-                      Not sure
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ) : null}
-        </ScanModal>
+      {pageStep === 'correction' ? (
+        <section className="scan-page-panel" aria-label="Which truck was it?">
+          {catalogStatus === 'error' ? (
+            <p role="status">The truck list did not load. Try again later.</p>
+          ) : (
+            <>
+              <ScanTruckSearch
+                trucks={trucks}
+                disabled={busy}
+                onPick={(pick) => {
+                  if (pick.kind === 'catalog') {
+                    handoffToIsland('wrong', { kind: 'catalog', truck: pick.truck })
+                    router.push(pick.truck.href)
+                  } else {
+                    handoffToIsland('wrong', { kind: 'custom', text: pick.text })
+                    resetScannerToPicker()
+                  }
+                }}
+              />
+              <div className="scan-choice">
+                <button type="button" className="btn" onClick={onNotSure}>
+                  Not sure
+                </button>
+              </div>
+            </>
+          )}
+        </section>
       ) : null}
     </div>
   )

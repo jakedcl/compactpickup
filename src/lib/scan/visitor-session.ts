@@ -74,12 +74,17 @@ export function visitorProgressVisible(input: VisitorProgressInput): boolean {
   return input.modelDownloading || input.cropBusy || input.scanning
 }
 
-/** Results modal Replace/Save row: half-and-half only on mobile after camera capture. */
-export function modalPhotoActionLayout(
-  offerSave: boolean,
-  device: 'unknown' | 'mobile' | 'desktop',
-): 'split' | 'single' {
-  if (!offerSave) return 'single'
-  if (device === 'mobile') return 'split'
-  return 'single'
+/** In-page crop row: Replace fills the side column, or Replace + Save stacked when camera. */
+export function pagePhotoActionLayout(offerSave: boolean): 'dual' | 'replace-only' {
+  return offerSave ? 'dual' : 'replace-only'
+}
+
+export function shouldShowScanStatus(
+  status: string,
+  input: { phase: 'idle' | 'preview' | 'working' | 'error'; cropError: boolean; hasResult: boolean },
+): boolean {
+  if (!status) return false
+  if (input.phase === 'error' || input.cropError) return true
+  if (input.hasResult) return false
+  return true
 }

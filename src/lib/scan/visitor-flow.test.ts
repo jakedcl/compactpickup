@@ -10,7 +10,8 @@ import { shouldOfferSavePhoto } from './visitor-save-photo'
 import {
   correctionFromGuessIndex,
   hasActiveVisitorSession,
-  modalPhotoActionLayout,
+  pagePhotoActionLayout,
+  shouldShowScanStatus,
   shouldAutoScanAfterCrop,
   shouldBeginConsentIsland,
   verdictFromGuessIndex,
@@ -69,11 +70,28 @@ test('isModelDownloadProgress is true only for download status on scanner models
   )
 })
 
-test('modalPhotoActionLayout is split only for mobile camera save', () => {
-  assert.equal(modalPhotoActionLayout(false, 'desktop'), 'single')
-  assert.equal(modalPhotoActionLayout(false, 'mobile'), 'single')
-  assert.equal(modalPhotoActionLayout(true, 'desktop'), 'single')
-  assert.equal(modalPhotoActionLayout(true, 'mobile'), 'split')
+test('pagePhotoActionLayout stacks Save under Replace for camera only', () => {
+  assert.equal(pagePhotoActionLayout(false), 'replace-only')
+  assert.equal(pagePhotoActionLayout(true), 'dual')
+})
+
+test('shouldShowScanStatus hides match-score copy when results are on the page', () => {
+  assert.equal(
+    shouldShowScanStatus('Closest match at 87%', {
+      phase: 'preview',
+      cropError: false,
+      hasResult: true,
+    }),
+    false,
+  )
+  assert.equal(
+    shouldShowScanStatus('Signal lost. The scanner did not answer.', {
+      phase: 'error',
+      cropError: false,
+      hasResult: false,
+    }),
+    true,
+  )
 })
 
 test('Save photo is offered only for camera captures', () => {
