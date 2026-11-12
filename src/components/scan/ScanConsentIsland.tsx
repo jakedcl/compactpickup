@@ -13,9 +13,7 @@ export default function ScanConsentIsland() {
 
   const busy = session.submitPhase === 'sending'
   const answered = session.consentAnswered
-  const showSave =
-  session.fromCameraCapture
-    && !session.photoSaved
+  const showSave = session.fromCameraCapture && !session.photoSaved
 
   async function onYes() {
     if (!session) return
@@ -74,10 +72,11 @@ export default function ScanConsentIsland() {
           No
         </button>
       </div>
-      <div className="scan-consent-island-secondary">
+      <div className="scan-consent-island-secondary" aria-label="Optional actions">
         {showSave ? (
           <ScanSavePhotoButton
             file={session.file}
+            variant="quiet"
             disabled={busy}
             onSaved={() => patchSession({ photoSaved: true })}
           />

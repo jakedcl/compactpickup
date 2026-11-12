@@ -7,10 +7,13 @@ export default function ScanSavePhotoButton({
   file,
   disabled,
   onSaved,
+  variant = 'modal',
 }: {
   file: File
   disabled?: boolean
   onSaved?: () => void
+  /** Primary placement in the results modal; quieter underline style on the consent island. */
+  variant?: 'modal' | 'quiet'
 }) {
   const [busy, setBusy] = useState(false)
 
@@ -24,10 +27,12 @@ export default function ScanSavePhotoButton({
     }
   }
 
+  const className = variant === 'quiet' ? 'scan-consent-island-quiet' : 'scan-save-photo'
+
   return (
     <button
       type="button"
-      className="scan-save-photo"
+      className={className}
       disabled={disabled || busy}
       onClick={() => void onClick()}
     >

@@ -614,7 +614,9 @@ export default function Scanner({
                   <img src={preview} alt="Cropped truck preview" />
                 </div>
               ) : null}
-              {modalPhotoActions()}
+              <button type="button" className="btn" onClick={dismissModal}>
+                Replace photo
+              </button>
               {catalogStatus === 'error' ? (
                 <p role="status">The truck list did not load. Try again later.</p>
               ) : (
