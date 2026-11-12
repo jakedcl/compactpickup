@@ -2,18 +2,16 @@
 
 import { useRouter } from 'next/navigation'
 import { submitVisitorScanPhoto } from '@/lib/scan/visitor-submit'
-import ScanSavePhotoButton from './ScanSavePhotoButton'
 import { useScanSession } from './ScanSessionProvider'
 
 export default function ScanConsentIsland() {
   const router = useRouter()
-  const { session, islandActive, clearSession, markConsentAnswered, patchSession } = useScanSession()
+  const { session, islandActive, goToFreshScan, markConsentAnswered, patchSession } = useScanSession()
 
   if (!islandActive || !session) return null
 
   const busy = session.submitPhase === 'sending'
   const answered = session.consentAnswered
-  const showSave = session.fromCameraCapture && !session.photoSaved
 
   async function onYes() {
     if (!session) return
@@ -34,7 +32,7 @@ export default function ScanConsentIsland() {
   }
 
   function scanAnother() {
-    clearSession()
+    goToFreshScan()
     router.push('/scan')
   }
 
@@ -54,11 +52,8 @@ export default function ScanConsentIsland() {
   }
 
   return (
-    <div className="scan-consent-island" role="region" aria-label="Photo consent">
-      <h2 className="scan-consent-island-heading">CAN WE USE THIS PHOTO TO IMPROVE?</h2>
-      <p className="scan-consent-island-copy">
-        A compressed copy goes to Pending for review. It is never published or used for matching until approved.
-      </p>
+    <div className="scan-consent-island" role="region" aria-label="Scan consent">
+      <h2 className="scan-consent-island-heading">CAN WE USE THESE RESULTS TO IMPROVE?</h2>
       <div className="scan-consent-island-actions">
         <button
           type="button"
@@ -72,19 +67,9 @@ export default function ScanConsentIsland() {
           No
         </button>
       </div>
-      <div className="scan-consent-island-secondary" aria-label="Optional actions">
-        {showSave ? (
-          <ScanSavePhotoButton
-            file={session.file}
-            variant="quiet"
-            disabled={busy}
-            onSaved={() => patchSession({ photoSaved: true })}
-          />
-        ) : null}
-        <button type="button" className="scan-consent-island-quiet" disabled={busy} onClick={scanAnother}>
-          Scan another
-        </button>
-      </div>
+      <button type="button" className="scan-consent-island-quiet" disabled={busy} onClick={scanAnother}>
+        Scan another
+      </button>
       {session.submitMessage && session.submitPhase !== 'idle' ? (
         <p className="scan-consent-island-status" role="status">
           {session.submitMessage}

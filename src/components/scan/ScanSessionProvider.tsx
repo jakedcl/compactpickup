@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -17,18 +18,23 @@ import {
 type ScanSessionContextValue = {
   session: VisitorScanSession | null
   islandActive: boolean
+  scanEpoch: number
   beginSession: (next: Omit<VisitorScanSession, 'submitPhase' | 'submitMessage' | 'consentAnswered'>) => void
   clearSession: () => void
   markConsentAnswered: (submitPhase: VisitorScanSession['submitPhase'], submitMessage: string) => void
   patchSession: (
-    patch: Partial<Pick<VisitorScanSession, 'submitPhase' | 'submitMessage' | 'consentAnswered' | 'photoSaved'>>,
+    patch: Partial<Pick<VisitorScanSession, 'submitPhase' | 'submitMessage' | 'consentAnswered'>>,
   ) => void
+  registerScannerReset: (reset: (() => void) | null) => void
+  goToFreshScan: () => void
 }
 
 const ScanSessionContext = createContext<ScanSessionContextValue | null>(null)
 
 export function ScanSessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<VisitorScanSession | null>(null)
+  const [scanEpoch, setScanEpoch] = useState(0)
+  const scannerResetRef = useRef<(() => void) | null>(null)
 
   const clearSession = useCallback(() => {
     setSession((current) => {
@@ -36,6 +42,16 @@ export function ScanSessionProvider({ children }: { children: ReactNode }) {
       return null
     })
   }, [])
+
+  const registerScannerReset = useCallback((reset: (() => void) | null) => {
+    scannerResetRef.current = reset
+  }, [])
+
+  const goToFreshScan = useCallback(() => {
+    clearSession()
+    scannerResetRef.current?.()
+    setScanEpoch((value) => value + 1)
+  }, [clearSession])
 
   const beginSession = useCallback(
     (next: Omit<VisitorScanSession, 'submitPhase' | 'submitMessage' | 'consentAnswered'>) => {
@@ -48,7 +64,6 @@ export function ScanSessionProvider({ children }: { children: ReactNode }) {
           submitPhase: 'idle',
           submitMessage: '',
           consentAnswered: false,
-          photoSaved: next.photoSaved ?? false,
         }
       })
     },
@@ -56,9 +71,7 @@ export function ScanSessionProvider({ children }: { children: ReactNode }) {
   )
 
   const patchSession = useCallback(
-    (
-      patch: Partial<Pick<VisitorScanSession, 'submitPhase' | 'submitMessage' | 'consentAnswered' | 'photoSaved'>>,
-    ) => {
+    (patch: Partial<Pick<VisitorScanSession, 'submitPhase' | 'submitMessage' | 'consentAnswered'>>) => {
       setSession((current) => (current ? { ...current, ...patch } : current))
     },
     [],
@@ -89,12 +102,24 @@ export function ScanSessionProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       islandActive: hasActiveVisitorSession(session),
+      scanEpoch,
       beginSession,
       clearSession,
       markConsentAnswered,
       patchSession,
+      registerScannerReset,
+      goToFreshScan,
     }),
-    [session, beginSession, clearSession, markConsentAnswered, patchSession],
+    [
+      session,
+      scanEpoch,
+      beginSession,
+      clearSession,
+      markConsentAnswered,
+      patchSession,
+      registerScannerReset,
+      goToFreshScan,
+    ],
   )
 
   return <ScanSessionContext.Provider value={value}>{children}</ScanSessionContext.Provider>

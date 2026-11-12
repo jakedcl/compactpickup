@@ -17,10 +17,6 @@ export type VisitorScanSession = {
   submitMessage: string
   /** After Yes or No the island collapses to Scan another only. */
   consentAnswered: boolean
-  /** True when the photo came from mobile Take photo (camera capture). */
-  fromCameraCapture: boolean
-  /** Set after a successful share-sheet or download save (user gesture). */
-  photoSaved: boolean
 }
 
 export function verdictFromGuessIndex(index: number): ScanVerdict {
@@ -35,8 +31,12 @@ export function correctionFromGuessIndex(
   return { kind: 'catalog', truck: match }
 }
 
+export function shouldBeginConsentIsland(verdict: ScanVerdict): boolean {
+  return verdict !== 'idk'
+}
+
 export function hasActiveVisitorSession(session: VisitorScanSession | null): boolean {
-  return Boolean(session?.file)
+  return Boolean(session?.file && shouldBeginConsentIsland(session.verdict))
 }
 
 /** Whether auto-scan should run after the crop step finishes. */
@@ -52,14 +52,34 @@ export function shouldAutoScanAfterCrop(input: {
   return true
 }
 
-export function visitorProgressLabel(scanning: boolean): string {
-  return scanning ? 'Scanning the truck…' : 'Cropping the truck…'
+export type VisitorProgressInput = {
+  modelDownloading: boolean
+  scanning: boolean
+  cropBusy: boolean
 }
 
-export function visitorProgressValue(scanning: boolean, cropProgress: number, scanProgress: number): number {
-  return scanning ? scanProgress : cropProgress
+export function visitorProgressLabel(input: VisitorProgressInput): string {
+  if (input.modelDownloading) return 'Downloading the scanner…'
+  if (input.scanning) return 'Scanning the truck…'
+  return 'Cropping the truck…'
 }
 
-export function visitorProgressVisible(cropBusy: boolean, scanning: boolean): boolean {
-  return cropBusy || scanning
+export function visitorProgressValue(input: VisitorProgressInput, cropProgress: number, scanProgress: number): number {
+  if (input.modelDownloading) return Math.max(cropProgress, scanProgress)
+  if (input.scanning) return scanProgress
+  return cropProgress
+}
+
+export function visitorProgressVisible(input: VisitorProgressInput): boolean {
+  return input.modelDownloading || input.cropBusy || input.scanning
+}
+
+/** Results modal Replace/Save row: half-and-half only on mobile after camera capture. */
+export function modalPhotoActionLayout(
+  offerSave: boolean,
+  device: 'unknown' | 'mobile' | 'desktop',
+): 'split' | 'single' {
+  if (!offerSave) return 'single'
+  if (device === 'mobile') return 'split'
+  return 'single'
 }

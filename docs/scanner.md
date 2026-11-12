@@ -120,7 +120,7 @@ The binder at `/binder` is the private photo library behind the scanner. Only `A
 
 ### Visitor submissions ("teach the scanner")
 
-After a scan, the results modal shows adaptive guesses plus Wrong and Not sure. Tapping a guess (or finishing Wrong / Not sure) can open the truck page or stay on `/scan`, with a sticky bottom **Can we use this photo to improve?** island. Nothing is stored unless they say **Yes**. With consent, `POST /api/scan/submit` stores the photo (shrunk in the browser to a 1600 px JPEG, then WebP on the server) as a `pending` photo with `source = 'visitor'`, plus a `scanner_feedback` row. Visitor photos never affect matching until you approve them in the binder. Duplicates (same sha256) are recognized and not stored twice. Visitor IPs are never stored, only an HMAC of the IP (keyed with `AUTH_SECRET`) for rate limiting.
+After a scan, the results modal shows adaptive guesses plus Wrong and Not sure. Tapping a guess (or finishing Wrong with a truck label) can open the truck page or stay on `/scan`, with a sticky **CAN WE USE THESE RESULTS TO IMPROVE?** island (Not sure skips the island). Nothing is stored unless they say **Yes**. With consent, `POST /api/scan/submit` stores the photo (shrunk in the browser to a 1600 px JPEG, then WebP on the server) as a `pending` photo with `source = 'visitor'`, plus a `scanner_feedback` row. Mobile **Take photo** shots can be kept on the device via the results-modal **Save photo** control (Web Share or download; not a silent Camera Roll write). Visitor photos never affect matching until you approve them in the binder.
 
 ## Where the data lives
 

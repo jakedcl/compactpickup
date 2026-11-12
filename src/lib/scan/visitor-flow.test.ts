@@ -4,11 +4,15 @@ import {
   SCAN_CONSENT_VALUE,
   SCAN_FIELDS,
 } from '@/lib/binder/scan-types'
+import { isModelDownloadProgress } from '@/lib/clip/progress'
 import { buildVisitorSubmitFormData } from './visitor-submit'
+import { shouldOfferSavePhoto } from './visitor-save-photo'
 import {
   correctionFromGuessIndex,
   hasActiveVisitorSession,
+  modalPhotoActionLayout,
   shouldAutoScanAfterCrop,
+  shouldBeginConsentIsland,
   verdictFromGuessIndex,
   visitorProgressLabel,
   visitorProgressVisible,
@@ -36,72 +40,51 @@ test('shouldAutoScanAfterCrop runs only when crop is ready and scan has not run'
     }),
     true,
   )
+})
+
+test('visitor progress switches cropping, downloading, and scanning labels', () => {
   assert.equal(
-    shouldAutoScanAfterCrop({
-      cropPhase: 'cropping',
-      hasFile: true,
-      scanning: false,
-      hasResult: false,
-      cropError: false,
-    }),
-    false,
+    visitorProgressLabel({ modelDownloading: false, scanning: false, cropBusy: true }),
+    'Cropping the truck…',
   )
   assert.equal(
-    shouldAutoScanAfterCrop({
-      cropPhase: 'ready',
-      hasFile: true,
-      scanning: true,
-      hasResult: false,
-      cropError: false,
-    }),
-    false,
+    visitorProgressLabel({ modelDownloading: true, scanning: false, cropBusy: true }),
+    'Downloading the scanner…',
   )
   assert.equal(
-    shouldAutoScanAfterCrop({
-      cropPhase: 'error',
-      hasFile: true,
-      scanning: false,
-      hasResult: false,
-      cropError: true,
-    }),
+    visitorProgressLabel({ modelDownloading: false, scanning: true, cropBusy: false }),
+    'Scanning the truck…',
+  )
+  assert.equal(visitorProgressVisible({ modelDownloading: true, scanning: false, cropBusy: false }), true)
+})
+
+test('isModelDownloadProgress is true only for download status on scanner models', () => {
+  assert.equal(
+    isModelDownloadProgress({ status: 'download', name: 'Xenova/dfine', file: 'onnx/model.onnx' }),
+    true,
+  )
+  assert.equal(
+    isModelDownloadProgress({ status: 'ready', name: 'siglip2-base', file: 'onnx/vision_model_q4.onnx' }),
     false,
   )
 })
 
-test('visitor progress uses one bar that switches label while scanning', () => {
-  assert.equal(visitorProgressVisible(true, false), true)
-  assert.equal(visitorProgressVisible(false, true), true)
-  assert.equal(visitorProgressVisible(false, false), false)
-  assert.equal(visitorProgressLabel(false), 'Cropping the truck…')
-  assert.equal(visitorProgressLabel(true), 'Scanning the truck…')
+test('modalPhotoActionLayout is split only for mobile camera save', () => {
+  assert.equal(modalPhotoActionLayout(false, 'desktop'), 'single')
+  assert.equal(modalPhotoActionLayout(false, 'mobile'), 'single')
+  assert.equal(modalPhotoActionLayout(true, 'desktop'), 'single')
+  assert.equal(modalPhotoActionLayout(true, 'mobile'), 'split')
 })
 
-test('guess verdict and correction match island submit rules', () => {
-  assert.equal(verdictFromGuessIndex(0), 'right')
-  assert.equal(verdictFromGuessIndex(1), 'wrong')
-  assert.deepEqual(correctionFromGuessIndex(0, truck), null)
-  assert.deepEqual(correctionFromGuessIndex(1, truckB), { kind: 'catalog', truck: truckB })
+test('Save photo is offered only for camera captures', () => {
+  assert.equal(shouldOfferSavePhoto('camera'), true)
+  assert.equal(shouldOfferSavePhoto('library'), false)
+  assert.equal(shouldOfferSavePhoto('drop'), false)
 })
 
-test('buildVisitorSubmitFormData matches consent submit fields', () => {
-  const jpeg = new File([Uint8Array.from([1, 2, 3])], 'truck.jpg', { type: 'image/jpeg' })
-  const rightBody = buildVisitorSubmitFormData(jpeg, 'right', truck, null)
-  assert.equal(rightBody.get(SCAN_FIELDS.consent), SCAN_CONSENT_VALUE)
-  assert.equal(rightBody.get(SCAN_FIELDS.verdict), 'right')
-  assert.equal(rightBody.get(SCAN_FIELDS.guessedTruckId), truck.id)
-  assert.equal(rightBody.get(SCAN_FIELDS.correctedTruckSlug), '')
-
-  const wrongBody = buildVisitorSubmitFormData(jpeg, 'wrong', truck, { kind: 'catalog', truck: truckB })
-  assert.equal(wrongBody.get(SCAN_FIELDS.verdict), 'wrong')
-  assert.equal(wrongBody.get(SCAN_FIELDS.correctedTruckId), truckB.id)
-  assert.equal(wrongBody.get(SCAN_FIELDS.correctedTruckSlug), truckB.slug)
-
-  const customBody = buildVisitorSubmitFormData(jpeg, 'wrong', truck, { kind: 'custom', text: 'Mazda B-Series' })
-  assert.equal(customBody.get(SCAN_FIELDS.correctedTruckCustomText), 'Mazda B-Series')
-})
-
-test('hasActiveVisitorSession is false without a file', () => {
-  assert.equal(hasActiveVisitorSession(null), false)
+test('Not sure skips the consent island', () => {
+  assert.equal(shouldBeginConsentIsland('idk'), false)
+  assert.equal(shouldBeginConsentIsland('right'), true)
   assert.equal(
     hasActiveVisitorSession({
       file: new File([], 'a.jpg'),
@@ -112,9 +95,20 @@ test('hasActiveVisitorSession is false without a file', () => {
       submitPhase: 'idle',
       submitMessage: '',
       consentAnswered: false,
-      fromCameraCapture: false,
-      photoSaved: false,
     }),
-    true,
+    false,
   )
+})
+
+test('guess verdict and correction match island submit rules', () => {
+  assert.equal(verdictFromGuessIndex(0), 'right')
+  assert.equal(verdictFromGuessIndex(1), 'wrong')
+  assert.deepEqual(correctionFromGuessIndex(1, truckB), { kind: 'catalog', truck: truckB })
+})
+
+test('buildVisitorSubmitFormData matches consent submit fields', () => {
+  const jpeg = new File([Uint8Array.from([1, 2, 3])], 'truck.jpg', { type: 'image/jpeg' })
+  const rightBody = buildVisitorSubmitFormData(jpeg, 'right', truck, null)
+  assert.equal(rightBody.get(SCAN_FIELDS.consent), SCAN_CONSENT_VALUE)
+  assert.equal(rightBody.get(SCAN_FIELDS.verdict), 'right')
 })

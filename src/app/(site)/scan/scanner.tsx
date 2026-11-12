@@ -13,7 +13,13 @@ import {
   preparePhotoCrop,
   type PreparedPhoto,
 } from '@/lib/clip/browser'
-import { clipProgressPercent, isDfineProgress, isSiglipProgress } from '@/lib/clip/progress'
+import {
+  clipProgressPercent,
+  isDfineProgress,
+  isModelDownloadProgress,
+  isSiglipProgress,
+} from '@/lib/clip/progress'
+import type { ClipProgress } from '@/lib/clip/browser'
 import {
   formatScanScorePercent,
   visibleScanMatches,
@@ -23,7 +29,9 @@ import {
 } from '@/lib/binder/scan-types'
 import {
   correctionFromGuessIndex,
+  modalPhotoActionLayout,
   shouldAutoScanAfterCrop,
+  shouldBeginConsentIsland,
   verdictFromGuessIndex,
   visitorProgressLabel,
   visitorProgressValue,
@@ -108,7 +116,7 @@ export default function Scanner({
   catalogStatus: 'ready' | 'error'
 }) {
   const router = useRouter()
-  const { beginSession, clearSession } = useScanSession()
+  const { beginSession, clearSession, registerScannerReset } = useScanSession()
   const device = useMobileDevice()
   const runId = useRef(0)
   const cropRunId = useRef(0)
@@ -131,7 +139,7 @@ export default function Scanner({
   const [modalStep, setModalStep] = useState<ModalStep>('results')
   const [dragging, setDragging] = useState(false)
   const [photoSource, setPhotoSource] = useState<VisitorPhotoSource | null>(null)
-  const [photoSaved, setPhotoSaved] = useState(false)
+  const [modelDownloading, setModelDownloading] = useState(false)
 
   const scanning = phase === 'working'
   const cropBusy = cropPhase === 'cropping'
@@ -154,7 +162,7 @@ export default function Scanner({
     return () => window.removeEventListener('pagehide', revoke)
   }, [clearPreviewUrl])
 
-  const resetSession = useCallback(() => {
+  const resetScannerToPicker = useCallback(() => {
     runId.current += 1
     cropRunId.current += 1
     preparedRef.current = null
@@ -165,13 +173,33 @@ export default function Scanner({
     setCropPhase('idle')
     setCropProgress(0)
     setScanProgress(0)
+    setModelDownloading(false)
     setResult(null)
     setModalOpen(false)
     setModalStep('results')
     setPhotoSource(null)
-    setPhotoSaved(false)
     setStatus('Pick a photo to scan.')
   }, [clearPreviewUrl])
+
+  useEffect(() => {
+    registerScannerReset(resetScannerToPicker)
+    return () => registerScannerReset(null)
+  }, [registerScannerReset, resetScannerToPicker])
+
+  const resetSession = useCallback(() => {
+    clearSession()
+    resetScannerToPicker()
+  }, [clearSession, resetScannerToPicker])
+
+  function trackClipProgress(progress: ClipProgress) {
+    if (isModelDownloadProgress(progress)) setModelDownloading(true)
+    if (
+      progress.status === 'ready' &&
+      (isDfineProgress(progress) || isSiglipProgress(progress))
+    ) {
+      setModelDownloading(false)
+    }
+  }
 
   const pickFile = useCallback((next: File, source: VisitorPhotoSource) => {
     if (!isImageFile(next)) {
@@ -193,7 +221,7 @@ export default function Scanner({
     setModalOpen(false)
     setModalStep('results')
     setPhotoSource(source)
-    setPhotoSaved(false)
+    setModelDownloading(false)
     setStatus('Cropping and scanning your photo…')
   }, [clearPreviewUrl, clearSession])
 
@@ -211,6 +239,7 @@ export default function Scanner({
       try {
         const prepared = await preparePhotoCrop(blob, (progress) => {
           if (cancelled || cropRunId.current !== id) return
+          trackClipProgress(progress)
           if (!isDfineProgress(progress)) return
           const n = clipProgressPercent(progress)
           if (n != null) setCropProgress((value) => Math.max(value, Math.min(90, 6 + n * 0.84)))
@@ -255,6 +284,7 @@ export default function Scanner({
     try {
       const vector = await embedPrepared(prepared, (progress) => {
         if (runId.current !== id) return
+        trackClipProgress(progress)
         if (!isSiglipProgress(progress)) return
         const n = clipProgressPercent(progress)
         if (n != null) setScanProgress((value) => Math.max(value, Math.min(70, 8 + n * 0.62)))
@@ -327,7 +357,7 @@ export default function Scanner({
   }, [cropPhase, file, scanning, result, cropError, scanPhoto])
 
   function handoffToIsland(verdict: ScanVerdict, correction: Correction | null) {
-    if (!file || !topCatalog || !preview) return
+    if (!file || !topCatalog || !preview || !shouldBeginConsentIsland(verdict)) return
     const previewUrl = preview
     previewRef.current = null
     setPreview(null)
@@ -337,9 +367,12 @@ export default function Scanner({
       verdict,
       correction,
       topGuess: topCatalog,
-      fromCameraCapture: photoSource === 'camera',
-      photoSaved,
     })
+  }
+
+  function onNotSure() {
+    setModalOpen(false)
+    resetSession()
   }
 
   function pickGuess(match: ScanMatch, index: number) {
@@ -426,20 +459,20 @@ export default function Scanner({
 
   const modalTitle = modalStep === 'results' ? 'Scan results' : 'Which truck was it?'
 
-  const progressVisible = visitorProgressVisible(cropBusy, scanning)
-  const progressLabel = visitorProgressLabel(scanning)
-  const progressValue = visitorProgressValue(scanning, cropProgress, scanProgress)
-  const offerSave = Boolean(file && photoSource && shouldOfferSavePhoto(photoSource) && !photoSaved)
+  const progressInput = { modelDownloading, scanning, cropBusy }
+  const progressVisible = visitorProgressVisible(progressInput)
+  const progressLabel = visitorProgressLabel(progressInput)
+  const progressValue = visitorProgressValue(progressInput, cropProgress, scanProgress)
+  const offerSave = Boolean(file && photoSource && shouldOfferSavePhoto(photoSource))
+  const photoActionLayout = modalPhotoActionLayout(offerSave, device)
 
   function modalPhotoActions() {
     return (
-      <div className="scan-modal-photo-actions">
+      <div className={`scan-modal-photo-actions is-${photoActionLayout}`}>
         <button type="button" className="btn" onClick={dismissModal}>
           Replace photo
         </button>
-        {offerSave && file ? (
-          <ScanSavePhotoButton file={file} onSaved={() => setPhotoSaved(true)} />
-        ) : null}
+        {offerSave && file ? <ScanSavePhotoButton file={file} /> : null}
       </div>
     )
   }
@@ -586,14 +619,7 @@ export default function Scanner({
                     >
                       Wrong
                     </button>
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => {
-                        handoffToIsland('idk', null)
-                        setModalOpen(false)
-                      }}
-                    >
+                    <button type="button" className="btn" onClick={onNotSure}>
                       Not sure
                     </button>
                   </div>
@@ -620,20 +646,28 @@ export default function Scanner({
               {catalogStatus === 'error' ? (
                 <p role="status">The truck list did not load. Try again later.</p>
               ) : (
-                <ScanTruckSearch
-                  trucks={trucks}
-                  disabled={busy}
-                  onPick={(pick) => {
-                    if (pick.kind === 'catalog') {
-                      handoffToIsland('wrong', { kind: 'catalog', truck: pick.truck })
-                      setModalOpen(false)
-                      router.push(pick.truck.href)
-                    } else {
-                      handoffToIsland('wrong', { kind: 'custom', text: pick.text })
-                      setModalOpen(false)
-                    }
-                  }}
-                />
+                <>
+                  <ScanTruckSearch
+                    trucks={trucks}
+                    disabled={busy}
+                    onPick={(pick) => {
+                      if (pick.kind === 'catalog') {
+                        handoffToIsland('wrong', { kind: 'catalog', truck: pick.truck })
+                        setModalOpen(false)
+                        router.push(pick.truck.href)
+                      } else {
+                        handoffToIsland('wrong', { kind: 'custom', text: pick.text })
+                        setModalOpen(false)
+                        resetScannerToPicker()
+                      }
+                    }}
+                  />
+                  <div className="scan-choice">
+                    <button type="button" className="btn" onClick={onNotSure}>
+                      Not sure
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           ) : null}
