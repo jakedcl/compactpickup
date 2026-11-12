@@ -29,6 +29,7 @@ import {
 } from '@/lib/binder/scan-types'
 import {
   correctionFromGuessIndex,
+  SCAN_IDLE_INTRO_COPY,
   pagePhotoActionLayout,
   shouldAutoScanAfterCrop,
   shouldBeginConsentIsland,
@@ -499,6 +500,9 @@ export default function Scanner({
                 Choose photo
               </button>
             </div>
+          ) : null}
+          {device !== 'unknown' ? (
+            <p className="scan-idle-intro">{SCAN_IDLE_INTRO_COPY}</p>
           ) : null}
         </>
       ) : (

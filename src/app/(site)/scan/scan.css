@@ -107,6 +107,15 @@
   min-height: 44px;
 }
 
+.scan-idle-intro {
+  margin: var(--space-3) 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .scan-actions {
   display: grid;
   gap: var(--space-2);

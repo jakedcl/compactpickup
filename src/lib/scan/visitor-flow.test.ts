@@ -10,6 +10,7 @@ import { shouldOfferSavePhoto } from './visitor-save-photo'
 import {
   correctionFromGuessIndex,
   hasActiveVisitorSession,
+  SCAN_IDLE_INTRO_COPY,
   pagePhotoActionLayout,
   shouldShowScanStatus,
   shouldAutoScanAfterCrop,
@@ -92,6 +93,14 @@ test('shouldShowScanStatus hides match-score copy when results are on the page',
     }),
     true,
   )
+})
+
+test('empty scan intro copy is the agreed idle-only message', () => {
+  assert.match(
+    SCAN_IDLE_INTRO_COPY,
+    /THOUSANDS OF PHOTOS OF THE COMPACT PICKUPS IN OUR CATALOG/,
+  )
+  assert.match(SCAN_IDLE_INTRO_COPY, /WE WON'T USE YOUR PHOTO WITHOUT PERMISSION/)
 })
 
 test('Save photo is offered only for camera captures', () => {

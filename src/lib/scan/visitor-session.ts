@@ -1,5 +1,9 @@
 import type { ScanCatalogTruck, ScanVerdict } from '@/lib/binder/scan-types'
 
+/** Shown only on the empty /scan picker, before any photo is chosen. */
+export const SCAN_IDLE_INTRO_COPY =
+  'THIS MODEL WAS TRAINED ON THOUSANDS OF PHOTOS OF THE COMPACT PICKUPS IN OUR CATALOG. IT RUNS ON YOUR DEVICE, AND WE WON\'T USE YOUR PHOTO WITHOUT PERMISSION.'
+
 export type VisitorCorrection =
   | { kind: 'catalog'; truck: ScanCatalogTruck }
   | { kind: 'custom'; text: string }
