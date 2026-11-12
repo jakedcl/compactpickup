@@ -78,11 +78,6 @@ export function visitorProgressVisible(input: VisitorProgressInput): boolean {
   return input.modelDownloading || input.cropBusy || input.scanning
 }
 
-/** In-page crop row: Replace fills the side column, or Replace + Save stacked when camera. */
-export function pagePhotoActionLayout(offerSave: boolean): 'dual' | 'replace-only' {
-  return offerSave ? 'dual' : 'replace-only'
-}
-
 export function shouldShowScanStatus(
   status: string,
   input: { phase: 'idle' | 'preview' | 'working' | 'error'; cropError: boolean; hasResult: boolean },

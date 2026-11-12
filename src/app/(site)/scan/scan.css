@@ -48,17 +48,15 @@
   margin-bottom: var(--space-3);
 }
 
-.scan-stage {
-  display: grid;
-  grid-template-columns: 5fr 3fr;
-  gap: var(--space-2);
-  align-items: stretch;
-  margin-bottom: var(--space-3);
+.scan-preview-crop {
+  min-height: 0;
 }
 
-.scan-preview-crop {
+.scan-preview-full {
+  width: 100%;
   aspect-ratio: 4 / 3;
-  min-height: 0;
+  max-height: min(38dvh, 280px);
+  margin-bottom: var(--space-2);
 }
 
 .scan-preview img {
@@ -85,26 +83,6 @@
 
 .scan-preview-empty p {
   text-transform: none;
-}
-
-.scan-stage-actions {
-  display: grid;
-  gap: var(--space-2);
-  align-content: start;
-}
-
-.scan-stage-actions.is-replace-only {
-  grid-template-rows: 1fr;
-}
-
-.scan-stage-actions.is-dual {
-  grid-template-rows: auto auto;
-}
-
-.scan-stage-actions .btn,
-.scan-stage-actions .scan-save-photo {
-  width: 100%;
-  min-height: 44px;
 }
 
 .scan-idle-intro {
@@ -200,11 +178,48 @@
   outline-offset: 2px;
 }
 
-.scan-pick-prompt {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.45;
+.scan-guess-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding-bottom: var(--space-4);
+}
+
+.scan-guess-title {
+  display: block;
+  font-size: 17px;
+  line-height: 1.35;
   color: var(--ink);
+}
+
+.scan-guess-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.scan-guess-more {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.scan-results-footer {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.scan-results-footer .btn,
+.scan-results-footer .scan-save-photo {
+  width: 100%;
+  min-height: 44px;
 }
 
 .scan-choice {

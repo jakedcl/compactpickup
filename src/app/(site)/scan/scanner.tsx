@@ -21,7 +21,8 @@ import {
   isSiglipProgress,
 } from '@/lib/clip/progress'
 import {
-  formatScanScorePercent,
+  assignVisibleScanDisplayPercents,
+  scanGuessCardTitle,
   visibleScanMatches,
   type ScanCatalogTruck,
   type ScanMatch,
@@ -30,7 +31,6 @@ import {
 import {
   correctionFromGuessIndex,
   SCAN_IDLE_INTRO_COPY,
-  pagePhotoActionLayout,
   shouldAutoScanAfterCrop,
   shouldBeginConsentIsland,
   shouldShowScanStatus,
@@ -117,7 +117,7 @@ export default function Scanner({
   catalogStatus: 'ready' | 'error'
 }) {
   const router = useRouter()
-  const { beginSession, clearSession, registerScannerReset } = useScanSession()
+  const { beginSession, clearSession, registerScannerReset, goToFreshScan } = useScanSession()
   const device = useMobileDevice()
   const runId = useRef(0)
   const cropRunId = useRef(0)
@@ -452,7 +452,6 @@ export default function Scanner({
   const progressLabel = visitorProgressLabel(progressInput)
   const progressValue = visitorProgressValue(progressInput, cropProgress, scanProgress)
   const offerSave = Boolean(file && photoSource && shouldOfferSavePhoto(photoSource))
-  const photoActionLayout = pagePhotoActionLayout(offerSave)
   const showStatus = shouldShowScanStatus(status, {
     phase,
     cropError,
@@ -461,6 +460,14 @@ export default function Scanner({
 
   const emptyCopy =
     device === 'mobile' ? 'Take or choose a photo' : 'Drop a photo here'
+
+  const visibleMatches = result ? visibleScanMatches(result.matches) : []
+  const displayPercents = assignVisibleScanDisplayPercents(visibleMatches)
+
+  function onScanAnother() {
+    goToFreshScan()
+    router.push('/scan')
+  }
 
   return (
     <div className={`scan-shell${idle ? ' is-idle' : ' has-photo'}`}>
@@ -507,21 +514,13 @@ export default function Scanner({
         </>
       ) : (
         <>
-          <div className="scan-stage">
-            <div className="scan-preview scan-preview-crop">
-              {preview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={preview} alt="Cropped truck preview" />
-              ) : (
-                <p>{cropBusy ? 'Cropping' : 'Working'}</p>
-              )}
-            </div>
-            <div className={`scan-stage-actions is-${photoActionLayout}`}>
-              <button type="button" className="btn" disabled={busy} onClick={resetSession}>
-                Replace photo
-              </button>
-              {offerSave && file ? <ScanSavePhotoButton file={file} disabled={busy} /> : null}
-            </div>
+          <div className="scan-preview scan-preview-crop scan-preview-full">
+            {preview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={preview} alt="Cropped truck preview" />
+            ) : (
+              <p>{cropBusy ? 'Cropping' : 'Working'}</p>
+            )}
           </div>
           <VhsProgressBar label={progressLabel} value={progressValue} visible={progressVisible} />
           {showStatus ? (
@@ -574,18 +573,22 @@ export default function Scanner({
         <section className="scan-page-panel" aria-label="Scan results">
           {result.matches.length > 0 ? (
             <ol className="scan-results">
-              {visibleScanMatches(result.matches).map((match, index) => (
+              {visibleMatches.map((match, index) => (
                 <li key={match.id}>
                   <button type="button" className="scan-guess" onClick={() => pickGuess(match, index)}>
-                    <span className="card scan-hit">
+                    <span className="card scan-hit scan-guess-card">
                       <span className="card-copy">
                         <span className="card-label">
                           {index === 0 ? (result.state === 'match' ? 'Closest' : 'Closest guess') : 'Next closest'}
                         </span>
-                        <span className="card-label">{match.maker}</span>
-                        <span className="card-title">{match.title}</span>
-                        {match.years ? <span>{match.years}</span> : null}
-                        <span className="meta">Match {formatScanScorePercent(match.score)}</span>
+                        <span className="scan-guess-title">{scanGuessCardTitle(match.maker, match.title)}</span>
+                        <span className="scan-guess-meta">
+                          {match.years ? <span>{match.years}</span> : null}
+                          <span className="meta">Match {displayPercents[index]}%</span>
+                        </span>
+                      </span>
+                      <span className="scan-guess-more" aria-hidden="true">
+                        See more
                       </span>
                     </span>
                   </button>
@@ -596,22 +599,21 @@ export default function Scanner({
             <p role="status">Not sure yet. There is no truck page close enough to show.</p>
           )}
           {canFeedback ? (
-            <>
-              <p className="scan-pick-prompt">Tap the right truck, or:</p>
-              <div className="scan-choice">
-                <button type="button" className="btn" onClick={() => setPageStep('correction')}>
-                  Wrong
-                </button>
-                <button type="button" className="btn" onClick={onNotSure}>
-                  Not sure
-                </button>
-              </div>
-            </>
-          ) : (
-            <button type="button" className="btn" onClick={resetSession}>
+            <div className="scan-choice">
+              <button type="button" className="btn" onClick={() => setPageStep('correction')}>
+                Wrong
+              </button>
+              <button type="button" className="btn" onClick={onNotSure}>
+                Not sure
+              </button>
+            </div>
+          ) : null}
+          <div className="scan-results-footer">
+            {offerSave && file ? <ScanSavePhotoButton file={file} disabled={busy} /> : null}
+            <button type="button" className="btn btn-accent" onClick={onScanAnother}>
               Scan another
             </button>
-          )}
+          </div>
         </section>
       ) : null}
 
@@ -620,27 +622,30 @@ export default function Scanner({
           {catalogStatus === 'error' ? (
             <p role="status">The truck list did not load. Try again later.</p>
           ) : (
-            <>
-              <ScanTruckSearch
-                trucks={trucks}
-                disabled={busy}
-                onPick={(pick) => {
-                  if (pick.kind === 'catalog') {
-                    handoffToIsland('wrong', { kind: 'catalog', truck: pick.truck })
-                    router.push(pick.truck.href)
-                  } else {
-                    handoffToIsland('wrong', { kind: 'custom', text: pick.text })
-                    resetScannerToPicker()
-                  }
-                }}
-              />
-              <div className="scan-choice">
-                <button type="button" className="btn" onClick={onNotSure}>
-                  Not sure
-                </button>
-              </div>
-            </>
+            <ScanTruckSearch
+              trucks={trucks}
+              disabled={busy}
+              onPick={(pick) => {
+                if (pick.kind === 'catalog') {
+                  handoffToIsland('wrong', { kind: 'catalog', truck: pick.truck })
+                  router.push(pick.truck.href)
+                } else {
+                  handoffToIsland('wrong', { kind: 'custom', text: pick.text })
+                  resetScannerToPicker()
+                }
+              }}
+            />
           )}
+          <div className="scan-choice">
+            <button type="button" className="btn" onClick={onNotSure}>
+              Not sure
+            </button>
+          </div>
+          <div className="scan-results-footer">
+            <button type="button" className="btn btn-accent" onClick={onScanAnother}>
+              Scan another
+            </button>
+          </div>
         </section>
       ) : null}
     </div>

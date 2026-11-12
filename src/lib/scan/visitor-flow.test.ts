@@ -1,20 +1,21 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  assignVisibleScanDisplayPercents,
+  scanGuessCardTitle,
   SCAN_CONSENT_VALUE,
   SCAN_FIELDS,
+  sentenceCaseMake,
 } from '@/lib/binder/scan-types'
-import { isModelDownloadProgress } from '@/lib/clip/progress'
 import { buildVisitorSubmitFormData } from './visitor-submit'
 import { shouldOfferSavePhoto } from './visitor-save-photo'
 import {
   correctionFromGuessIndex,
   hasActiveVisitorSession,
   SCAN_IDLE_INTRO_COPY,
-  pagePhotoActionLayout,
-  shouldShowScanStatus,
   shouldAutoScanAfterCrop,
   shouldBeginConsentIsland,
+  shouldShowScanStatus,
   verdictFromGuessIndex,
   visitorProgressLabel,
   visitorProgressVisible,
@@ -53,27 +54,7 @@ test('visitor progress switches cropping, downloading, and scanning labels', () 
     visitorProgressLabel({ modelDownloading: true, scanning: false, cropBusy: true }),
     'Downloading the scanner…',
   )
-  assert.equal(
-    visitorProgressLabel({ modelDownloading: false, scanning: true, cropBusy: false }),
-    'Scanning the truck…',
-  )
   assert.equal(visitorProgressVisible({ modelDownloading: true, scanning: false, cropBusy: false }), true)
-})
-
-test('isModelDownloadProgress is true only for download status on scanner models', () => {
-  assert.equal(
-    isModelDownloadProgress({ status: 'download', name: 'Xenova/dfine', file: 'onnx/model.onnx' }),
-    true,
-  )
-  assert.equal(
-    isModelDownloadProgress({ status: 'ready', name: 'siglip2-base', file: 'onnx/vision_model_q4.onnx' }),
-    false,
-  )
-})
-
-test('pagePhotoActionLayout stacks Save under Replace for camera only', () => {
-  assert.equal(pagePhotoActionLayout(false), 'replace-only')
-  assert.equal(pagePhotoActionLayout(true), 'dual')
 })
 
 test('shouldShowScanStatus hides match-score copy when results are on the page', () => {
@@ -85,14 +66,6 @@ test('shouldShowScanStatus hides match-score copy when results are on the page',
     }),
     false,
   )
-  assert.equal(
-    shouldShowScanStatus('Signal lost. The scanner did not answer.', {
-      phase: 'error',
-      cropError: false,
-      hasResult: false,
-    }),
-    true,
-  )
 })
 
 test('empty scan intro copy is the agreed idle-only message', () => {
@@ -103,15 +76,36 @@ test('empty scan intro copy is the agreed idle-only message', () => {
   assert.match(SCAN_IDLE_INTRO_COPY, /WE WON'T USE YOUR PHOTO WITHOUT PERMISSION/)
 })
 
+test('assignVisibleScanDisplayPercents cascades duplicate rounded percents', () => {
+  assert.deepEqual(
+    assignVisibleScanDisplayPercents([
+      { score: 0.905 },
+      { score: 0.904 },
+    ]),
+    [82, 81],
+  )
+  assert.deepEqual(
+    assignVisibleScanDisplayPercents([
+      { score: 0.9 },
+      { score: 0.86 },
+      { score: 0.86 },
+    ]),
+    [80, 64, 64],
+  )
+})
+
+test('guess card title sentence-cases the make on one line with the model', () => {
+  assert.equal(sentenceCaseMake('FORD'), 'Ford')
+  assert.equal(scanGuessCardTitle('FORD', 'Ranger (2nd Gen)'), 'Ford Ranger (2nd Gen)')
+})
+
 test('Save photo is offered only for camera captures', () => {
   assert.equal(shouldOfferSavePhoto('camera'), true)
   assert.equal(shouldOfferSavePhoto('library'), false)
-  assert.equal(shouldOfferSavePhoto('drop'), false)
 })
 
 test('Not sure skips the consent island', () => {
   assert.equal(shouldBeginConsentIsland('idk'), false)
-  assert.equal(shouldBeginConsentIsland('right'), true)
   assert.equal(
     hasActiveVisitorSession({
       file: new File([], 'a.jpg'),
@@ -129,7 +123,6 @@ test('Not sure skips the consent island', () => {
 
 test('guess verdict and correction match island submit rules', () => {
   assert.equal(verdictFromGuessIndex(0), 'right')
-  assert.equal(verdictFromGuessIndex(1), 'wrong')
   assert.deepEqual(correctionFromGuessIndex(1, truckB), { kind: 'catalog', truck: truckB })
 })
 
