@@ -36,7 +36,7 @@ visitor's photo
 top 3 trucks ranked → results modal shows 1–3 adaptive guesses with percentages
 ```
 
-The visitor sees the crop, with a bar labeled **Cropping the truck…**, and presses Scan only after that preview is ready. A second bar, **Scanning the truck…**, covers the fingerprint and the server match. The models are cached in the browser after the first use. The photo itself never leaves the device during a scan. Only the 768 numbers are sent. A photo is uploaded only if the visitor later chooses to "teach the scanner" and says yes on the consent popup (see [Visitor submissions](#visitor-submissions-teach-the-scanner)).
+After the visitor picks, drops, or pastes a photo, the crop and scan run automatically. One bar labeled **Cropping the truck…** then **Scanning the truck…** covers both steps. The models are cached in the browser after the first use. The photo itself never leaves the device during a scan. Only the 768 numbers are sent. A photo is uploaded only if the visitor later taps a guess (or Wrong / Not sure) and says **Yes** on the sticky consent island (see [Visitor submissions](#visitor-submissions-teach-the-scanner)).
 
 ### 1–2. The crop (D-FINE)
 
@@ -120,7 +120,7 @@ The binder at `/binder` is the private photo library behind the scanner. Only `A
 
 ### Visitor submissions ("teach the scanner")
 
-After a scan, a visitor can tap the right truck, or say Wrong or Not sure. A short popup then asks whether we can keep the photo to help improve the scanner. Nothing is stored unless they say yes. With consent, `POST /api/scan/submit` stores the photo (shrunk in the browser to a 1600 px JPEG, then WebP on the server) as a `pending` photo with `source = 'visitor'`, plus a `scanner_feedback` row. Visitor photos never affect matching until you approve them in the binder. Duplicates (same sha256) are recognized and not stored twice. Visitor IPs are never stored, only an HMAC of the IP (keyed with `AUTH_SECRET`) for rate limiting.
+After a scan, the results modal shows adaptive guesses plus Wrong and Not sure. Tapping a guess (or finishing Wrong / Not sure) can open the truck page or stay on `/scan`, with a sticky bottom **Can we use this photo to improve?** island. Nothing is stored unless they say **Yes**. With consent, `POST /api/scan/submit` stores the photo (shrunk in the browser to a 1600 px JPEG, then WebP on the server) as a `pending` photo with `source = 'visitor'`, plus a `scanner_feedback` row. Visitor photos never affect matching until you approve them in the binder. Duplicates (same sha256) are recognized and not stored twice. Visitor IPs are never stored, only an HMAC of the IP (keyed with `AUTH_SECRET`) for rate limiting.
 
 ## Where the data lives
 
