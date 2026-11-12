@@ -1,10 +1,11 @@
-/** SigLIP vision weights id (browser). */
-export const EMBED_MODEL = 'siglip2-base-q4'
+/** SigLIP vision weights id (browser). Fine-tuned q4 served from this site. */
+export const EMBED_MODEL = 'siglip2-base-q4-ft20261112'
 
-/** D-FINE detector + 15% padded vehicle crop + SigLIP fingerprint. Bump when embedder/crop logic changes. */
-export const EMBED_PIPELINE = 'siglip2-base-q4+dfine-crop15'
+/** D-FINE detector + 15% padded vehicle crop + taught SigLIP fingerprint. Bump when embedder/crop logic changes. */
+export const EMBED_PIPELINE = 'siglip2-base-q4-ft20261112+dfine-crop15'
 
-export const SIGLIP_BROWSER_MODEL = 'onnx-community/siglip2-base-patch16-224-ONNX'
+/** Same-origin model folder (public/models/…). Not a Hugging Face model id. */
+export const SIGLIP_BROWSER_MODEL = '/models/siglip2-base-ft20261112'
 export const SIGLIP_BROWSER_DTYPE = 'q4' as const
 
 export const DFINE_BROWSER_MODEL = 'onnx-community/dfine_n_coco-ONNX'

@@ -24,5 +24,9 @@ export function isDfineProgress(progress: ClipProgress): boolean {
 
 export function isSiglipProgress(progress: ClipProgress): boolean {
   const hint = progressHint(progress)
-  return hint.includes('siglip') || hint.includes(SIGLIP_BROWSER_MODEL.toLowerCase())
+  return (
+    hint.includes('siglip') ||
+    hint.includes('vision_model') ||
+    hint.includes(SIGLIP_BROWSER_MODEL.toLowerCase())
+  )
 }
