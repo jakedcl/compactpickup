@@ -37,7 +37,14 @@ import {
   type SubmitDeps,
 } from './scan'
 import { EMBED_PIPELINE } from '../clip/pipeline'
-import { SCAN_FIELDS, formatScanScorePercent, toScanTruck, type ScanCatalogTruck } from './scan-types'
+import {
+  SCAN_FIELDS,
+  SCAN_RESULTS_SCORE_GAP,
+  formatScanScorePercent,
+  toScanTruck,
+  visibleScanMatches,
+  type ScanCatalogTruck,
+} from './scan-types'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 const ORIGIN = 'https://compactpickup.local'
@@ -910,4 +917,32 @@ test('scan match scores are shown to visitors as whole-number percents', () => {
   assert.equal(formatScanScorePercent(0.65), '0%')
   assert.equal(formatScanScorePercent(1.2), '100%')
   assert.equal(formatScanScorePercent(-0.1), '0%')
+})
+
+test('visibleScanMatches shows 1, 2, or 3 rows from raw score gaps', () => {
+  const three = [
+    { slug: 'a', score: 0.9 },
+    { slug: 'b', score: 0.86 },
+    { slug: 'c', score: 0.86 },
+  ]
+  assert.equal(visibleScanMatches(three).map((m) => m.slug).join(','), 'a,b,c')
+  const showTwo = [
+    { slug: 'a', score: 0.88 },
+    { slug: 'b', score: 0.84 },
+    { slug: 'c', score: 0.81 },
+  ]
+  assert.equal(visibleScanMatches(showTwo).map((m) => m.slug).join(','), 'a,b')
+  const gap12 = [
+    { slug: 'a', score: 0.9 },
+    { slug: 'b', score: 0.84 },
+    { slug: 'c', score: 0.83 },
+  ]
+  assert.equal(visibleScanMatches(gap12).map((m) => m.slug).join(','), 'a')
+  assert.equal(SCAN_RESULTS_SCORE_GAP, 0.05)
+  const gap13Only = [
+    { slug: 'a', score: 0.88 },
+    { slug: 'b', score: 0.87 },
+    { slug: 'c', score: 0.82 },
+  ]
+  assert.equal(visibleScanMatches(gap13Only).map((m) => m.slug).join(','), 'a,b')
 })

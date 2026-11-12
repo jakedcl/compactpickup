@@ -12,6 +12,24 @@ export type ScanMatch = ScanCatalogTruck & {
 }
 
 /**
+ * Min raw cosine gap between the top score and a lower guess before the results popup hides that guess.
+ * Compared as score1 − score2 and score1 − score3 only (never score2 − score3). About 25 points on the
+ * 0.70–0.90 → 0–100% meter ({@link formatScanScorePercent}).
+ */
+export const SCAN_RESULTS_SCORE_GAP = 0.05
+
+/** Adaptive 1/2/3 results rows from raw match scores (independent of confident-match margin). */
+export function visibleScanMatches<T extends { score: number }>(matches: T[]): T[] {
+  if (matches.length <= 1) return matches
+  const [first, second, third] = matches
+  const m12 = first.score - second.score
+  if (m12 >= SCAN_RESULTS_SCORE_GAP) return [first]
+  const m13 = first.score - (third?.score ?? Number.NEGATIVE_INFINITY)
+  if (m13 >= SCAN_RESULTS_SCORE_GAP) return matches.slice(0, 2)
+  return matches.slice(0, 3)
+}
+
+/**
  * Raw cosine floor for display rescaling. SigLIP2 photo-to-photo cosine for the
  * best truck sits around 0.79-0.89, so 0.70 shows as 0%, the 0.80 match line as 50%,
  * and 0.90+ as 100%.

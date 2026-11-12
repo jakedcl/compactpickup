@@ -7,6 +7,8 @@
   },
   "scripts": {
     "dev": "next dev",
+    "install:siglip-vision": "node scripts/install-siglip-vision.mjs",
+    "prebuild": "node scripts/install-siglip-vision.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

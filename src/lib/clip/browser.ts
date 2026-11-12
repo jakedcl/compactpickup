@@ -145,7 +145,8 @@ function loadSiglipSession(): Promise<SiglipSession> {
     siglipPromise = (async () => {
       const transformers = await import('@huggingface/transformers')
       const { env, AutoProcessor, SiglipVisionModel, RawImage } = transformers
-      env.allowLocalModels = false
+      // Taught SigLIP weights load from public/models on this origin (see pipeline.ts).
+      env.allowLocalModels = true
       env.useBrowserCache = true
       const wasm = env.backends.onnx.wasm
       if (wasm) wasm.numThreads = 1

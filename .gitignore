@@ -43,3 +43,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Taught SigLIP vision weights (~63 MB); install via scripts/install-siglip-vision.mjs
+/public/models/siglip2-base-ft20261112/onnx/*.onnx

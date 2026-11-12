@@ -291,7 +291,8 @@ test('the shared fingerprint module is the SigLIP + D-FINE crop contract', () =>
   assert.match(source, /pooler_output/)
   assert.match(source, /progress_callback/)
   assert.match(source, /pickVehicleBox/)
-  assert.match(pipeline, /siglip2-base-q4\+dfine-crop15/)
+  assert.match(pipeline, /siglip2-base-q4-ft20261112\+dfine-crop15/)
+  assert.match(pipeline, /SIGLIP_BROWSER_MODEL = '\/models\//)
 })
 
 test('SigLIP fingerprint migration adds embedding_siglip', () => {

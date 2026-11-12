@@ -27,13 +27,13 @@ visitor's photo
   ├─ 2. D-FINE nano finds vehicles → pick the main one → crop with 15% padding
   ├─ 3. SigLIP2-base (q4) turns the crop into a 768-number fingerprint (L2-normalized)
   │
-  │  POST /api/scan  { embedding: number[768], pipeline: "siglip2-base-q4+dfine-crop15" }
+  │  POST /api/scan  { embedding: number[768], pipeline: "siglip2-base-q4-ft20261112+dfine-crop15" }
   ▼  (server, src/lib/binder/scan-http.ts → scan.ts)
   ├─ 4. check origin, body size, pipeline id, rate limits
   ├─ 5. pgvector: 40 nearest approved photos by cosine similarity (Neon)
   ├─ 6. score each truck from its best 3 photos, rank, decide "match" vs "guess"
   ▼
-top 3 trucks ranked → results modal shows the two closest with percentages
+top 3 trucks ranked → results modal shows 1–3 adaptive guesses with percentages
 ```
 
 The visitor sees the crop, with a bar labeled **Cropping the truck…**, and presses Scan only after that preview is ready. A second bar, **Scanning the truck…**, covers the fingerprint and the server match. The models are cached in the browser after the first use. The photo itself never leaves the device during a scan. Only the 768 numbers are sent. A photo is uploaded only if the visitor later chooses to "teach the scanner" and says yes on the consent popup (see [Visitor submissions](#visitor-submissions-teach-the-scanner)).
@@ -58,7 +58,7 @@ The visitor sees the crop, with a bar labeled **Cropping the truck…**, and pre
 **Plain version:** SigLIP2 is a model Google trained on a huge number of images with captions, so it learned which visual details matter. We use only its image half. It is good at fine differences (grille, headlights, body lines), which is what telling a '94 S-10 from a '94 Sonoma needs.
 
 **Details:**
-- Model: `onnx-community/siglip2-base-patch16-224-ONNX`, `SiglipVisionModel`, dtype **q4**, output `pooler_output`, L2-normalized, 768 dimensions.
+- Model: taught SigLIP2-base vision ONNX (MatMulNBits **q4**, opset 14), `SiglipVisionModel`, output `pooler_output`, L2-normalized, 768 dimensions. Architecture/config/preprocessor match the public `onnx-community/siglip2-base-patch16-224-ONNX` repo; only `onnx/vision_model_q4.onnx` is fine-tuned and is **not** on Hugging Face.
 - The crop is fitted to a 768 px long edge, then the processor squashes it to 224×224 (no centre crop).
 - **Do not ship q8/int8 for SigLIP2.** Its browser q8 output is broken (cosine 0.81 against fp32). The q4 file is fine (0.97 against fp32).
 - About 1.7–2 s per photo on desktop Chrome (one wasm thread) once the models are cached. Phones are slower.
@@ -67,11 +67,11 @@ The visitor sees the crop, with a bar labeled **Cropping the truck…**, and pre
 
 | What | Source | Size (download, cached by the browser afterwards) |
 |---|---|---|
-| SigLIP2-base vision q4 | huggingface.co (`onnx-community/siglip2-base-patch16-224-ONNX`) | 63 MB |
+| SigLIP2-base vision q4 (taught) | this site (`/models/siglip2-base-ft20261112/…`) | 63 MB |
 | D-FINE nano fp16 | huggingface.co (`onnx-community/dfine_n_coco-ONNX`) | 8 MB |
 | ONNX Runtime WebAssembly | cdn.jsdelivr.net (`onnxruntime-web`, transformers.js default) | about 14–27 MB depending on the browser build |
 
-Neither model is served from Vercel, so model downloads cost us nothing. The scanner and binder both use the browser cache (`env.useBrowserCache = true`).
+D-FINE is still served from Hugging Face. The taught SigLIP weights are served from the app origin (see `public/models/siglip2-base-ft20261112/README.md` and `scripts/install-siglip-vision.mjs`); they are gitignored and must be installed before deploy (`SIGLIP_VISION_ONNX_PATH` or `SIGLIP_VISION_ONNX_URL` on Vercel). The scanner and binder both use the browser cache (`env.useBrowserCache = true`).
 
 ### The single embed entry point
 
@@ -83,7 +83,7 @@ Both routes share the same internal functions and produce identical vectors (che
 
 ### 4. The pipeline version check
 
-`EMBED_PIPELINE` in `src/lib/clip/pipeline.ts` (currently `siglip2-base-q4+dfine-crop15`) names the exact model and crop recipe. The scanner sends it with every scan. `/api/scan` rejects any other value with `400 { error: "stale_model", reload: true }`, and the page tells the visitor to reload. This stops an old open tab from sending fingerprints made with a previous model, which would quietly give wrong answers. Vectors with the wrong length are rejected the same way.
+`EMBED_PIPELINE` in `src/lib/clip/pipeline.ts` (currently `siglip2-base-q4-ft20261112+dfine-crop15`) names the exact model and crop recipe. The scanner sends it with every scan. `/api/scan` rejects any other value with `400 { error: "stale_model", reload: true }`, and the page tells the visitor to reload. This stops an old open tab from sending fingerprints made with a previous model, which would quietly give wrong answers. Vectors with the wrong length are rejected the same way.
 
 ### 5. The match (pgvector)
 
@@ -99,11 +99,11 @@ limit 40
 
 ### 6. Scoring per truck, and the thresholds
 
-**Plain version:** a single lucky photo shouldn't win, so each truck is scored by its 3 closest photos. The results popup goes straight to the two closest trucks, each with a percentage. If the best truck clearly beats the runner-up, the first card says Closest. Otherwise it says Closest guess.
+**Plain version:** a single lucky photo shouldn't win, so each truck is scored by its 3 closest photos. The results popup shows one, two, or three guesses from how tight the raw scores are. If the best truck clearly beats the runner-up, the first card says Closest. Otherwise it says Closest guess.
 
 **Details** (`aggregateTruckScores` and `outcomeFromRanks` in `src/lib/binder/scan.ts`, results UI in `src/app/(site)/scan/scanner.tsx`):
 - Group the 40 neighbours by truck. A truck's score is the mean of its best **3** similarities. Missing slots are padded with the 40th neighbour's score, so a truck with 1 close photo doesn't beat one with 3.
-- The API returns the top **3** trucks. The results popup shows the **two** closest (`matches.slice(0, 2)`), each with a percentage. There is no "Not sure. The strongest match is only X%." paragraph in the popup (removed in PR #55). The status text under the photo can still say the scanner is not sure when the result is a weak guess.
+- The API returns the top **3** trucks. The results popup calls `visibleScanMatches` in `src/lib/binder/scan-types.ts` on those scores: let `m12 = score1 − score2` and `m13 = score1 − score3`. If `m12 ≥ 0.05` (`SCAN_RESULTS_SCORE_GAP`), show only the first; else if `m13 ≥ 0.05`, show the first two; else show all three. Gaps use raw cosine, not the displayed percent. This is separate from the confident-match margin (`SCAN_MATCH_MIN_MARGIN`). There is no "Not sure. The strongest match is only X%." paragraph in the popup (removed in PR #55). The status text under the photo can still say the scanner is not sure when the result is a weak guess.
 - **Confident match** when the top score ≥ **0.80** (`SCAN_MATCH_MIN_SIMILARITY`) **and** it beats the second truck by ≥ **0.02** (`SCAN_MATCH_MIN_MARGIN`). Then the first card is labeled **Closest**. Otherwise the result is a "guess" and the first card says **Closest guess**. Both cutoffs can be overridden with Vercel env vars.
 - **Displayed percent** (`src/lib/binder/scan-types.ts`): similarity 0.70 shows as 0%, 0.80 (the match line) as 50%, and 0.90 or more as 100%. Photo-to-photo cosine for the right truck usually sits between 0.79 and 0.89, so raw cosine would look like "85%" for every answer, right or wrong.
 - Optional **probe scorer**: if `src/lib/scan/probe.json` exists (a trained 57×768 linear classifier), `/api/scan` ranks with it instead, using its own thresholds (`SCAN_PROBE_MATCH_MIN_PROBABILITY` 0.35, `SCAN_PROBE_MIN_MARGIN` 0.04). It isn't shipped yet.
@@ -154,7 +154,7 @@ Also: same-origin check on both routes, a 64 KB body cap on scans and 4.5 MB on 
 
 - **Held-out test set:** 100 photos of 50 catalog trucks from 96 Bring a Trailer listings, mostly sellers' phone shots, at mixed angles. The right answer comes from the listing title plus a visual check. None are in the DB (sha256 checked). One photo showed the same physical truck as a DB photo and is excluded, so **99 are scored**. Not covered (no listings): b-1, b-3, i-series, maverick, mitsubishi-raider, suzuki-equator, p100. The photos are third-party and are **not** in this repo.
 - Fingerprints are made with the real browser code in headless Chrome, then scored with an exact copy of the server matching.
-- Metrics: **top-1** (first guess right), **top-3** (right truck among the top 3 ranked; the popup shows the two closest), **top-5**, **make** (first guess has the right manufacturer), and how often the first card is labeled Closest (a confident match) and how often that is right.
+- Metrics: **top-1** (first guess right), **top-3** (right truck among the top 3 ranked; the popup may hide guesses when scores are far apart), **top-5**, **make** (first guess has the right manufacturer), and how often the first card is labeled Closest (a confident match) and how often that is right.
 - **DB leave-one-out:** each DB photo is scored against all the others. Flattering, because many DB photos are near-duplicates.
 
 ### Model history
@@ -163,9 +163,12 @@ Also: same-origin check on both routes, a 64 KB body cap on scans and 4.5 MB on 
 |---|---|---|---|---|---|
 | CLIP ViT-B/32 q8 (`Xenova/clip-vit-base-patch32`, the original scanner) | 32% | 49% | 60% | 42% | 12/99, 7 right |
 | SigLIP2-base q4, no crop | 70.7% | 93.9% | 97.0% | 73.7% | 54%, 84.9% right |
-| **SigLIP2-base q4 + D-FINE crop on both sides (current)** | **72.7%** | **92.9%** | **98.0%** | **76.8%** | **62%, 88.5% right** |
+| **SigLIP2-base q4 + D-FINE crop on both sides (shipped baseline)** | **72.7%** | **92.9%** | **98.0%** | **76.8%** | **62%, 88.5% right** |
+| **Taught SigLIP2-base q4 + same crop (current, run 20261112-1138)** | **90/99** | **98/99** | **99/99** | **92/99** | **79 confident-right, 2 confident-wrong** |
 
-Current pipeline, DB leave-one-out: 81.7% / 93.7% / 95.5%, make 86.5%. The confident match fires on 65% of photos and is right 96% of the time.
+Held-out exam for the taught model: Python `onnxruntime`, 2020-photo library, live matching rules (Nov 12, 2026). Untaught live baseline on the same rules: 79/99 top-1, 93/99 top-3, 55 confident-right, 5 confident-wrong.
+
+Current pipeline, DB leave-one-out: re-run after re-fingerprinting. The confident match cutoff (0.80 / 0.02) is unchanged; revisit displayed percents after the new score distribution is live.
 
 Other things that were measured on the same set:
 - CLIP at full precision: 54% top-3.

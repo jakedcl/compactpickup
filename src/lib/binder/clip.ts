@@ -1,7 +1,7 @@
 /**
  * Scanner fingerprints. SigLIP2-base in the browser.
  *
- * Active model: onnx-community/siglip2-base-patch16-224-ONNX (q4), 768-d, pooler_output, cosine.
+ * Active model: taught SigLIP2-base q4 (same-origin, see public/models/siglip2-base-ft20261112), 768-d, pooler_output, cosine.
  * Browser weights: src/lib/clip/browser.ts
  * Column: photos.embedding_siglip (db/migrations/006_embedding_siglip.sql)
  *
@@ -15,7 +15,7 @@ export const CLIP_MODEL = 'openai/clip-vit-base-patch32'
 /** @deprecated Old CLIP clients only (stale_model check). Scanner uses {@link SCAN_EMBEDDING_DIM}. */
 export const CLIP_EMBEDDING_DIM = 512
 
-export const SIGLIP_MODEL = 'onnx-community/siglip2-base-patch16-224-ONNX'
+export const SIGLIP_MODEL = 'siglip2-base-q4-ft20261112'
 export const SCAN_EMBEDDING_DIM = 768
 /** Alias used in tooling and the browser export. */
 export const SIGLIP_EMBEDDING_DIM = SCAN_EMBEDDING_DIM

@@ -16,6 +16,7 @@ import {
   SCAN_CONSENT_VALUE,
   SCAN_FIELDS,
   formatScanScorePercent,
+  visibleScanMatches,
   type ScanCatalogTruck,
   type ScanMatch,
   type ScanVerdict,
@@ -600,7 +601,7 @@ export default function Scanner({
             <div className="scan-modal-panel">
               {result.matches.length > 0 ? (
                 <ol className="scan-results">
-                  {result.matches.slice(0, 2).map((match, index) => (
+                  {visibleScanMatches(result.matches).map((match, index) => (
                     <li key={match.id}>
                       <button type="button" className="scan-guess" onClick={() => pickGuess(match, index)}>
                         <span className="card scan-hit">
