@@ -13,7 +13,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test:binder": "tsx --conditions=react-server --test src/lib/binder/*.test.ts src/lib/clip/*.test.ts src/lib/scan/*.test.ts",
+    "test:binder": "tsx --conditions=react-server --test src/lib/binder/*.test.ts src/lib/clip/*.test.ts src/lib/scan/*.test.ts src/lib/gameDeck.test.ts",
     "test:review-fit": "playwright test",
     "db:migrate": "tsx scripts/migrate.ts",
     "import:sanity": "tsx scripts/import-sanity.ts",
