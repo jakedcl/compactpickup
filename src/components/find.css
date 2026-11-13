@@ -570,8 +570,9 @@
   .home-find-field,
   .find-search,
   .find-dialog {
-    scroll-margin-top: 12px;
+    scroll-margin-top: calc(env(safe-area-inset-top, 0px) + var(--site-header-pad, 52px));
   }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
