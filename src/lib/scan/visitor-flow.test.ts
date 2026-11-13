@@ -17,6 +17,7 @@ import {
   shouldBeginConsentIsland,
   shouldShowConsentIsland,
   shouldShowScanStatus,
+  shouldShowVisitorProgress,
   verdictFromGuessIndex,
   visitorProgressLabel,
   visitorProgressVisible,
@@ -56,6 +57,22 @@ test('visitor progress switches cropping, downloading, and scanning labels', () 
     'Downloading the scanner…',
   )
   assert.equal(visitorProgressVisible({ modelDownloading: true, scanning: false, cropBusy: false }), true)
+})
+
+test('shouldShowVisitorProgress hides the bar after results or scan error', () => {
+  const busy = { modelDownloading: true, scanning: false, cropBusy: false }
+  assert.equal(
+    shouldShowVisitorProgress(busy, { pageStep: 'results', phase: 'preview' }),
+    false,
+  )
+  assert.equal(
+    shouldShowVisitorProgress(busy, { pageStep: null, phase: 'error' }),
+    false,
+  )
+  assert.equal(
+    shouldShowVisitorProgress(busy, { pageStep: null, phase: 'working' }),
+    true,
+  )
 })
 
 test('shouldShowScanStatus hides match-score copy when results are on the page', () => {

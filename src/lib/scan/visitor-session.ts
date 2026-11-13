@@ -95,6 +95,19 @@ export function visitorProgressVisible(input: VisitorProgressInput): boolean {
   return input.modelDownloading || input.cropBusy || input.scanning
 }
 
+/** Progress bar only while work is in flight — not after results or a scan error. */
+export function shouldShowVisitorProgress(
+  input: VisitorProgressInput,
+  page: {
+    pageStep: 'results' | 'correction' | null
+    phase: 'idle' | 'preview' | 'working' | 'error'
+  },
+): boolean {
+  if (page.pageStep === 'results' || page.pageStep === 'correction') return false
+  if (page.phase === 'error') return false
+  return visitorProgressVisible(input)
+}
+
 export function shouldShowScanStatus(
   status: string,
   input: { phase: 'idle' | 'preview' | 'working' | 'error'; cropError: boolean; hasResult: boolean },

@@ -35,9 +35,9 @@ import {
   shouldBeginConsentIsland,
   shouldShowScanStatus,
   verdictFromGuessIndex,
+  shouldShowVisitorProgress,
   visitorProgressLabel,
   visitorProgressValue,
-  visitorProgressVisible,
 } from '@/lib/scan/visitor-session'
 import { shouldOfferSavePhoto, type VisitorPhotoSource } from '@/lib/scan/visitor-save-photo'
 import { ScanTruckSearch } from './scan-truck-search'
@@ -290,6 +290,7 @@ export default function Scanner({
         if (progress.status === 'ready') setScanProgress((value) => Math.max(value, 68))
       })
       if (runId.current !== id) return
+      setModelDownloading(false)
       setScanProgress((value) => Math.max(value, 76))
       const response = await fetch('/api/scan', {
         method: 'POST',
@@ -334,6 +335,7 @@ export default function Scanner({
       setStatus(clientMessage(error))
     } finally {
       if (creep) clearInterval(creep)
+      setModelDownloading(false)
     }
   }, [file])
 
@@ -453,7 +455,7 @@ export default function Scanner({
   }
 
   const progressInput = { modelDownloading, scanning, cropBusy }
-  const progressVisible = visitorProgressVisible(progressInput)
+  const progressVisible = shouldShowVisitorProgress(progressInput, { pageStep, phase })
   const progressLabel = visitorProgressLabel(progressInput)
   const progressValue = visitorProgressValue(progressInput, cropProgress, scanProgress)
   const offerSave = Boolean(file && photoSource && shouldOfferSavePhoto(photoSource))
