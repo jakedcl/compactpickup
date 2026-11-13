@@ -10,6 +10,9 @@ import type { VisitorCorrection } from './visitor-session'
 const UPLOAD_LONG_EDGE = 1600
 const UPLOAD_JPEG_QUALITY = 0.85
 
+/** Shown in the consent island after the visitor taps Yes and the upload succeeds. */
+export const VISITOR_CONSENT_THANK_YOU = 'Thanks — this will help improve the scanner.'
+
 export type VisitorSubmitOutcome = 'inserted' | 'duplicate' | 'error'
 
 export type VisitorSubmitResult = {
@@ -106,7 +109,7 @@ export async function submitVisitorScanPhoto(
     if (outcome === 'inserted') {
       return {
         outcome: 'inserted',
-        message: 'Saved as Pending. It is not used for matching until reviewed.',
+        message: VISITOR_CONSENT_THANK_YOU,
       }
     }
     return { outcome: 'error', message: 'Signal lost. The photo was not stored.' }
