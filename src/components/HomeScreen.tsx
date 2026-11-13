@@ -9,44 +9,29 @@ import VhsBoot from '@/components/VhsBoot'
 import type { ShelfManufacturer } from '@/components/TapeShelf'
 import { EMPTY_FILTERS, filtersToQuery, searchSuggestions, suggestionHref, type CatalogTruck, type SearchSuggestion } from '@/lib/catalog'
 import { filterEligibleStills, randomShuffle, type GameStill } from '@/lib/gameDeck'
+import { HOME_SLIDE_MS } from '@/lib/homeSlideshow'
 import { modelTitle } from '@/lib/makes'
 import { hasSeenBoot, markBootSeen, prefersReducedMotion } from '@/lib/vhsSession'
 import '@/components/find.css'
 import '@/components/home-game.css'
 import '@/components/vhs-hero.css'
 
-const SLIDE_MS = 6500
-
 function TruckSlideshow({
   stills,
   status,
   index,
-  onPause,
   onRetry,
 }: {
   stills: GameStill[]
   status: 'loading' | 'ready' | 'error'
   index: number
-  onPause: (paused: boolean) => void
   onRetry: () => void
 }) {
   const slides = stills.filter((still) => still.asset?._ref && still.manufacturerSlug && still.truckSlug)
   const slide = slides[index % Math.max(slides.length, 1)]
 
   return (
-    <section
-      className="home-reel"
-      aria-roledescription="carousel"
-      aria-label="Trucks"
-      onMouseEnter={() => onPause(true)}
-      onMouseLeave={() => onPause(false)}
-      onFocus={() => onPause(true)}
-      onBlur={(event) => {
-        const next = event.relatedTarget
-        if (next instanceof Node && event.currentTarget.contains(next)) return
-        onPause(false)
-      }}
-    >
+    <section className="home-reel" aria-roledescription="carousel" aria-label="Trucks">
       {status === 'error' ? (
         <>
           <p>Signal lost. Could not load the trucks.</p>
@@ -109,7 +94,6 @@ export default function HomeScreen({
   const [retrying, setRetrying] = useState(false)
   const [boot, setBoot] = useState<'unknown' | 'play' | 'menu'>('unknown')
   const [slideIndex, setSlideIndex] = useState(0)
-  const [slidePaused, setSlidePaused] = useState(false)
   const [previewStills, setPreviewStills] = useState<GameStill[] | null>(null)
 
   const retry = useCallback(() => {
@@ -133,12 +117,12 @@ export default function HomeScreen({
     stillStatus === 'ready' && previewStills === null ? 'loading' : retrying ? 'loading' : stillStatus
 
   useEffect(() => {
-    if (slidePaused || slideshowStills.length < 2 || prefersReducedMotion()) return
+    if (slideshowStills.length < 2) return
     const timer = window.setInterval(() => {
       setSlideIndex((current) => (current + 1) % slideshowStills.length)
-    }, SLIDE_MS)
+    }, HOME_SLIDE_MS)
     return () => window.clearInterval(timer)
-  }, [slidePaused, slideshowStills.length])
+  }, [slideshowStills.length])
 
   useEffect(() => {
     if (prefersReducedMotion() || hasSeenBoot()) {
@@ -289,7 +273,6 @@ export default function HomeScreen({
           stills={slideshowStills}
           status={photoStatus}
           index={slideIndex}
-          onPause={setSlidePaused}
           onRetry={retry}
         />
       </div>
