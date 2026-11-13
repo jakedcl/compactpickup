@@ -10,6 +10,8 @@ export type VisitorCorrection =
 
 export type VisitorSubmitPhase = 'idle' | 'sending' | 'sent' | 'duplicate' | 'error'
 
+export type ConsentIslandSurface = 'catalog' | 'scan'
+
 export type VisitorScanSession = {
   file: File
   previewUrl: string | null
@@ -17,6 +19,8 @@ export type VisitorScanSession = {
   correction: VisitorCorrection | null
   /** First match from the scan API — always used for guessedTruckId/Slug on submit. */
   topGuess: ScanCatalogTruck
+  /** Catalog handoffs show the island off /scan; custom wrong keeps it on /scan. */
+  islandSurface: ConsentIslandSurface
   submitPhase: VisitorSubmitPhase
   submitMessage: string
   /** After Yes or No the island collapses to Scan another only. */
@@ -41,6 +45,19 @@ export function shouldBeginConsentIsland(verdict: ScanVerdict): boolean {
 
 export function hasActiveVisitorSession(session: VisitorScanSession | null): boolean {
   return Boolean(session?.file && shouldBeginConsentIsland(session.verdict))
+}
+
+function onScanRoute(pathname: string): boolean {
+  return pathname === '/scan' || pathname.startsWith('/scan/')
+}
+
+/** Whether the sticky consent bar should render on this route (session may still be in memory). */
+export function shouldShowConsentIsland(pathname: string, session: VisitorScanSession | null): boolean {
+  if (!hasActiveVisitorSession(session)) return false
+  const surface = session!.islandSurface
+  const onScan = onScanRoute(pathname)
+  if (surface === 'catalog') return !onScan
+  return onScan
 }
 
 /** Whether auto-scan should run after the crop step finishes. */

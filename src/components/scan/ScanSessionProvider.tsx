@@ -10,8 +10,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { usePathname } from 'next/navigation'
 import {
-  hasActiveVisitorSession,
+  shouldShowConsentIsland,
   type VisitorScanSession,
 } from '@/lib/scan/visitor-session'
 
@@ -32,9 +33,11 @@ type ScanSessionContextValue = {
 const ScanSessionContext = createContext<ScanSessionContextValue | null>(null)
 
 export function ScanSessionProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname()
   const [session, setSession] = useState<VisitorScanSession | null>(null)
   const [scanEpoch, setScanEpoch] = useState(0)
   const scannerResetRef = useRef<(() => void) | null>(null)
+  const islandActive = shouldShowConsentIsland(pathname, session)
 
   const clearSession = useCallback(() => {
     setSession((current) => {
@@ -85,10 +88,9 @@ export function ScanSessionProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
-    const open = hasActiveVisitorSession(session)
-    document.documentElement.classList.toggle('scan-island-open', open)
+    document.documentElement.classList.toggle('scan-island-open', islandActive)
     return () => document.documentElement.classList.remove('scan-island-open')
-  }, [session])
+  }, [islandActive])
 
   useEffect(() => {
     const revoke = () => {
@@ -101,7 +103,7 @@ export function ScanSessionProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       session,
-      islandActive: hasActiveVisitorSession(session),
+      islandActive,
       scanEpoch,
       beginSession,
       clearSession,
@@ -112,6 +114,7 @@ export function ScanSessionProvider({ children }: { children: ReactNode }) {
     }),
     [
       session,
+      islandActive,
       scanEpoch,
       beginSession,
       clearSession,

@@ -15,6 +15,7 @@ import {
   SCAN_IDLE_INTRO_COPY,
   shouldAutoScanAfterCrop,
   shouldBeginConsentIsland,
+  shouldShowConsentIsland,
   shouldShowScanStatus,
   verdictFromGuessIndex,
   visitorProgressLabel,
@@ -104,21 +105,37 @@ test('Save photo is offered only for camera captures', () => {
   assert.equal(shouldOfferSavePhoto('library'), false)
 })
 
+const activeSession = {
+  file: new File([], 'a.jpg'),
+  previewUrl: null,
+  verdict: 'right' as const,
+  correction: null,
+  topGuess: truck,
+  islandSurface: 'catalog' as const,
+  submitPhase: 'idle' as const,
+  submitMessage: '',
+  consentAnswered: false,
+}
+
 test('Not sure skips the consent island', () => {
   assert.equal(shouldBeginConsentIsland('idk'), false)
   assert.equal(
     hasActiveVisitorSession({
-      file: new File([], 'a.jpg'),
-      previewUrl: null,
+      ...activeSession,
       verdict: 'idk',
-      correction: null,
-      topGuess: truck,
-      submitPhase: 'idle',
-      submitMessage: '',
-      consentAnswered: false,
     }),
     false,
   )
+})
+
+test('consent island stays off /scan after a catalog guess until dismissed', () => {
+  assert.equal(shouldShowConsentIsland('/ford/ranger', activeSession), true)
+  assert.equal(shouldShowConsentIsland('/scan', activeSession), false)
+  assert.equal(
+    shouldShowConsentIsland('/scan', { ...activeSession, islandSurface: 'scan', correction: { kind: 'custom', text: 'MY TRUCK' } }),
+    true,
+  )
+  assert.equal(shouldShowConsentIsland('/scan', null), false)
 })
 
 test('guess verdict and correction match island submit rules', () => {

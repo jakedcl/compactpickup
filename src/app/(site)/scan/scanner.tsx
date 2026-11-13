@@ -352,7 +352,11 @@ export default function Scanner({
     void scanPhoto()
   }, [cropPhase, file, scanning, result, cropError, scanPhoto])
 
-  function handoffToIsland(verdict: ScanVerdict, correction: Correction | null) {
+  function handoffToIsland(
+    verdict: ScanVerdict,
+    correction: Correction | null,
+    islandSurface: 'catalog' | 'scan',
+  ) {
     if (!file || !topCatalog || !preview || !shouldBeginConsentIsland(verdict)) return
     const previewUrl = preview
     previewRef.current = null
@@ -363,6 +367,7 @@ export default function Scanner({
       verdict,
       correction,
       topGuess: topCatalog,
+      islandSurface,
     })
   }
 
@@ -374,7 +379,7 @@ export default function Scanner({
     if (!topCatalog) return
     const verdict = verdictFromGuessIndex(index)
     const correction = correctionFromGuessIndex(index, match)
-    handoffToIsland(verdict, correction)
+    handoffToIsland(verdict, correction, 'catalog')
     router.push(match.href)
   }
 
@@ -627,10 +632,10 @@ export default function Scanner({
               disabled={busy}
               onPick={(pick) => {
                 if (pick.kind === 'catalog') {
-                  handoffToIsland('wrong', { kind: 'catalog', truck: pick.truck })
+                  handoffToIsland('wrong', { kind: 'catalog', truck: pick.truck }, 'catalog')
                   router.push(pick.truck.href)
                 } else {
-                  handoffToIsland('wrong', { kind: 'custom', text: pick.text })
+                  handoffToIsland('wrong', { kind: 'custom', text: pick.text }, 'scan')
                   resetScannerToPicker()
                 }
               }}
