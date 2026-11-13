@@ -13,6 +13,10 @@ export default defineConfig({
   projectId: 'xbw6uf6e',
   dataset: 'production',
 
+  releases: {enabled: false},
+  scheduledDrafts: {enabled: false},
+  tasks: {enabled: false},
+
   plugins: [structureTool(), visionTool()],
 
   schema: {
