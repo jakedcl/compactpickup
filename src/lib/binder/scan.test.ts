@@ -41,7 +41,11 @@ import {
   SCAN_FIELDS,
   SCAN_RESULTS_SCORE_GAP,
   formatScanScorePercent,
+  SCAN_NO_TRUCK_MESSAGE,
+  scanMatchesAboveDisplayFloor,
+  scanResultsEmptyMessage,
   toScanTruck,
+  visitorScanMatches,
   visibleScanMatches,
   type ScanCatalogTruck,
 } from './scan-types'
@@ -946,4 +950,31 @@ test('visibleScanMatches shows 1, 2, or 3 rows from raw score gaps', () => {
     { slug: 'c', score: 0.82 },
   ]
   assert.equal(visibleScanMatches(gap13Only).map((m) => m.slug).join(','), 'a,b')
+})
+
+test('visitorScanMatches hides sub-floor guesses and keeps order', () => {
+  const allLow = [
+    { slug: 'a', score: 0.69 },
+    { slug: 'b', score: 0.41 },
+  ]
+  assert.equal(scanMatchesAboveDisplayFloor(allLow).length, 0)
+  assert.equal(visitorScanMatches(allLow).length, 0)
+  const mixed = [
+    { slug: 'a', score: 0.9 },
+    { slug: 'b', score: 0.65 },
+    { slug: 'c', score: 0.86 },
+  ]
+  assert.deepEqual(scanMatchesAboveDisplayFloor(mixed).map((m) => m.slug), ['a', 'c'])
+  assert.deepEqual(visitorScanMatches(mixed).map((m) => m.slug), ['a', 'c'])
+  const atFloor = [{ slug: 'hilux', score: 0.7 }]
+  assert.equal(visitorScanMatches(atFloor).length, 1)
+})
+
+test('scanResultsEmptyMessage uses the no-truck copy when guesses are below the display floor', () => {
+  assert.equal(scanResultsEmptyMessage(2, 0), SCAN_NO_TRUCK_MESSAGE)
+  assert.equal(
+    scanResultsEmptyMessage(0, 0),
+    'Not sure yet. There is no truck page close enough to show.',
+  )
+  assert.equal(scanResultsEmptyMessage(1, 1), '')
 })
