@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import SanityImage from '@/components/SanityImage'
 import SearchSuggest, { suggestionPressing } from '@/components/SearchSuggest'
+import { scrollMobileFindFieldToTop } from '@/lib/find-search-focus'
 import {
   decadeLabel,
   filterChoices,
@@ -218,9 +219,10 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
               setQ(event.target.value)
               setSuggestOpen(true)
             }}
-            onFocus={() => {
+            onFocus={(event) => {
               setSheet(false)
               setSuggestOpen(true)
+              scrollMobileFindFieldToTop(event.currentTarget)
             }}
             onBlur={(event) => {
               const form = event.currentTarget.form

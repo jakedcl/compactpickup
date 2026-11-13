@@ -11,6 +11,7 @@ import { EMPTY_FILTERS, filtersToQuery, searchSuggestions, suggestionHref, type 
 import { filterEligibleStills, randomShuffle, type GameStill } from '@/lib/gameDeck'
 import { HOME_SLIDE_MS } from '@/lib/homeSlideshow'
 import { modelTitle } from '@/lib/makes'
+import { scrollMobileFindFieldToTop } from '@/lib/find-search-focus'
 import { hasSeenBoot, markBootSeen, prefersReducedMotion } from '@/lib/vhsSession'
 import '@/components/find.css'
 import '@/components/home-game.css'
@@ -242,7 +243,10 @@ export default function HomeScreen({
                   setQ(event.target.value)
                   setSuggestOpen(true)
                 }}
-                onFocus={() => setSuggestOpen(true)}
+                onFocus={(event) => {
+                  setSuggestOpen(true)
+                  scrollMobileFindFieldToTop(event.currentTarget)
+                }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') runSearch(event)
                 }}

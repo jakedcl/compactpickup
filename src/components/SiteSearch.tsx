@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import SearchSuggest from '@/components/SearchSuggest'
 import { EMPTY_FILTERS, filtersToQuery, searchSuggestions, suggestionHref, type CatalogTruck, type SearchSuggestion } from '@/lib/catalog'
+import { scrollMobileFindFieldToTop } from '@/lib/find-search-focus'
 import '@/components/find.css'
 
 let catalogPromise: Promise<CatalogTruck[]> | null = null
@@ -173,6 +174,7 @@ export default function SiteSearch() {
               aria-autocomplete="list"
               aria-activedescendant={suggestions[active] ? `find-hits-${suggestions[active].id}` : undefined}
               onChange={(event) => setQ(event.target.value)}
+              onFocus={(event) => scrollMobileFindFieldToTop(event.currentTarget)}
               onKeyDown={onInputKey}
             />
             {status === 'loading' || status === 'idle' ? <p className="find-empty">Loading trucks...</p> : null}
