@@ -2,6 +2,26 @@
   position: relative;
 }
 
+/* Same dark panel as the homepage truck preview (.home-reel). */
+.scan-panel.home-reel {
+  margin: 0;
+  width: 100%;
+  gap: var(--space-3);
+}
+
+.scan-panel .scan-preview-full,
+.scan-shell.is-idle .scan-panel .scan-preview {
+  margin-bottom: 0;
+}
+
+.scan-panel .scan-page-panel {
+  margin-top: 0;
+}
+
+.scan-panel .scan-idle-intro {
+  margin-top: 0;
+}
+
 .vhs-progress {
   margin: 0 0 var(--space-3);
 }

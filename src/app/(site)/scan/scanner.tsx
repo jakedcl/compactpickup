@@ -484,6 +484,7 @@ export default function Scanner({
         </div>
       ) : null}
 
+      <div className="home-reel scan-panel">
       {idle ? (
         <>
           <div className="scan-preview scan-preview-empty">
@@ -655,6 +656,7 @@ export default function Scanner({
           </div>
         </section>
       ) : null}
+      </div>
     </div>
   )
 }

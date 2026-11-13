@@ -5,7 +5,11 @@ export default function Loading() {
     <main className="screen">
       <div className="wrap narrow">
         <PageHeader kicker="Scanner" />
-        <p role="status">Loading the scanner</p>
+        <div className="home-reel scan-panel">
+          <p className="scan-device-wait" role="status">
+            Loading the scanner
+          </p>
+        </div>
       </div>
     </main>
   )
