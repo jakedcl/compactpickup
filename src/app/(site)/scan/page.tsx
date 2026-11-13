@@ -28,7 +28,7 @@ export default async function ScanPage() {
   return (
     <main className="screen">
       <div className="wrap narrow">
-        <PageHeader kicker="Scanner" title="Scan a truck" />
+        <PageHeader kicker="Scanner" />
         <ScannerSlot trucks={trucks} catalogStatus={catalogStatus} />
       </div>
     </main>

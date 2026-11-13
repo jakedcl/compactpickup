@@ -294,12 +294,23 @@ button, input { font: inherit; color: inherit; }
 
 .page-header { margin-bottom: var(--space-6); }
 
+.page-header--kicker-only {
+  margin-bottom: var(--space-4);
+}
+
 .page-header h1,
 .display {
   margin: 0;
   font-size: clamp(1.7rem, 4vw, 3rem);
   line-height: 1.15;
   letter-spacing: 0.04em;
+}
+
+.page-header h1.kicker {
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.16em;
+  color: var(--accent);
 }
 
 .lede {
