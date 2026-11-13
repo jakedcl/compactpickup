@@ -23,7 +23,8 @@ import {
 import {
   assignVisibleScanDisplayPercents,
   scanGuessCardTitle,
-  visibleScanMatches,
+  scanResultsEmptyMessage,
+  visitorScanMatches,
   type ScanCatalogTruck,
   type ScanMatch,
   type ScanVerdict,
@@ -146,8 +147,9 @@ export default function Scanner({
   const cropError = cropPhase === 'error'
   const busy = scanning || cropBusy
   const idle = !file
-  const top = result?.matches[0] ?? null
-  const canFeedback = Boolean(top)
+  const visibleMatches = result ? visitorScanMatches(result.matches) : []
+  const top = visibleMatches[0] ?? null
+  const canFeedback = visibleMatches.length > 0
   const topCatalog = top
     ? { id: top.id, slug: top.slug, title: top.title, maker: top.maker, href: top.href, years: top.years }
     : null
@@ -462,14 +464,16 @@ export default function Scanner({
   const showStatus = shouldShowScanStatus(status, {
     phase,
     cropError,
-    hasResult: Boolean(result && result.matches.length > 0 && pageStep === 'results'),
+    hasResult: Boolean(result && visibleMatches.length > 0 && pageStep === 'results'),
   })
 
   const emptyCopy =
     device === 'mobile' ? 'Take or choose a photo' : 'Drop a photo here'
 
-  const visibleMatches = result ? visibleScanMatches(result.matches) : []
   const displayPercents = assignVisibleScanDisplayPercents(visibleMatches)
+  const resultsEmptyMessage = result
+    ? scanResultsEmptyMessage(result.matches.length, visibleMatches.length)
+    : ''
 
   function onScanAnother() {
     goToFreshScan()
@@ -579,7 +583,7 @@ export default function Scanner({
 
       {pageStep === 'results' && result ? (
         <section className="scan-page-panel" aria-label="Scan results">
-          {result.matches.length > 0 ? (
+          {visibleMatches.length > 0 ? (
             <ol className="scan-results">
               {visibleMatches.map((match, index) => (
                 <li key={match.id}>
@@ -603,9 +607,9 @@ export default function Scanner({
                 </li>
               ))}
             </ol>
-          ) : (
-            <p role="status">Not sure yet. There is no truck page close enough to show.</p>
-          )}
+          ) : resultsEmptyMessage ? (
+            <p role="status">{resultsEmptyMessage}</p>
+          ) : null}
           {canFeedback ? (
             <div className="scan-choice">
               <button type="button" className="btn" onClick={() => setPageStep('correction')}>

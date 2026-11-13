@@ -18,6 +18,28 @@ export type ScanMatch = ScanCatalogTruck & {
  */
 export const SCAN_RESULTS_SCORE_GAP = 0.05
 
+/** When every guess is below the display floor, show this instead of 0% cards. */
+export const SCAN_NO_TRUCK_MESSAGE = "We couldn't find a compact pickup in your photo."
+
+const SCAN_EMPTY_CATALOG_COPY = 'Not sure yet. There is no truck page close enough to show.'
+
+/** Drop guesses that would read as 0% on the visitor meter (raw cosine below the display floor). */
+export function scanMatchesAboveDisplayFloor<T extends { score: number }>(matches: T[]): T[] {
+  return matches.filter((match) => match.score >= SCAN_SCORE_DISPLAY_FLOOR)
+}
+
+/** Floor filter, then adaptive 1/2/3 rows ({@link visibleScanMatches}). */
+export function visitorScanMatches<T extends { score: number }>(matches: T[]): T[] {
+  return visibleScanMatches(scanMatchesAboveDisplayFloor(matches))
+}
+
+/** Status copy under the crop when the results panel has no guess cards to show. */
+export function scanResultsEmptyMessage(apiMatchCount: number, visibleCount: number): string {
+  if (visibleCount > 0) return ''
+  if (apiMatchCount === 0) return SCAN_EMPTY_CATALOG_COPY
+  return SCAN_NO_TRUCK_MESSAGE
+}
+
 /** Adaptive 1/2/3 results rows from raw match scores (independent of confident-match margin). */
 export function visibleScanMatches<T extends { score: number }>(matches: T[]): T[] {
   if (matches.length <= 1) return matches
