@@ -6,13 +6,16 @@ export default function PageHeader({
   lede,
 }: {
   kicker?: ReactNode
-  title: string
+  title?: string
   lede?: string | null
 }) {
+  const kickerOnly = Boolean(kicker && !title)
   return (
-    <header className="page-header">
-      {kicker ? <p className="kicker">{kicker}</p> : null}
-      <h1>{title}</h1>
+    <header className={kickerOnly ? 'page-header page-header--kicker-only' : 'page-header'}>
+      {kicker ? (
+        kickerOnly ? <h1 className="kicker">{kicker}</h1> : <p className="kicker">{kicker}</p>
+      ) : null}
+      {title ? <h1>{title}</h1> : null}
       {lede ? <p className="lede">{lede}</p> : null}
     </header>
   )

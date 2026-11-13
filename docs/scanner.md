@@ -33,10 +33,10 @@ visitor's photo
   ├─ 5. pgvector: 40 nearest approved photos by cosine similarity (Neon)
   ├─ 6. score each truck from its best 3 photos, rank, decide "match" vs "guess"
   ▼
-top 3 trucks ranked → results modal shows 1–3 adaptive guesses with percentages
+top 3 trucks ranked → the /scan page shows 1–3 adaptive guesses with percentages
 ```
 
-The visitor sees the crop, with a bar labeled **Cropping the truck…**, and presses Scan only after that preview is ready. A second bar, **Scanning the truck…**, covers the fingerprint and the server match. The models are cached in the browser after the first use. The photo itself never leaves the device during a scan. Only the 768 numbers are sent. A photo is uploaded only if the visitor later chooses to "teach the scanner" and says yes on the consent popup (see [Visitor submissions](#visitor-submissions-teach-the-scanner)).
+After the visitor picks, drops, or pastes a photo, the crop and scan run automatically. One bar labeled **Cropping the truck…** then **Scanning the truck…** covers both steps. The models are cached in the browser after the first use. The photo itself never leaves the device during a scan. Only the 768 numbers are sent. A photo is uploaded only if the visitor later taps a guess (or Wrong / Not sure) and says **Yes** on the sticky consent island (see [Visitor submissions](#visitor-submissions-teach-the-scanner)).
 
 ### 1–2. The crop (D-FINE)
 
@@ -99,13 +99,13 @@ limit 40
 
 ### 6. Scoring per truck, and the thresholds
 
-**Plain version:** a single lucky photo shouldn't win, so each truck is scored by its 3 closest photos. The results popup shows one, two, or three guesses from how tight the raw scores are. If the best truck clearly beats the runner-up, the first card says Closest. Otherwise it says Closest guess.
+**Plain version:** a single lucky photo shouldn't win, so each truck is scored by its 3 closest photos. The on-page results row shows one, two, or three guesses from how tight the raw scores are. If the best truck clearly beats the runner-up, the first card says Closest. Otherwise it says Closest guess.
 
 **Details** (`aggregateTruckScores` and `outcomeFromRanks` in `src/lib/binder/scan.ts`, results UI in `src/app/(site)/scan/scanner.tsx`):
 - Group the 40 neighbours by truck. A truck's score is the mean of its best **3** similarities. Missing slots are padded with the 40th neighbour's score, so a truck with 1 close photo doesn't beat one with 3.
-- The API returns the top **3** trucks. The results popup calls `visibleScanMatches` in `src/lib/binder/scan-types.ts` on those scores: let `m12 = score1 − score2` and `m13 = score1 − score3`. If `m12 ≥ 0.05` (`SCAN_RESULTS_SCORE_GAP`), show only the first; else if `m13 ≥ 0.05`, show the first two; else show all three. Gaps use raw cosine, not the displayed percent. This is separate from the confident-match margin (`SCAN_MATCH_MIN_MARGIN`). There is no "Not sure. The strongest match is only X%." paragraph in the popup (removed in PR #55). The status text under the photo can still say the scanner is not sure when the result is a weak guess.
+- The API returns the top **3** trucks. The results section on `/scan` calls `visibleScanMatches` in `src/lib/binder/scan-types.ts` on those scores: let `m12 = score1 − score2` and `m13 = score1 − score3`. If `m12 ≥ 0.05` (`SCAN_RESULTS_SCORE_GAP`), show only the first; else if `m13 ≥ 0.05`, show the first two; else show all three. Gaps use raw cosine, not the displayed percent. This is separate from the confident-match margin (`SCAN_MATCH_MIN_MARGIN`).
 - **Confident match** when the top score ≥ **0.80** (`SCAN_MATCH_MIN_SIMILARITY`) **and** it beats the second truck by ≥ **0.02** (`SCAN_MATCH_MIN_MARGIN`). Then the first card is labeled **Closest**. Otherwise the result is a "guess" and the first card says **Closest guess**. Both cutoffs can be overridden with Vercel env vars.
-- **Displayed percent** (`src/lib/binder/scan-types.ts`): similarity 0.70 shows as 0%, 0.80 (the match line) as 50%, and 0.90 or more as 100%. Photo-to-photo cosine for the right truck usually sits between 0.79 and 0.89, so raw cosine would look like "85%" for every answer, right or wrong.
+- **Displayed percent** (`src/lib/binder/scan-types.ts`): raw cosine 0.70 shows as 0%, 0.95 or more as 100% (`assignVisibleScanDisplayPercents` cascades so lower guesses never show the same integer as a higher one unless raw scores tie). Display-only; matching still uses raw cosine.
 - Optional **probe scorer**: if `src/lib/scan/probe.json` exists (a trained 57×768 linear classifier), `/api/scan` ranks with it instead, using its own thresholds (`SCAN_PROBE_MATCH_MIN_PROBABILITY` 0.35, `SCAN_PROBE_MIN_MARGIN` 0.04). It isn't shipped yet.
 
 ## The binder: how reference photos get in
@@ -120,7 +120,7 @@ The binder at `/binder` is the private photo library behind the scanner. Only `A
 
 ### Visitor submissions ("teach the scanner")
 
-After a scan, a visitor can tap the right truck, or say Wrong or Not sure. A short popup then asks whether we can keep the photo to help improve the scanner. Nothing is stored unless they say yes. With consent, `POST /api/scan/submit` stores the photo (shrunk in the browser to a 1600 px JPEG, then WebP on the server) as a `pending` photo with `source = 'visitor'`, plus a `scanner_feedback` row. Visitor photos never affect matching until you approve them in the binder. Duplicates (same sha256) are recognized and not stored twice. Visitor IPs are never stored, only an HMAC of the IP (keyed with `AUTH_SECRET`) for rate limiting.
+After a scan, guesses, Wrong, and Not sure appear inline on `/scan` (no overlay modal). Tapping a guess (or finishing Wrong with a truck label) can open the truck page or stay on `/scan`, with a sticky **CAN WE USE THESE RESULTS TO IMPROVE?** island (Not sure skips the island). Nothing is stored unless they say **Yes**. With consent, `POST /api/scan/submit` stores the photo (shrunk in the browser to a 1600 px JPEG, then WebP on the server) as a `pending` photo with `source = 'visitor'`, plus a `scanner_feedback` row. Mobile **Take photo** shots can be kept on the device via **Save photo** beside Replace on the page (Web Share or download; not a silent Camera Roll write). Visitor photos never affect matching until you approve them in the binder.
 
 ## Where the data lives
 
@@ -207,7 +207,7 @@ A fingerprint only means something next to fingerprints made the same way. Any c
    - embed all approved photos with `embed.mjs` first, then write them in one transaction at the moment you switch.
 
    Spot-check that re-embedding a few DB photos in the browser gives cosine ≈ 1.0 against the stored vectors.
-5. Re-check the thresholds (0.80 / 0.02 and the 0.70–0.90 display) against the new score distribution.
+5. Re-check the thresholds (0.80 / 0.02 and the 0.70–0.95 display) against the new score distribution.
 6. If the vector length changes, a new column is required (`vector(N)` is fixed), and `nearestApproved` plus the embeddings endpoint must point at it.
 
 Never compare vectors across pipelines, and never run a server-side (Python/Node) embedder for the DB unless you've proven it matches the browser output to cosine ≈ 1.0.

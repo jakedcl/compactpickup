@@ -1,52 +1,37 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import SanityImage from '@/components/SanityImage'
 import SearchSuggest, { suggestionPressing } from '@/components/SearchSuggest'
 import VhsBoot from '@/components/VhsBoot'
 import type { ShelfManufacturer } from '@/components/TapeShelf'
 import { EMPTY_FILTERS, filtersToQuery, searchSuggestions, suggestionHref, type CatalogTruck, type SearchSuggestion } from '@/lib/catalog'
-import type { GameStill } from '@/lib/gameDeck'
+import { filterEligibleStills, randomShuffle, type GameStill } from '@/lib/gameDeck'
+import { HOME_SLIDE_MS } from '@/lib/homeSlideshow'
 import { modelTitle } from '@/lib/makes'
 import { hasSeenBoot, markBootSeen, prefersReducedMotion } from '@/lib/vhsSession'
 import '@/components/find.css'
 import '@/components/home-game.css'
 import '@/components/vhs-hero.css'
 
-const SLIDE_MS = 6500
-
 function TruckSlideshow({
   stills,
   status,
   index,
-  onPause,
   onRetry,
 }: {
   stills: GameStill[]
   status: 'loading' | 'ready' | 'error'
   index: number
-  onPause: (paused: boolean) => void
   onRetry: () => void
 }) {
   const slides = stills.filter((still) => still.asset?._ref && still.manufacturerSlug && still.truckSlug)
   const slide = slides[index % Math.max(slides.length, 1)]
 
   return (
-    <section
-      className="home-reel"
-      aria-roledescription="carousel"
-      aria-label="Trucks"
-      onMouseEnter={() => onPause(true)}
-      onMouseLeave={() => onPause(false)}
-      onFocus={() => onPause(true)}
-      onBlur={(event) => {
-        const next = event.relatedTarget
-        if (next instanceof Node && event.currentTarget.contains(next)) return
-        onPause(false)
-      }}
-    >
+    <section className="home-reel" aria-roledescription="carousel" aria-label="Trucks">
       {status === 'error' ? (
         <>
           <p>Signal lost. Could not load the trucks.</p>
@@ -109,8 +94,7 @@ export default function HomeScreen({
   const [retrying, setRetrying] = useState(false)
   const [boot, setBoot] = useState<'unknown' | 'play' | 'menu'>('unknown')
   const [slideIndex, setSlideIndex] = useState(0)
-  const [slidePaused, setSlidePaused] = useState(false)
-  const slides = stills.filter((still) => still.asset?._ref && still.manufacturerSlug && still.truckSlug)
+  const [previewStills, setPreviewStills] = useState<GameStill[] | null>(null)
 
   const retry = useCallback(() => {
     setRetrying(true)
@@ -121,16 +105,24 @@ export default function HomeScreen({
 
   useEffect(() => {
     setRetrying(false)
-    setSlideIndex(0)
   }, [manufacturers, makerStatus, stills, stillStatus])
 
+  useLayoutEffect(() => {
+    setPreviewStills(randomShuffle(filterEligibleStills(stills)))
+    setSlideIndex(0)
+  }, [stills])
+
+  const slideshowStills = previewStills ?? []
+  const slideshowStatus =
+    stillStatus === 'ready' && previewStills === null ? 'loading' : retrying ? 'loading' : stillStatus
+
   useEffect(() => {
-    if (slidePaused || slides.length < 2 || prefersReducedMotion()) return
+    if (slideshowStills.length < 2) return
     const timer = window.setInterval(() => {
-      setSlideIndex((current) => (current + 1) % slides.length)
-    }, SLIDE_MS)
+      setSlideIndex((current) => (current + 1) % slideshowStills.length)
+    }, HOME_SLIDE_MS)
     return () => window.clearInterval(timer)
-  }, [slidePaused, slides.length])
+  }, [slideshowStills.length])
 
   useEffect(() => {
     if (prefersReducedMotion() || hasSeenBoot()) {
@@ -178,7 +170,7 @@ export default function HomeScreen({
   }
 
   const brandStatus = retrying ? 'loading' : makerStatus
-  const photoStatus = retrying ? 'loading' : stillStatus
+  const photoStatus = slideshowStatus
   const fieldStatus = retrying ? 'loading' : catalogStatus
   const logos = manufacturers.filter((manufacturer) => manufacturer.logo?.asset?._ref && manufacturer.slug?.current)
 
@@ -278,10 +270,9 @@ export default function HomeScreen({
           </Link>
         </div>
         <TruckSlideshow
-          stills={slides}
+          stills={slideshowStills}
           status={photoStatus}
           index={slideIndex}
-          onPause={setSlidePaused}
           onRetry={retry}
         />
       </div>

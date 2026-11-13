@@ -36,7 +36,27 @@ export function seededShuffle<T>(items: T[], seed: number): T[] {
   return copy
 }
 
-export function buildDeck(trucks: TruckWithImages[] | null | undefined, seed = daySeed()): GameStill[] {
+export function isEligibleGameStill(still: GameStill): boolean {
+  return Boolean(still.asset?._ref && still.manufacturerSlug && still.truckSlug)
+}
+
+export function filterEligibleStills(stills: GameStill[]): GameStill[] {
+  return stills.filter(isEligibleGameStill)
+}
+
+/** Fisher–Yates shuffle; new order on every call (for client-only homepage preview). */
+export function randomShuffle<T>(items: T[]): T[] {
+  const copy = [...items]
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const swap = copy[i]
+    copy[i] = copy[j]
+    copy[j] = swap
+  }
+  return copy
+}
+
+export function collectGameStills(trucks: TruckWithImages[] | null | undefined): GameStill[] {
   const seen = new Set<string>()
   const stills: GameStill[] = []
   for (const truck of trucks ?? []) {
@@ -53,7 +73,11 @@ export function buildDeck(trucks: TruckWithImages[] | null | undefined, seed = d
     const bKey = `${b.manufacturerSlug ?? ''}/${b.truckSlug ?? b.truckTitle}`
     return aKey.localeCompare(bKey)
   })
-  return seededShuffle(stills, seed)
+  return stills
+}
+
+export function buildDeck(trucks: TruckWithImages[] | null | undefined, seed = daySeed()): GameStill[] {
+  return seededShuffle(collectGameStills(trucks), seed)
 }
 
 export function choicesFor(stills: GameStill[], index: number): { correct: string; choices: string[] } | null {

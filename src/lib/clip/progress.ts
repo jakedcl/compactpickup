@@ -30,3 +30,9 @@ export function isSiglipProgress(progress: ClipProgress): boolean {
     hint.includes(SIGLIP_BROWSER_MODEL.toLowerCase())
   )
 }
+
+/** Network fetch in progress for a scanner model file (not cache-ready). */
+export function isModelDownloadProgress(progress: ClipProgress): boolean {
+  if (progress.status !== 'download') return false
+  return isDfineProgress(progress) || isSiglipProgress(progress)
+}
