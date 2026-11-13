@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
 import { test } from 'node:test'
 import { FIND_SUGGESTION_TAP_SLOP_PX, pointerMovedBeyondTapSlop } from '@/lib/find-search-gesture'
+
+test('suggestion picks do not install a document-level click shield', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'src/components/SearchSuggest.tsx'), 'utf8')
+  assert.doesNotMatch(source, /document\.addEventListener\(['"]click/)
+})
 
 test('suggestion tap slop treats small movement as a tap', () => {
   assert.equal(pointerMovedBeyondTapSlop(0, 0), false)

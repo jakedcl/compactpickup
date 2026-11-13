@@ -14,15 +14,6 @@ export function suggestionPressing() {
   return suggestionPresses > 0
 }
 
-function shieldNextClick() {
-  const stop = (event: Event) => {
-    event.preventDefault()
-    event.stopPropagation()
-  }
-  document.addEventListener('click', stop, { capture: true, once: true })
-  window.setTimeout(() => document.removeEventListener('click', stop, { capture: true }), 700)
-}
-
 function FindHitButton({
   suggestion,
   index,
@@ -52,7 +43,6 @@ function FindHitButton({
     if (lock.current) return
     lock.current = true
     suggestionPresses += 1
-    shieldNextClick()
     onPick(suggestion)
     window.setTimeout(() => {
       lock.current = false
@@ -62,6 +52,10 @@ function FindHitButton({
 
   function onPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
+    if (event.pointerType === 'mouse') {
+      // Keep the combobox focused until click; avoids closing the list before pick.
+      event.preventDefault()
+    }
     pointerStart.current = { x: event.clientX, y: event.clientY }
     scrollDrag.current = false
     touchPicked.current = false
