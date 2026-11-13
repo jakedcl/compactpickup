@@ -587,13 +587,13 @@ export default function Scanner({
                           {index === 0 ? (result.state === 'match' ? 'Closest' : 'Closest guess') : 'Next closest'}
                         </span>
                         <span className="scan-guess-title">{scanGuessCardTitle(match.maker, match.title)}</span>
-                        <span className="scan-guess-meta">
-                          {match.years ? <span>{match.years}</span> : null}
+                        {match.years ? <span className="scan-guess-years">{match.years}</span> : null}
+                        <span className="scan-guess-match-row">
                           <span className="meta">Match {displayPercents[index]}%</span>
+                          <span className="scan-guess-more" aria-hidden="true">
+                            See more
+                          </span>
                         </span>
-                      </span>
-                      <span className="scan-guess-more" aria-hidden="true">
-                        See more
                       </span>
                     </span>
                   </button>

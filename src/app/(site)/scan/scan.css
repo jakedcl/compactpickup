@@ -179,10 +179,8 @@
 }
 
 .scan-guess-card {
-  position: relative;
   display: block;
   width: 100%;
-  padding-bottom: var(--space-4);
 }
 
 .scan-guess-title {
@@ -192,19 +190,24 @@
   color: var(--ink);
 }
 
-.scan-guess-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
+.scan-guess-years {
+  display: block;
   margin-top: 4px;
   font-size: 14px;
   color: var(--muted);
 }
 
+.scan-guess-match-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: 4px;
+  font-size: 14px;
+}
+
 .scan-guess-more {
-  position: absolute;
-  right: 10px;
-  bottom: 8px;
+  flex-shrink: 0;
   font-size: 12px;
   letter-spacing: 0.04em;
   color: var(--muted);
