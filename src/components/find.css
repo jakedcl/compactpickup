@@ -6,33 +6,6 @@
   padding: 20px 20px 88px;
 }
 
-.find-back {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 8px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
-  text-decoration: none;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.find-back:hover {
-  background: rgba(255, 255, 255, 0.32);
-  border-color: rgba(255, 255, 255, 0.75);
-  color: #fff;
-}
-
-.find-back:active {
-  background: rgba(0, 0, 0, 0.4);
-  border-color: #fff;
-}
-
 .find-header {
   margin: 0 0 18px;
   background: transparent;
@@ -597,8 +570,9 @@
   .home-find-field,
   .find-search,
   .find-dialog {
-    scroll-margin-top: 12px;
+    scroll-margin-top: calc(env(safe-area-inset-top, 0px) + var(--site-header-pad, 52px));
   }
+
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,5 +1,4 @@
 import { Suspense } from 'react'
-import Link from 'next/link'
 import BrowseDeck from '@/components/BrowseDeck'
 import { getCatalog } from '@/lib/getCatalog'
 import '@/components/find.css'
@@ -15,7 +14,6 @@ function BrowseMessage({ message }: { message: string }) {
   return (
     <main className="screen">
       <div className="find-wrap">
-        <Link href="/" className="find-back">Main Menu</Link>
         <h1 className="find-header">Find a truck</h1>
         <p className="find-empty">{message}</p>
       </div>

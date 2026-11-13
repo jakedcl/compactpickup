@@ -199,7 +199,6 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
   return (
     <main className="screen">
       <div className="find-wrap">
-        <Link href="/" className="find-back">Main Menu</Link>
         <h1 className="find-header">Find a truck</h1>
         <form className="find-search" role="search" action={pathname} onSubmit={commitSearch}>
           <label className="find-sr" htmlFor="truck-search">Search</label>
