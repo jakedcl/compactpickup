@@ -10,6 +10,7 @@ import {
   type ManufacturerRecord,
 } from '@/lib/getContent'
 import { modelTitle } from '@/lib/makes'
+import { buildShareMetadata } from '@/lib/metadata'
 import { cleanText, formatProduction } from '@/lib/truckDisplay'
 
 export const revalidate = 3600
@@ -32,10 +33,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const manufacturer = await getManufacturerBySlug(slug)
     if (!manufacturer) return {}
     const description = cleanText(manufacturer.description)
-    return {
-      title: `${manufacturer.name} · Compact Pickup`,
-      ...(description ? { description } : {}),
-    }
+    const title = `${manufacturer.name} · Compact Pickup`
+    return buildShareMetadata({
+      title,
+      description,
+      path: `/${slug}`,
+    })
   } catch {
     return {}
   }

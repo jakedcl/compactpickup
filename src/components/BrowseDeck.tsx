@@ -332,7 +332,7 @@ export default function BrowseDeck({ trucks }: { trucks: CatalogTruck[] }) {
                         sizes={CARD_SIZES}
                         fill
                         cropRatio={0.75}
-                        eager={index < 2}
+                        priority={index < 2}
                         className="sanity-cover"
                       />
                     ) : (

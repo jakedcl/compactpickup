@@ -2,14 +2,16 @@ import type { Metadata } from 'next'
 import PageHeader from '@/components/ui/PageHeader'
 import TruckTimelineCard, { type TimelineTruck } from '@/components/TruckTimelineCard'
 import { getTimelineTrucks } from '@/lib/getContent'
+import { buildShareMetadata } from '@/lib/metadata'
 import { truckSortYear } from '@/lib/truckDisplay'
 
 export const revalidate = 3600
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildShareMetadata({
   title: 'Timeline · Compact Pickup',
   description: 'Every truck with a still, in the order they showed up.',
-}
+  path: '/timeline',
+})
 
 function decadeLabel(truck: TimelineTruck): string {
   const firstYear = truckSortYear(truck)

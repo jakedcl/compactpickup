@@ -133,7 +133,9 @@ export default function VhsBoot({ onDone }: { onDone: (viaKeyboard: boolean) => 
         </p>
         <p className={`boot-tracking ${phase === 'static' ? 'is-on' : ''}`} aria-hidden="true">TRACKING</p>
         <div className="boot-title-block">
-          <p id="boot-title" className="boot-title">Compact Pickup</p>
+          <p id="boot-title" className="boot-title" aria-hidden="true">
+            Compact Pickup
+          </p>
           <p className="boot-deck">Field guide</p>
         </div>
         <p className="boot-tc">{formatTimecode(elapsed)}</p>
