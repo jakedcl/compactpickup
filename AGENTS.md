@@ -18,7 +18,7 @@ Catalog of compact and mid-size pickup trucks sold in the U.S., styled like an o
 - `src/components/` ImageCarousel, 3D truck viewer, `ui/`. `src/lib/`. `src/lib/binder/` db, R2, WebP, session. `src/lib/clip/` shared browser crop + fingerprint (`browser.ts`, `pipeline.ts` = EMBED_PIPELINE and crop constants). `src/lib/binder/scan.ts` matching, thresholds, rate limits. `src/lib/scan/probe.ts` optional probe scorer.
 - `sanity/schemaTypes/` manufacturer, truckModel, truckSpecFields.
 - `db/migrations/` (001–007), `data/truck-faces.json`, `scripts/` (migrate, import:sanity, import:folder, import:ai-reviews, seed:faces, fix:makes; `scanner-eval/` for the accuracy eval).
-- `docs/scanner.md` (scanner architecture, data, costs, eval, how to change the model), `docs/screenshot.png`.
+- `docs/scanner.md` (scanner architecture, data, costs, eval, how to change the model), `docs/home.webp` and `docs/scan.webp` (README screenshots).
 
 ## Commands
 - `npm run dev`, `npm run build`, `npm run start`, `npm run lint`, `npm run typecheck`, `npm run test:binder` (binder + `src/lib/clip` tests), `npm run test:review-fit` (Playwright; starts the app with `REVIEW_FIT=1`).
