@@ -4,7 +4,10 @@ A catalog of compact and mid-size pickup trucks sold in the U.S., styled like an
 
 Live at [compactpickup.com](https://compactpickup.com).
 
-![Compact Pickup homepage](docs/screenshot.png)
+<p>
+  <img src="docs/home.webp" alt="Compact Pickup home page on a phone: search, Scan a truck button and the truck slideshow" width="300">
+  <img src="docs/scan.webp" alt="Scanner result on a phone: a photo matched to the Mitsubishi Raider" width="300">
+</p>
 
 ## How the scanner works
 
@@ -89,5 +92,5 @@ db/migrations/        binder SQL
 data/truck-faces.json optional face labels
 scripts/              migrate, imports, seed, fix-makes; scanner-eval/ (accuracy eval)
 sanity/               studio and schemas
-docs/                 scanner.md (how the scanner works), screenshot
+docs/                 scanner.md (how the scanner works), home and scan screenshots
 ```
