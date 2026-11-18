@@ -6,14 +6,22 @@ Live at [compactpickup.com](https://compactpickup.com).
 
 ![Compact Pickup homepage](docs/screenshot.png)
 
+## How the scanner works
+
+1. **Crop in the browser** — a D-FINE nano detector finds the vehicle in the photo (with padding and a full-frame fallback).
+2. **Fingerprint in the browser** — a fine-tuned SigLIP2 image model turns the crop into a 768-number vector (same pipeline as the binder; nothing is sent to a third-party API).
+3. **Match on the server** — Neon Postgres with pgvector finds the nearest approved reference photos and rolls them up per truck.
+
+Deep detail, accuracy, and how to change the model: **[docs/scanner.md](docs/scanner.md)**.
+
 ## What it does
 
-- The home page is a manufacturer menu (Chevy, Ford, GMC, Isuzu, Mazda, Nissan, Toyota and more) with an image carousel and a running clock in the VHS-style status bar.
+- The **home page** opens with optional VHS boot animation, then brand logos, a **search** field (suggestions plus **Search** to `/browse`), a **Scan a truck** button, and an auto-advancing **truck slideshow** (still every four seconds).
 - `/[manufacturer]` lists a maker's trucks and `/[manufacturer]/[model]` shows a single model.
 - `/timeline` walks through the models by year.
 - `/browse` lets you search and filter trucks by year, drivetrain, engine and market.
 - `/game` is "Name that truck": ten stills, four choices each.
-- `/scan` identifies a truck from a photo. The models run in the visitor's browser and the server only compares 768-number fingerprints, so a scan is free. How it works, how accurate it is, and how to change it: **[docs/scanner.md](docs/scanner.md)**.
+- `/scan` runs the scanner flow above on a visitor photo and returns the closest catalog matches.
 - Model pages include a 3D model viewer built with React Three Fiber.
 - Manufacturers and truck models are stored in Sanity. The studio is embedded at `/studio` (config in `sanity/`, schemas `manufacturer`, `truckModel`, `truckSpecFields`). Pages revalidate hourly, so a Studio edit shows up on the site within an hour. There are no webhooks or crons.
 

@@ -2,14 +2,16 @@ import type { Metadata } from 'next'
 import PageHeader from '@/components/ui/PageHeader'
 import { getCatalog } from '@/lib/getCatalog'
 import { toScanTruck, type ScanCatalogTruck } from '@/lib/binder/scan-types'
+import { buildShareMetadata } from '@/lib/metadata'
 import ScannerSlot from './scanner-slot'
 
 export const revalidate = 3600
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildShareMetadata({
   title: 'Scan a truck · Compact Pickup',
   description: 'Photograph a compact pickup and see the closest truck in the catalog.',
-}
+  path: '/scan',
+})
 
 export default async function ScanPage() {
   let trucks: ScanCatalogTruck[] = []

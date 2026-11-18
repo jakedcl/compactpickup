@@ -57,6 +57,7 @@ body {
   font-family: var(--font-body);
   font-size: 17px;
   line-height: 1.5;
+  overflow-x: clip;
 }
 
 img { max-width: 100%; }
@@ -168,7 +169,15 @@ button, input { font: inherit; color: inherit; }
   display: block;
 }
 
+.site-mark-title,
 .site-mark span {
+  margin: 0;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

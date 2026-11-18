@@ -145,7 +145,7 @@ export default function NameThatTruck({ stills }: { stills: GameStill[] }) {
     return (
       <section className="game-page" aria-labelledby="game-score">
         <p className="kicker">Round over</p>
-        <h1 id="game-score" className="display">{score} / {deck.length}</h1>
+        <h2 id="game-score" className="display">{score} / {deck.length}</h2>
         <p className="lede">{score === deck.length ? 'A clean reel.' : `You named ${score} ${score === 1 ? 'truck' : 'trucks'}.`}</p>
         <dl className="game-stats">
           <div><dt>Best streak</dt><dd>{best}</dd></div>

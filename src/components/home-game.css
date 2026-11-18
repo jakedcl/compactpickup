@@ -20,9 +20,10 @@
   justify-content: center;
   align-items: center;
   width: 100%;
-  max-width: 56rem;
+  max-width: min(56rem, 100%);
   margin: 0 auto 32px;
-  padding: 0 8px;
+  padding: 8px 12px;
+  overflow-x: clip;
 }
 
 .home-logos .vhs-logo-container {
@@ -33,8 +34,11 @@
   min-height: 55px;
   padding: 8px;
   margin: 0 6px;
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   max-width: 120px;
+  overflow: hidden;
+  transform-origin: center;
 }
 
 .home-logos img.vhs-logo {
@@ -161,6 +165,7 @@
   padding: var(--space-3);
   border: 1px solid rgba(255, 255, 255, 0.45);
   background: rgba(0, 8, 40, 0.28);
+  min-height: 12rem;
 }
 
 .home-slide {
@@ -202,9 +207,14 @@
 .home-still {
   display: block;
   position: relative;
+  width: 100%;
   aspect-ratio: 16 / 10;
   background: var(--osd-deep);
   overflow: hidden;
+}
+
+.home-still-placeholder {
+  pointer-events: none;
 }
 
 .home-play-btn {
@@ -230,12 +240,23 @@
 
 .home-find-row {
   display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
   gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.home-find-row .btn {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .home-find input {
-  flex: 1;
+  flex: 1 1 8rem;
   min-width: 0;
+  width: min(100%, 100%);
   min-height: 48px;
   border: 1px solid var(--accent);
   border-radius: 2px;

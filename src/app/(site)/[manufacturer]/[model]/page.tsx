@@ -5,6 +5,8 @@ import TruckModelView from '@/components/TruckModelView'
 import PageHeader from '@/components/ui/PageHeader'
 import { getTruckBySlug, getTruckParams } from '@/lib/getContent'
 import { displayModelTitle } from '@/lib/makes'
+import { extractContentImages } from '@/lib/contentSections'
+import { buildShareMetadata, sanityOgImageUrl } from '@/lib/metadata'
 import { cleanText } from '@/lib/truckDisplay'
 
 export const revalidate = 3600
@@ -22,17 +24,26 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { model } = await params
+  const { manufacturer: manufacturerSlug, model } = await params
   try {
     const truck = await getTruckBySlug(model)
-    if (!truck) return {}
+    if (!truck) {
+      return {
+        title: 'This tape is blank · Compact Pickup',
+        description: 'That page is not in the catalog.',
+      }
+    }
     const description = cleanText(truck.summary)
     const title = `${displayModelTitle(truck.manufacturer?.name, truck.title)} · Compact Pickup`
-    return {
+    const slug = truck.manufacturer?.slug?.current ?? manufacturerSlug
+    const hero = extractContentImages(truck.content)[0]
+    const imageUrl = hero ? sanityOgImageUrl(hero) : null
+    return buildShareMetadata({
       title,
-      openGraph: { title, ...(description ? { description } : {}) },
-      ...(description ? { description } : {}),
-    }
+      description,
+      path: `/${slug}/${model}`,
+      imageUrl,
+    })
   } catch {
     return {}
   }
