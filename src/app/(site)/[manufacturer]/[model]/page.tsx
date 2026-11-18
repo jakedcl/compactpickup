@@ -27,7 +27,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { manufacturer: manufacturerSlug, model } = await params
   try {
     const truck = await getTruckBySlug(model)
-    if (!truck) return {}
+    if (!truck) {
+      return {
+        title: 'This tape is blank · Compact Pickup',
+        description: 'That page is not in the catalog.',
+      }
+    }
     const description = cleanText(truck.summary)
     const title = `${displayModelTitle(truck.manufacturer?.name, truck.title)} · Compact Pickup`
     const slug = truck.manufacturer?.slug?.current ?? manufacturerSlug

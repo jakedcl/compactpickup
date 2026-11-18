@@ -58,11 +58,13 @@
   left: 0;
   right: 0;
   height: 22%;
-  top: 18%;
+  top: 0;
   z-index: 3;
   pointer-events: none;
   background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  transform: translateY(36.4%);
   animation: boot-roll 0.14s steps(2, end) infinite;
+  will-change: transform;
 }
 
 .boot-overlay[data-phase='title'] .boot-roll,
@@ -501,9 +503,9 @@
 }
 
 @keyframes boot-roll {
-  0% { top: 8%; }
-  50% { top: 62%; }
-  100% { top: 28%; }
+  0% { transform: translateY(36.4%); }
+  50% { transform: translateY(282%); }
+  100% { transform: translateY(127%); }
 }
 
 @keyframes boot-blink {

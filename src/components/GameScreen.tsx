@@ -33,7 +33,7 @@ export default function GameScreen({
   if (retrying) {
     return (
       <main className="game-page">
-        <h1 className="sr-only">Compact Pickup</h1>
+        <h1 className="sr-only">Name that truck</h1>
         <p className="state">Loading the round...</p>
       </main>
     )
@@ -42,7 +42,7 @@ export default function GameScreen({
   if (status === 'error') {
     return (
       <main className="game-page">
-        <h1 className="sr-only">Compact Pickup</h1>
+        <h1 className="sr-only">Name that truck</h1>
         <p className="state" role="alert">Signal lost. Could not load the stills.</p>
         <div className="quiz-actions">
           <button type="button" className="btn btn-accent" onClick={retry}>Try again</button>
@@ -54,7 +54,7 @@ export default function GameScreen({
 
   return (
     <main>
-      <h1 className="sr-only">Compact Pickup</h1>
+      <h1 className="sr-only">Name that truck</h1>
       <NameThatTruck stills={stills} />
     </main>
   )

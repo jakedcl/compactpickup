@@ -195,7 +195,7 @@ export default function HomeScreen({
               <Link
                 key={manufacturer._id}
                 href={`/${manufacturer.slug.current}`}
-                className="vhs-logo-container"
+                className="vhs-logo-container hover:scale-110 transition-transform"
               >
                 <SanityImage
                   image={manufacturer.logo!}

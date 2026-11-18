@@ -6,8 +6,8 @@ export const SITE_ORIGIN = 'https://compactpickup.com'
 /** Default social image (Next.js file-based `src/app/opengraph-image.png`). */
 export const DEFAULT_OG_IMAGE = {
   url: '/opengraph-image.png',
-  width: 1200,
-  height: 630,
+  width: 1440,
+  height: 900,
   alt: 'Compact Pickup',
 } as const
 
