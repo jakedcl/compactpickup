@@ -135,27 +135,6 @@
   }
 }
 
-@media (max-width: 640px) {
-  .home-logos {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
-    justify-items: stretch;
-  }
-
-  .home-logos .vhs-logo-container {
-    min-height: 48px;
-    padding: 6px;
-    margin: 0;
-    max-width: none;
-    flex: none;
-  }
-
-  .home-logos img.vhs-logo {
-    height: 34px !important;
-    max-width: 100% !important;
-  }
-}
 
 .quiz-actions {
   display: flex;
@@ -548,7 +527,26 @@ body:has(.home-screen) .site-footer {
 
 .home-screen .home-logos {
   flex: none;
+  flex-wrap: nowrap;
+  gap: 0;
+  padding-inline: 8px;
   margin-bottom: clamp(8px, 2.5vh, 32px);
+}
+
+/* One row always: logos shrink with the width (and height) of the window. */
+.home-screen .home-logos .vhs-logo-container {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  max-width: 120px;
+  margin: 0;
+  padding: clamp(1px, 0.6vw, 8px);
+}
+
+.home-screen .home-logos img.vhs-logo {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: clamp(14px, min(8vw, 5vh), 44px) !important;
 }
 
 .home-screen .home-intro {
@@ -633,22 +631,6 @@ body:has(.home-screen) .site-footer {
   min-height: clamp(40px, 6.5vh, 56px);
 }
 
-@media (max-height: 760px) {
-  .home-screen .home-logos {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
-  }
-
-  .home-screen .home-logos .vhs-logo-container {
-    min-height: 0;
-    padding: 2px;
-  }
-
-  .home-screen .home-logos img.vhs-logo {
-    height: clamp(20px, 4.5vh, 34px) !important;
-  }
-}
-
 @media (max-height: 600px) {
   .home-screen .home-intro,
   .home-screen .home-find label {
@@ -657,7 +639,6 @@ body:has(.home-screen) .site-footer {
 }
 
 @media (max-height: 470px) {
-  .home-screen .home-logos,
   .home-screen .home-slide-years,
   .home-screen .home-play-btn {
     display: none;
