@@ -11,7 +11,7 @@
 
 .boot-overlay[data-phase='out'] {
   opacity: 0;
-  transition: opacity 0.55s linear;
+  transition: opacity 0.35s linear;
 }
 
 .boot-noise {
@@ -40,7 +40,7 @@
   display: flex;
   z-index: 2;
   pointer-events: none;
-  animation: boot-bars-out 0.45s linear 0.75s forwards;
+  animation: boot-bars-out 0.3s linear 0.3s forwards;
 }
 
 .boot-bars span {

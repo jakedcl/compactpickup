@@ -135,18 +135,25 @@
   }
 }
 
-@media (max-width: 480px) {
-  .home-logos img.vhs-logo {
-    height: 28px !important;
-    max-width: 60px !important;
+@media (max-width: 640px) {
+  .home-logos {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    justify-items: stretch;
   }
 
   .home-logos .vhs-logo-container {
-    min-height: 40px;
-    padding: 2px;
-    margin: 0 2px;
+    min-height: 48px;
+    padding: 6px;
+    margin: 0;
     max-width: none;
-    flex: 1;
+    flex: none;
+  }
+
+  .home-logos img.vhs-logo {
+    height: 34px !important;
+    max-width: 100% !important;
   }
 }
 
