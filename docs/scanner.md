@@ -79,6 +79,8 @@ Every fingerprint (visitor scans, binder approvals, "Finish missing fingerprints
 - `embedImage(blob)`: crop and embed in one call. Used by the binder.
 - `preparePhotoCrop(blob)` then `embedPrepared(prepared)`: the same steps split in two, so `/scan` can show the cropped preview and reuse it on Scan without detecting again.
 
+`preparePhotoCrop` also returns `crop` details for display only: the detector's pick and score, the padded crop rectangle (0–1 of the working photo, or `null` when the whole photo was used), how many boxes the detector found, the working photo size, and the detect time in ms. Nothing in `crop` feeds the fingerprint.
+
 Both routes share the same internal functions and produce identical vectors (checked: cosine 1.00000 against the stored DB vectors through both paths). This matters because a fingerprint is only comparable to fingerprints made the exact same way.
 
 ### 4. The pipeline version check
@@ -103,7 +105,7 @@ limit 40
 
 **Details** (`aggregateTruckScores` and `outcomeFromRanks` in `src/lib/binder/scan.ts`, results UI in `src/app/(site)/scan/scanner.tsx`):
 - Group the 40 neighbours by truck. A truck's score is the mean of its best **3** similarities. Missing slots are padded with the 40th neighbour's score, so a truck with 1 close photo doesn't beat one with 3.
-- The API returns the top **3** trucks. The results section on `/scan` calls `visibleScanMatches` in `src/lib/binder/scan-types.ts` on those scores: let `m12 = score1 − score2` and `m13 = score1 − score3`. If `m12 ≥ 0.05` (`SCAN_RESULTS_SCORE_GAP`), show only the first; else if `m13 ≥ 0.05`, show the first two; else show all three. Gaps use raw cosine, not the displayed percent. This is separate from the confident-match margin (`SCAN_MATCH_MIN_MARGIN`).
+- The API returns the top **3** trucks. The results section on `/scan` calls `visibleScanMatches` in `src/lib/binder/scan-types.ts` on those scores: let `m12 = score1 − score2` and `m13 = score1 − score3`. If `m12 ≥ 0.05` (`SCAN_RESULTS_SCORE_GAP`), show only the first; else if `m13 ≥ 0.05`, show the first two; else show all three. Gaps use raw cosine, not the displayed percent. This is separate from the confident-match margin (`SCAN_MATCH_MIN_MARGIN`). The API response is `{ ok, state, matches, threshold, minMargin }`: `threshold` (0.80) and `minMargin` (0.02) are the live confident-match cutoffs, so clients never hard-code them. `explainScan` in `src/lib/scan/explain.ts` turns those numbers into the plain-English reason for a match or guess (tested in `explain.test.ts`).
 - **Confident match** when the top score ≥ **0.80** (`SCAN_MATCH_MIN_SIMILARITY`) **and** it beats the second truck by ≥ **0.02** (`SCAN_MATCH_MIN_MARGIN`). Then the first card is labeled **Closest**. Otherwise the result is a "guess" and the first card says **Closest guess**. Both cutoffs can be overridden with Vercel env vars.
 - **Displayed percent** (`src/lib/binder/scan-types.ts`): raw cosine 0.70 shows as 0%, 0.95 or more as 100% (`assignVisibleScanDisplayPercents` cascades so lower guesses never show the same integer as a higher one unless raw scores tie). Display-only; matching still uses raw cosine.
 - Optional **probe scorer**: if `src/lib/scan/probe.json` exists (a trained 57×768 linear classifier), `/api/scan` ranks with it instead, using its own thresholds (`SCAN_PROBE_MATCH_MIN_PROBABILITY` 0.35, `SCAN_PROBE_MIN_MARGIN` 0.04). It isn't shipped yet.
