@@ -93,7 +93,10 @@ export type NeighborPhoto = {
 export type ScanOutcome = {
   state: ScanState
   matches: ScanMatch[]
+  /** Top score needed for a confident match. */
   threshold: number
+  /** Gap the top truck needs over the runner-up for a confident match. */
+  minMargin: number
 }
 
 type Fail = { ok: false; status: number; error: string; message: string }
@@ -217,8 +220,8 @@ function outcomeFromRanks(
   catalog: ScanCatalogTruck[],
   options: { threshold: number; minMargin: number },
 ): ScanOutcome {
-  const threshold = options.threshold
-  if (ranked.length === 0) return { state: 'learning', matches: [], threshold }
+  const { threshold, minMargin } = options
+  if (ranked.length === 0) return { state: 'learning', matches: [], threshold, minMargin }
   const byId = new Map(catalog.map((truck) => [truck.id, truck]))
   const matches: ScanMatch[] = []
   for (const group of ranked) {
@@ -226,17 +229,22 @@ function outcomeFromRanks(
     if (!truck) continue
     matches.push({ ...truck, score: roundScore(group.score) })
   }
-  if (matches.length === 0) return { state: 'guess', matches: [], threshold }
+  if (matches.length === 0) return { state: 'guess', matches: [], threshold, minMargin }
   const top = ranked[0]
   const second = ranked[1]
-  const marginOk = !second || top.score - second.score >= options.minMargin
+  const marginOk = !second || top.score - second.score >= minMargin
   const state: ScanState = byId.has(top.truckId) && top.score >= threshold && marginOk ? 'match' : 'guess'
-  return { state, matches, threshold }
+  return { state, matches, threshold, minMargin }
 }
 
 export function labelMatches(neighbors: NeighborPhoto[], catalog: ScanCatalogTruck[]): ScanOutcome {
   if (neighbors.length === 0) {
-    return { state: 'learning', matches: [], threshold: SCAN_MATCH_MIN_SIMILARITY }
+    return {
+      state: 'learning',
+      matches: [],
+      threshold: SCAN_MATCH_MIN_SIMILARITY,
+      minMargin: SCAN_MATCH_MIN_MARGIN,
+    }
   }
   return outcomeFromRanks(aggregateTruckScores(neighbors), catalog, {
     threshold: SCAN_MATCH_MIN_SIMILARITY,
@@ -249,7 +257,12 @@ export function labelProbeMatches(
   catalog: ScanCatalogTruck[],
 ): ScanOutcome {
   if (ranked.length === 0) {
-    return { state: 'learning', matches: [], threshold: SCAN_PROBE_MATCH_MIN_PROBABILITY }
+    return {
+      state: 'learning',
+      matches: [],
+      threshold: SCAN_PROBE_MATCH_MIN_PROBABILITY,
+      minMargin: SCAN_PROBE_MIN_MARGIN,
+    }
   }
   return outcomeFromRanks(ranked, catalog, {
     threshold: SCAN_PROBE_MATCH_MIN_PROBABILITY,

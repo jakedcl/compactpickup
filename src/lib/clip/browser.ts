@@ -54,11 +54,29 @@ export type ClipProgress = {
   total?: number
 }
 
+export type NormRect = { x0: number; y0: number; x1: number; y1: number }
+
+/** What the crop step did. Display only: nothing here feeds the fingerprint. */
+export type CropInfo = {
+  /** Detector pick before padding (0–1 of the working photo), or null when no vehicle passed the rule. */
+  detection: (NormRect & { label: string; score: number }) | null
+  /** Padded crop rectangle (0–1 of the working photo), or null when the whole photo was used. */
+  rect: NormRect | null
+  /** Boxes of any class the detector returned at or above the score cutoff. */
+  detectionCount: number
+  /** Working photo size in pixels (long edge capped at 1600). */
+  sourceWidth: number
+  sourceHeight: number
+  /** Milliseconds spent loading the detector (first use) plus detecting. */
+  detectMs: number
+}
+
 export type PreparedPhoto = {
   /** Cropped truck or full frame at working resolution (preview). */
   previewCanvas: HTMLCanvasElement
   /** Input to SigLIP (long edge ≤ 768). */
   embedCanvas: HTMLCanvasElement
+  crop: CropInfo
 }
 
 type RawImageFactory = {
@@ -123,10 +141,8 @@ async function workingCanvasFromBlob(input: Blob): Promise<HTMLCanvasElement> {
 }
 
 /** Padded vehicle crop, or the whole photo when no vehicle box passed the rule. */
-function cropCanvas(source: HTMLCanvasElement, detections: NormDetection[]): HTMLCanvasElement {
-  const picked = pickVehicleBox(detections)
-  if (!picked) return source
-  const rect = paddedCropNorm(picked)
+function cropCanvas(source: HTMLCanvasElement, rect: NormRect | null): HTMLCanvasElement {
+  if (!rect) return source
   const sx = Math.max(0, Math.floor(rect.x0 * source.width))
   const sy = Math.max(0, Math.floor(rect.y0 * source.height))
   const sw = Math.max(1, Math.min(source.width - sx, Math.ceil(rect.x1 * source.width) - sx))
@@ -231,14 +247,32 @@ async function detectVehicles(source: HTMLCanvasElement): Promise<NormDetection[
 }
 
 async function preparePhotoCropFromCanvas(source: HTMLCanvasElement): Promise<PreparedPhoto> {
+  const startedAt = performance.now()
   let detections: NormDetection[] = []
   try {
     detections = await detectVehicles(source)
   } catch {
     detections = []
   }
-  const cropped = cropCanvas(source, detections)
-  return { previewCanvas: cropped, embedCanvas: fitCanvasLongEdge(cropped, MAX_EDGE) }
+  const detectMs = Math.round(performance.now() - startedAt)
+  const picked = pickVehicleBox(detections)
+  const rect = picked ? paddedCropNorm(picked) : null
+  const cropped = cropCanvas(source, rect)
+  const detection = picked
+    ? { label: picked.label, score: picked.score, x0: picked.x0, y0: picked.y0, x1: picked.x1, y1: picked.y1 }
+    : null
+  return {
+    previewCanvas: cropped,
+    embedCanvas: fitCanvasLongEdge(cropped, MAX_EDGE),
+    crop: {
+      detection,
+      rect,
+      detectionCount: detections.length,
+      sourceWidth: source.width,
+      sourceHeight: source.height,
+      detectMs,
+    },
+  }
 }
 
 /** Detect + crop only. Scanner shows previewCanvas; keep embedCanvas for embedPrepared on Scan. */
