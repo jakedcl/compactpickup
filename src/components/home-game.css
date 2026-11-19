@@ -500,3 +500,166 @@
   .game-still.is-motion.is-right,
   .game-still.is-motion.is-wrong { animation: none; }
 }
+
+/* Home fits the viewport: no page scroll, everything scales to the window. */
+html:has(.home-screen) {
+  overflow: hidden;
+}
+
+body:has(.home-screen) {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body:has(.home-screen) #content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+body:has(.home-screen) .site-header,
+body:has(.home-screen) .site-footer {
+  flex: none;
+}
+
+body:has(.home-screen) .site-footer {
+  width: min(var(--page), calc(100% - 32px));
+  padding-block: clamp(8px, 1.6vh, 20px);
+}
+
+.home-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-screen > .home-live,
+.home-screen > .home-hold {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-screen .home-logos {
+  flex: none;
+  margin-bottom: clamp(8px, 2.5vh, 32px);
+}
+
+.home-screen .home-intro {
+  flex: none;
+  width: min(720px, calc(100% - 32px));
+  padding-inline: 0;
+}
+
+.home-screen .home-logos-fallback {
+  flex: none;
+  width: min(720px, calc(100% - 32px));
+  margin-bottom: clamp(8px, 2.5vh, 32px);
+  padding: 0;
+}
+
+.home-screen .home-intro .lede {
+  font-size: clamp(1rem, 2.6vh, 1.2rem);
+}
+
+.home-screen .home-find {
+  flex: none;
+  width: min(720px, calc(100% - 32px));
+  margin-top: clamp(8px, 2vh, 24px);
+  gap: clamp(4px, 1vh, 8px);
+}
+
+.home-screen .home-find-row {
+  flex-wrap: nowrap;
+}
+
+.home-screen .home-find input {
+  flex: 1 1 0;
+  min-height: clamp(40px, 6vh, 48px);
+}
+
+.home-screen .home-find-row .btn {
+  flex: none;
+}
+
+.home-screen .home-scan {
+  flex: none;
+  width: min(720px, calc(100% - 32px));
+  margin-top: clamp(6px, 1.4vh, 16px);
+}
+
+.home-screen .home-reel {
+  flex: 1 1 0;
+  min-height: 0;
+  width: min(720px, calc(100% - 32px));
+  margin-top: clamp(8px, 2vh, 24px);
+  margin-bottom: clamp(8px, 1.6vh, 20px);
+  padding: clamp(6px, 1.4vh, 16px);
+  gap: clamp(6px, 1.2vh, 16px);
+  display: flex;
+  flex-direction: column;
+}
+
+.home-screen .home-slide {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 1vh, 10px);
+}
+
+.home-screen .home-still {
+  flex: 1 1 0;
+  min-height: 0;
+  aspect-ratio: auto;
+}
+
+.home-screen .home-slide-copy {
+  flex: none;
+}
+
+.home-screen .home-slide-name {
+  font-size: clamp(1rem, 2.8vh, 1.6rem);
+}
+
+.home-screen .home-play-btn {
+  flex: none;
+  min-height: clamp(40px, 6.5vh, 56px);
+}
+
+@media (max-height: 760px) {
+  .home-screen .home-logos {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .home-screen .home-logos .vhs-logo-container {
+    min-height: 0;
+    padding: 2px;
+  }
+
+  .home-screen .home-logos img.vhs-logo {
+    height: clamp(20px, 4.5vh, 34px) !important;
+  }
+}
+
+@media (max-height: 600px) {
+  .home-screen .home-intro,
+  .home-screen .home-find label {
+    display: none;
+  }
+}
+
+@media (max-height: 470px) {
+  .home-screen .home-logos,
+  .home-screen .home-slide-years,
+  .home-screen .home-play-btn {
+    display: none;
+  }
+}

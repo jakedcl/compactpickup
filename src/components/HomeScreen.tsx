@@ -179,7 +179,7 @@ export default function HomeScreen({
   const logos = manufacturers.filter((manufacturer) => manufacturer.logo?.asset?._ref && manufacturer.slug?.current)
 
   return (
-    <main className="screen">
+    <main className="screen home-screen">
       {boot === 'play' && <VhsBoot onDone={finishBoot} />}
       <div className={boot === 'unknown' ? 'home-hold' : 'home-live'} inert={boot !== 'menu'}>
         {brandStatus === 'error' ? (
