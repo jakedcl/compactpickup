@@ -267,8 +267,8 @@ button, input { font: inherit; color: inherit; }
   justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
-  width: min(var(--page), calc(100% - 32px));
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   font-family: var(--font-display);
   font-size: 12px;
   letter-spacing: 0.12em;
@@ -1050,7 +1050,8 @@ button, input { font: inherit; color: inherit; }
 }
 
 @media (max-width: 520px) {
-  .site-header {
+  .site-header,
+  .site-footer {
     padding-inline: 12px;
   }
 
@@ -1070,7 +1071,8 @@ button, input { font: inherit; color: inherit; }
 }
 
 @media (min-width: 800px) {
-  .site-header {
+  .site-header,
+  .site-footer {
     padding-inline: 24px;
   }
 
