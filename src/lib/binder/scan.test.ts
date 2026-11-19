@@ -429,7 +429,12 @@ test('truck score fills three slots and a close runner-up stays a guess', () => 
   )
   assert.equal(separated.state, 'match')
   assert.equal(separated.matches[1]?.title, 'Hilux')
-  assert.deepEqual(labelMatches([], [RANGER]), { state: 'learning', matches: [], threshold: 0.8 })
+  assert.deepEqual(labelMatches([], [RANGER]), {
+    state: 'learning',
+    matches: [],
+    threshold: 0.8,
+    minMargin: 0.02,
+  })
   assert.equal(labelMatches([{ truckId: 'missing', truckSlug: 'x', similarity: 0.99 }], [RANGER]).state, 'guess')
 })
 
@@ -551,7 +556,7 @@ test('scan returns the closest trucks and says not sure under the threshold', as
   assert.equal(body.matches[0].href, '/mazda/best-slug')
   assert.equal(body.matches[0].score, 0.91)
   assert.ok(body.matches.every((match: { id: string }) => match.id !== 'truck-hilux'))
-  assert.deepEqual(Object.keys(body).sort(), ['matches', 'ok', 'state', 'threshold'])
+  assert.deepEqual(Object.keys(body).sort(), ['matches', 'minMargin', 'ok', 'state', 'threshold'])
   assert.deepEqual(Object.keys(body.matches[0]).sort(), ['href', 'id', 'maker', 'score', 'slug', 'title', 'years'])
 
   const unsureDb = new Memory()
