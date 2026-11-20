@@ -1,0 +1,372 @@
+/* Demo mode for /scan: tabs, sample strip, the annotated photo, and the "How it decided" panel. */
+
+.scan-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.scan-tab {
+  min-height: 44px;
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.scan-tab.is-active {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.scan-tab:focus-visible,
+.demo-sample:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.scan-tab:disabled,
+.demo-sample:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Sample strip */
+.demo-strip-intro {
+  margin: 0 0 var(--space-3);
+  font-size: 13px;
+  line-height: 1.45;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.demo-samples {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-2);
+}
+
+.demo-sample {
+  display: grid;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.demo-sample:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.demo-sample img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  background: var(--osd-deep);
+}
+
+.demo-sample-label {
+  padding: var(--space-2);
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.demo-credits {
+  margin-top: var(--space-3);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.demo-credits summary {
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.demo-credits ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+}
+
+.demo-credits a,
+.demo-fine a {
+  color: var(--accent);
+}
+
+/* Annotated photo */
+.demo-stage {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.demo-frame {
+  position: relative;
+  justify-self: center;
+  max-width: 100%;
+  overflow: hidden;
+  background: var(--osd-deep);
+  border: 1px solid var(--line);
+}
+
+.demo-frame img {
+  display: block;
+  max-width: 100%;
+  max-height: min(44dvh, 360px);
+  width: auto;
+  height: auto;
+}
+
+.demo-box {
+  position: absolute;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 9999px rgba(0, 8, 40, 0.55);
+  animation: demo-box-in 0.45s ease-out both;
+}
+
+.demo-box.is-whole {
+  inset: 0;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.demo-box-tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateY(-100%);
+  padding: 1px 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--accent-ink);
+  background: var(--accent);
+  white-space: nowrap;
+}
+
+.demo-stage[data-phase='fingerprinting'] .demo-box::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 225, 74, 0.28) 0 1px, transparent 1px 12px),
+    repeating-linear-gradient(90deg, rgba(255, 225, 74, 0.28) 0 1px, transparent 1px 12px);
+  animation: demo-grid 1.1s ease-in-out infinite alternate;
+}
+
+.demo-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  box-shadow: 0 0 12px rgba(255, 225, 74, 0.7);
+  animation: demo-sweep 1.6s linear infinite;
+}
+
+.demo-stage-caption {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* How it decided */
+.demo-panel {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.demo-panel-title {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.demo-verdict {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: 15px;
+  line-height: 1.4;
+  border-left: 4px solid var(--line-strong);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.demo-verdict.is-good {
+  border-left-color: var(--ok);
+}
+
+.demo-verdict.is-warn {
+  border-left-color: var(--accent);
+}
+
+.demo-verdict.is-bad {
+  border-left-color: var(--bad);
+}
+
+.demo-why,
+.demo-explain {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.demo-fine {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.demo-stages,
+.demo-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.demo-stages li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px var(--space-2);
+  animation: demo-tick 0.35s ease-out both;
+  animation-delay: calc(var(--i, 0) * 180ms);
+}
+
+.demo-stage-name {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.demo-stage-ms {
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.demo-stage-note {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.demo-bars li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px var(--space-2);
+  font-size: 14px;
+}
+
+.demo-bars li.is-hidden-guess {
+  opacity: 0.55;
+}
+
+.demo-bar-score {
+  color: var(--accent);
+}
+
+.demo-bar-track {
+  grid-column: 1 / -1;
+  height: 8px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.demo-bar-fill {
+  display: block;
+  height: 100%;
+  width: var(--w, 0%);
+  transform-origin: left center;
+  background: linear-gradient(90deg, rgba(255, 140, 0, 0.55), var(--accent));
+  animation: demo-fill 0.8s ease-out both;
+  animation-delay: calc(0.5s + var(--i, 0) * 120ms);
+}
+
+@keyframes demo-sweep {
+  from {
+    top: 0;
+  }
+  to {
+    top: calc(100% - 3px);
+  }
+}
+
+@keyframes demo-box-in {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes demo-grid {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 0.9;
+  }
+}
+
+@keyframes demo-tick {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes demo-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-scanline,
+  .demo-box,
+  .demo-stages li,
+  .demo-bar-fill,
+  .demo-stage[data-phase='fingerprinting'] .demo-box::after {
+    animation: none;
+  }
+
+  .demo-scanline {
+    top: 50%;
+  }
+}

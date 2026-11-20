@@ -318,6 +318,13 @@ export async function embedPrepared(
   }
 }
 
+/** Warm the detector so the first scan does not wait on its download. */
+export function prefetchDetector(): void {
+  void loadDfineSession().catch(() => {
+    /* The first scan retries. */
+  })
+}
+
 /** Warm the SigLIP weights after crop so Scan can start the fingerprint sooner. */
 export function prefetchSiglip(): void {
   void loadSiglipSession().catch(() => {

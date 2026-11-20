@@ -1,7 +1,15 @@
 import { shrinkVisitorJpeg } from './visitor-submit'
 
-/** How the visitor brought the photo into the scanner tab. */
-export type VisitorPhotoSource = 'camera' | 'library' | 'drop' | 'paste' | 'desktop'
+/** How the photo got into the scanner tab. `sample` is a built-in demo photo, never the visitor's own. */
+export type VisitorPhotoSource = 'camera' | 'library' | 'drop' | 'paste' | 'desktop' | 'sample'
+
+/**
+ * Whether the visitor can give feedback on this photo (Wrong / Not sure, consent island, submission).
+ * Demo samples never can: they are not the visitor's photos and must not reach the review queue.
+ */
+export function allowsVisitorFeedback(source: VisitorPhotoSource | null): boolean {
+  return source !== 'sample'
+}
 
 export function shouldOfferSavePhoto(source: VisitorPhotoSource): boolean {
   return source === 'camera'

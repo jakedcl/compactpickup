@@ -2,6 +2,10 @@
 
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
+import DemoPanel, { type DemoTimings } from '@/components/scan/DemoPanel'
+import DemoSampleStrip from '@/components/scan/DemoSampleStrip'
+import DemoStage, { type DemoStagePhase } from '@/components/scan/DemoStage'
+import ScanModeTabs, { type ScanMode } from '@/components/scan/ScanModeTabs'
 import ScanSavePhotoButton from '@/components/scan/ScanSavePhotoButton'
 import { useScanSession } from '@/components/scan/ScanSessionProvider'
 import VhsProgressBar from '@/components/ui/VhsProgressBar'
@@ -9,8 +13,10 @@ import {
   ClipError,
   EMBED_PIPELINE,
   embedPrepared,
+  prefetchDetector,
   prefetchSiglip,
   preparePhotoCrop,
+  type CropInfo,
   type PreparedPhoto,
   type ClipProgress,
 } from '@/lib/clip/browser'
@@ -40,10 +46,16 @@ import {
   visitorProgressLabel,
   visitorProgressValue,
 } from '@/lib/scan/visitor-session'
-import { shouldOfferSavePhoto, type VisitorPhotoSource } from '@/lib/scan/visitor-save-photo'
+import { DEMO_SAMPLES, type DemoSample } from '@/lib/scan/demo-samples'
+import {
+  allowsVisitorFeedback,
+  shouldOfferSavePhoto,
+  type VisitorPhotoSource,
+} from '@/lib/scan/visitor-save-photo'
 import { ScanTruckSearch } from './scan-truck-search'
 import { useMobileDevice } from './use-mobile-device'
 import './scan.css'
+import '@/components/scan/demo.css'
 
 type Phase = 'idle' | 'preview' | 'working' | 'error'
 type CropPhase = 'idle' | 'cropping' | 'ready' | 'error'
@@ -52,6 +64,9 @@ type PageStep = 'results' | 'correction'
 type ScanSuccess = {
   state: 'learning' | 'match' | 'guess'
   matches: ScanMatch[]
+  /** Live confident-match cutoffs from the server. Absent only if the server did not send them. */
+  threshold?: number
+  minMargin?: number
 }
 
 type Correction =
@@ -76,11 +91,12 @@ function isMatch(value: unknown): value is ScanMatch {
 
 function readScan(value: unknown): ScanSuccess | null {
   if (!value || typeof value !== 'object') return null
-  const row = value as { ok?: unknown; state?: unknown; matches?: unknown }
+  const row = value as { ok?: unknown; state?: unknown; matches?: unknown; threshold?: unknown; minMargin?: unknown }
   if (row.ok !== true) return null
   if (row.state !== 'learning' && row.state !== 'match' && row.state !== 'guess') return null
   if (!Array.isArray(row.matches) || !row.matches.every(isMatch)) return null
-  return { state: row.state, matches: row.matches }
+  const finite = (n: unknown): number | undefined => (typeof n === 'number' && Number.isFinite(n) ? n : undefined)
+  return { state: row.state, matches: row.matches, threshold: finite(row.threshold), minMargin: finite(row.minMargin) }
 }
 
 function clientMessage(error: unknown): string {
@@ -108,6 +124,13 @@ async function canvasPreviewUrl(canvas: HTMLCanvasElement): Promise<string> {
   })
   if (!blob) throw new ClipError('photo', 'Could not read the photo')
   return URL.createObjectURL(blob)
+}
+
+const DEMO_HASH = '#demo'
+
+function initialMode(): ScanMode {
+  if (DEMO_SAMPLES.length === 0) return 'own'
+  return typeof window !== 'undefined' && window.location.hash === DEMO_HASH ? 'demo' : 'own'
 }
 
 export default function Scanner({
@@ -141,6 +164,11 @@ export default function Scanner({
   const [dragging, setDragging] = useState(false)
   const [photoSource, setPhotoSource] = useState<VisitorPhotoSource | null>(null)
   const [modelDownloading, setModelDownloading] = useState(false)
+  const [mode, setMode] = useState<ScanMode>(initialMode)
+  const [sample, setSample] = useState<DemoSample | null>(null)
+  const [cropInfo, setCropInfo] = useState<CropInfo | null>(null)
+  const [timings, setTimings] = useState<DemoTimings | null>(null)
+  const sawDownload = useRef(false)
 
   const scanning = phase === 'working'
   const cropBusy = cropPhase === 'cropping'
@@ -149,7 +177,8 @@ export default function Scanner({
   const idle = !file
   const visibleMatches = result ? visitorScanMatches(result.matches) : []
   const top = visibleMatches[0] ?? null
-  const canFeedback = visibleMatches.length > 0
+  const canFeedback = visibleMatches.length > 0 && allowsVisitorFeedback(photoSource)
+  const demoSample = photoSource === 'sample' ? sample : null
   const topCatalog = top
     ? { id: top.id, slug: top.slug, title: top.title, maker: top.maker, href: top.href, years: top.years }
     : null
@@ -180,6 +209,10 @@ export default function Scanner({
     setResult(null)
     setPageStep(null)
     setPhotoSource(null)
+    setSample(null)
+    setCropInfo(null)
+    setTimings(null)
+    sawDownload.current = false
     setStatus('')
   }, [clearPreviewUrl])
 
@@ -194,7 +227,10 @@ export default function Scanner({
   }, [clearSession, resetScannerToPicker])
 
   function trackClipProgress(progress: ClipProgress) {
-    if (isModelDownloadProgress(progress)) setModelDownloading(true)
+    if (isModelDownloadProgress(progress)) {
+      sawDownload.current = true
+      setModelDownloading(true)
+    }
     if (
       progress.status === 'ready' &&
       (isDfineProgress(progress) || isSiglipProgress(progress))
@@ -222,6 +258,10 @@ export default function Scanner({
     setResult(null)
     setPageStep(null)
     setPhotoSource(source)
+    setSample(null)
+    setCropInfo(null)
+    setTimings(null)
+    sawDownload.current = false
     setModelDownloading(false)
     setStatus('')
   }, [clearPreviewUrl, clearSession])
@@ -250,6 +290,7 @@ export default function Scanner({
         if (creep) clearInterval(creep)
         setCropProgress(100)
         preparedRef.current = prepared
+        setCropInfo(prepared.crop)
         clearPreviewUrl()
         const url = await canvasPreviewUrl(prepared.previewCanvas)
         previewRef.current = url
@@ -283,6 +324,7 @@ export default function Scanner({
       setScanProgress((value) => Math.min(97, value + 0.35))
     }, 120)
     try {
+      const fingerprintStart = performance.now()
       const vector = await embedPrepared(prepared, (progress) => {
         if (runId.current !== id) return
         trackClipProgress(progress)
@@ -292,8 +334,10 @@ export default function Scanner({
         if (progress.status === 'ready') setScanProgress((value) => Math.max(value, 68))
       })
       if (runId.current !== id) return
+      const fingerprintMs = performance.now() - fingerprintStart
       setModelDownloading(false)
       setScanProgress((value) => Math.max(value, 76))
+      const matchStart = performance.now()
       const response = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
@@ -321,6 +365,11 @@ export default function Scanner({
         return
       }
       setScanProgress(100)
+      setTimings({
+        fingerprintMs,
+        matchMs: performance.now() - matchStart,
+        coldStart: sawDownload.current,
+      })
       setResult(parsed)
       setPhase('preview')
       setPageStep('results')
@@ -361,6 +410,7 @@ export default function Scanner({
     correction: Correction | null,
     islandSurface: 'catalog' | 'scan',
   ) {
+    if (!allowsVisitorFeedback(photoSource)) return
     if (!file || !topCatalog || !preview || !shouldBeginConsentIsland(verdict)) return
     const previewUrl = preview
     previewRef.current = null
@@ -438,6 +488,35 @@ export default function Scanner({
     }
   }, [device, pickFile])
 
+  function changeMode(next: ScanMode) {
+    setMode(next)
+    try {
+      window.history.replaceState(null, '', next === 'demo' ? `/scan${DEMO_HASH}` : '/scan')
+    } catch {
+      /* The tab still works without the shareable hash. */
+    }
+  }
+
+  useEffect(() => {
+    if (mode !== 'demo') return
+    // Start the model downloads while the visitor looks at the samples.
+    prefetchDetector()
+    prefetchSiglip()
+  }, [mode])
+
+  async function pickSample(next: DemoSample) {
+    try {
+      const response = await fetch(next.src)
+      if (!response.ok) throw new Error('sample_missing')
+      const blob = await response.blob()
+      const name = next.src.split('/').pop() ?? 'sample.jpg'
+      pickFile(new File([blob], name, { type: blob.type || 'image/jpeg' }), 'sample')
+      setSample(next)
+    } catch {
+      setStatus('That sample photo did not load. Try another.')
+    }
+  }
+
   function onCameraChange(event: ChangeEvent<HTMLInputElement>) {
     const next = event.target.files?.[0]
     event.target.value = ''
@@ -456,6 +535,13 @@ export default function Scanner({
     if (next) pickFile(next, 'desktop')
   }
 
+  const demoPhase: DemoStagePhase = cropBusy
+    ? 'detecting'
+    : scanning
+      ? 'fingerprinting'
+      : result
+        ? 'done'
+        : 'boxed'
   const progressInput = { modelDownloading, scanning, cropBusy }
   const progressVisible = shouldShowVisitorProgress(progressInput, { pageStep, phase })
   const progressLabel = visitorProgressLabel(progressInput)
@@ -477,7 +563,7 @@ export default function Scanner({
 
   function onScanAnother() {
     goToFreshScan()
-    router.push('/scan')
+    router.push(mode === 'demo' ? `/scan${DEMO_HASH}` : '/scan')
   }
 
   return (
@@ -489,7 +575,19 @@ export default function Scanner({
       ) : null}
 
       <div className="home-reel scan-panel">
-      {idle ? (
+      {idle && DEMO_SAMPLES.length > 0 ? (
+        <ScanModeTabs mode={mode} onChange={changeMode} disabled={busy} />
+      ) : null}
+      {idle && mode === 'demo' && DEMO_SAMPLES.length > 0 ? (
+        <>
+          <DemoSampleStrip samples={DEMO_SAMPLES} disabled={busy} onPick={(next) => void pickSample(next)} />
+          {showStatus ? (
+            <p className="scan-status" role="status">
+              {status}
+            </p>
+          ) : null}
+        </>
+      ) : idle ? (
         <>
           <div className="scan-preview scan-preview-empty">
             <p>{device === 'unknown' ? 'Preparing camera controls' : emptyCopy}</p>
@@ -526,14 +624,18 @@ export default function Scanner({
         </>
       ) : (
         <>
-          <div className="scan-preview scan-preview-crop scan-preview-full">
-            {preview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={preview} alt="Cropped truck preview" />
-            ) : (
-              <p>{cropBusy ? 'Cropping' : 'Working'}</p>
-            )}
-          </div>
+          {demoSample ? (
+            <DemoStage src={demoSample.src} crop={cropInfo} phase={demoPhase} />
+          ) : (
+            <div className="scan-preview scan-preview-crop scan-preview-full">
+              {preview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={preview} alt="Cropped truck preview" />
+              ) : (
+                <p>{cropBusy ? 'Cropping' : 'Working'}</p>
+              )}
+            </div>
+          )}
           <VhsProgressBar label={progressLabel} value={progressValue} visible={progressVisible} />
           {showStatus ? (
             <p className="scan-status" role="status">
@@ -609,6 +711,19 @@ export default function Scanner({
             </ol>
           ) : resultsEmptyMessage ? (
             <p role="status">{resultsEmptyMessage}</p>
+          ) : null}
+          {demoSample ? (
+            <DemoPanel
+              sample={demoSample}
+              crop={cropInfo}
+              timings={timings}
+              state={result.state}
+              matches={result.matches}
+              visible={visibleMatches}
+              threshold={result.threshold}
+              minMargin={result.minMargin}
+              pipeline={EMBED_PIPELINE}
+            />
           ) : null}
           {canFeedback ? (
             <div className="scan-choice">

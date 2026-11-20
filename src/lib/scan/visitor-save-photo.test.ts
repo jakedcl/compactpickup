@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  allowsVisitorFeedback,
   saveVisitorPhoto,
   shouldOfferSavePhoto,
   type SaveVisitorPhotoDeps,
@@ -50,4 +51,13 @@ test('saveVisitorPhoto falls back to download when share is unavailable', async 
   assert.equal(await saveVisitorPhoto(jpeg, deps), 'downloaded')
   assert.equal(shared, false)
   assert.equal(downloaded, true)
+})
+
+test('demo samples never offer save or feedback', () => {
+  assert.equal(allowsVisitorFeedback('sample'), false)
+  assert.equal(shouldOfferSavePhoto('sample'), false)
+  for (const source of ['camera', 'library', 'drop', 'paste', 'desktop'] as const) {
+    assert.equal(allowsVisitorFeedback(source), true)
+  }
+  assert.equal(allowsVisitorFeedback(null), true)
 })
