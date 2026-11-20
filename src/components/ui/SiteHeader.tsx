@@ -15,11 +15,13 @@ export default function SiteHeader() {
     )
   }
 
+  const home = pathname === '/'
+
   return (
     <header className="site-header">
       <Link href="/" className="site-mark">
         <Image src="/truck-icon.png" alt="" width={32} height={32} unoptimized />
-        <span>Compact Pickup</span>
+        {home ? <h1 className="site-mark-title">Compact Pickup</h1> : <span>Compact Pickup</span>}
       </Link>
       <nav className="site-nav" aria-label="Sections">
         <Link href="/browse" className="btn" aria-current={pathname === '/browse' ? 'page' : undefined}>

@@ -4,16 +4,27 @@ A catalog of compact and mid-size pickup trucks sold in the U.S., styled like an
 
 Live at [compactpickup.com](https://compactpickup.com).
 
-![Compact Pickup homepage](docs/screenshot.png)
+<p>
+  <img src="docs/home.webp" alt="Compact Pickup home page on a phone: search, Scan a truck button and the truck slideshow" width="300">
+  <img src="docs/scan.webp" alt="Scanner result on a phone: a photo matched to the Mitsubishi Raider" width="300">
+</p>
+
+## How the scanner works
+
+1. **Crop in the browser** — a D-FINE nano detector finds the vehicle in the photo (with padding and a full-frame fallback).
+2. **Fingerprint in the browser** — a fine-tuned SigLIP2 image model turns the crop into a 768-number vector (same pipeline as the binder; nothing is sent to a third-party API).
+3. **Match on the server** — Neon Postgres with pgvector finds the nearest approved reference photos and rolls them up per truck.
+
+Deep detail, accuracy, and how to change the model: **[docs/scanner.md](docs/scanner.md)**.
 
 ## What it does
 
-- The home page is a manufacturer menu (Chevy, Ford, GMC, Isuzu, Mazda, Nissan, Toyota and more) with an image carousel and a running clock in the VHS-style status bar.
+- The **home page** opens with optional VHS boot animation, then brand logos, a **search** field (suggestions plus **Search** to `/browse`), a **Scan a truck** button, and an auto-advancing **truck slideshow** (still every four seconds).
 - `/[manufacturer]` lists a maker's trucks and `/[manufacturer]/[model]` shows a single model.
 - `/timeline` walks through the models by year.
 - `/browse` lets you search and filter trucks by year, drivetrain, engine and market.
 - `/game` is "Name that truck": ten stills, four choices each.
-- `/scan` identifies a truck from a photo. The models run in the visitor's browser and the server only compares 768-number fingerprints, so a scan is free. How it works, how accurate it is, and how to change it: **[docs/scanner.md](docs/scanner.md)**.
+- `/scan` runs the scanner flow above on a visitor photo and returns the closest catalog matches.
 - Model pages include a 3D model viewer built with React Three Fiber.
 - Manufacturers and truck models are stored in Sanity. The studio is embedded at `/studio` (config in `sanity/`, schemas `manufacturer`, `truckModel`, `truckSpecFields`). Pages revalidate hourly, so a Studio edit shows up on the site within an hour. There are no webhooks or crons.
 
@@ -81,5 +92,5 @@ db/migrations/        binder SQL
 data/truck-faces.json optional face labels
 scripts/              migrate, imports, seed, fix-makes; scanner-eval/ (accuracy eval)
 sanity/               studio and schemas
-docs/                 scanner.md (how the scanner works), screenshot
+docs/                 scanner.md (how the scanner works), home and scan screenshots
 ```

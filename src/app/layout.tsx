@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { rootOpenGraph, rootTwitter } from "@/lib/metadata";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,8 +15,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://compactpickup.com'),
-  title: "Compact Pickup",
+  title: { default: 'Compact Pickup', template: '%s' },
   description: "A field guide to compact and mid-size pickup trucks",
+  openGraph: rootOpenGraph,
+  twitter: rootTwitter,
 };
 
 export const viewport: Viewport = {

@@ -39,7 +39,10 @@ function TruckSlideshow({
           <button type="button" className="btn" onClick={onRetry}>Retry</button>
         </>
       ) : status === 'loading' ? (
-        <p>Loading trucks</p>
+        <>
+          <span className="home-still home-still-placeholder" aria-hidden="true" />
+          <p>Loading trucks</p>
+        </>
       ) : slide?.asset?._ref && slide.manufacturerSlug && slide.truckSlug ? (
         <Link href={`/${slide.manufacturerSlug}/${slide.truckSlug}`} className="home-slide">
           <span className="home-still">
@@ -49,7 +52,7 @@ function TruckSlideshow({
               sizes="(max-width: 800px) 100vw, 720px"
               fill
               cropRatio={0.625}
-              eager
+              priority={index === 0}
               className="sanity-cover"
             />
           </span>
@@ -176,7 +179,7 @@ export default function HomeScreen({
   const logos = manufacturers.filter((manufacturer) => manufacturer.logo?.asset?._ref && manufacturer.slug?.current)
 
   return (
-    <main className="screen">
+    <main className="screen home-screen">
       {boot === 'play' && <VhsBoot onDone={finishBoot} />}
       <div className={boot === 'unknown' ? 'home-hold' : 'home-live'} inert={boot !== 'menu'}>
         {brandStatus === 'error' ? (

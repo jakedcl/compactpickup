@@ -20,9 +20,10 @@
   justify-content: center;
   align-items: center;
   width: 100%;
-  max-width: 56rem;
+  max-width: min(56rem, 100%);
   margin: 0 auto 32px;
-  padding: 0 8px;
+  padding: 8px 12px;
+  overflow-x: clip;
 }
 
 .home-logos .vhs-logo-container {
@@ -33,8 +34,11 @@
   min-height: 55px;
   padding: 8px;
   margin: 0 6px;
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   max-width: 120px;
+  overflow: hidden;
+  transform-origin: center;
 }
 
 .home-logos img.vhs-logo {
@@ -131,20 +135,6 @@
   }
 }
 
-@media (max-width: 480px) {
-  .home-logos img.vhs-logo {
-    height: 28px !important;
-    max-width: 60px !important;
-  }
-
-  .home-logos .vhs-logo-container {
-    min-height: 40px;
-    padding: 2px;
-    margin: 0 2px;
-    max-width: none;
-    flex: 1;
-  }
-}
 
 .quiz-actions {
   display: flex;
@@ -161,6 +151,7 @@
   padding: var(--space-3);
   border: 1px solid rgba(255, 255, 255, 0.45);
   background: rgba(0, 8, 40, 0.28);
+  min-height: 12rem;
 }
 
 .home-slide {
@@ -202,9 +193,14 @@
 .home-still {
   display: block;
   position: relative;
+  width: 100%;
   aspect-ratio: 16 / 10;
   background: var(--osd-deep);
   overflow: hidden;
+}
+
+.home-still-placeholder {
+  pointer-events: none;
 }
 
 .home-play-btn {
@@ -230,12 +226,23 @@
 
 .home-find-row {
   display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
   gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.home-find-row .btn {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .home-find input {
-  flex: 1;
+  flex: 1 1 8rem;
   min-width: 0;
+  width: min(100%, 100%);
   min-height: 48px;
   border: 1px solid var(--accent);
   border-radius: 2px;
@@ -471,4 +478,169 @@
 @media (prefers-reduced-motion: reduce) {
   .game-still.is-motion.is-right,
   .game-still.is-motion.is-wrong { animation: none; }
+}
+
+/* Home fits the viewport: no page scroll, everything scales to the window. */
+html:has(.home-screen) {
+  overflow: hidden;
+}
+
+body:has(.home-screen) {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body:has(.home-screen) #content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+body:has(.home-screen) .site-header,
+body:has(.home-screen) .site-footer {
+  flex: none;
+}
+
+body:has(.home-screen) .site-footer {
+  width: min(var(--page), calc(100% - 32px));
+  padding-block: clamp(8px, 1.6vh, 20px);
+}
+
+.home-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-screen > .home-live,
+.home-screen > .home-hold {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-screen .home-logos {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: 0;
+  padding-inline: 8px;
+  margin-bottom: clamp(8px, 2.5vh, 32px);
+}
+
+/* One row always: logos shrink with the width (and height) of the window. */
+.home-screen .home-logos .vhs-logo-container {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  max-width: 120px;
+  margin: 0;
+  padding: clamp(1px, 0.6vw, 8px);
+}
+
+.home-screen .home-logos img.vhs-logo {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: clamp(14px, min(8vw, 5vh), 44px) !important;
+}
+
+.home-screen .home-intro {
+  flex: none;
+  width: min(720px, calc(100% - 32px));
+  padding-inline: 0;
+}
+
+.home-screen .home-logos-fallback {
+  flex: none;
+  width: min(720px, calc(100% - 32px));
+  margin-bottom: clamp(8px, 2.5vh, 32px);
+  padding: 0;
+}
+
+.home-screen .home-intro .lede {
+  font-size: clamp(1rem, 2.6vh, 1.2rem);
+}
+
+.home-screen .home-find {
+  flex: none;
+  width: min(720px, calc(100% - 32px));
+  margin-top: clamp(8px, 2vh, 24px);
+  gap: clamp(4px, 1vh, 8px);
+}
+
+.home-screen .home-find-row {
+  flex-wrap: nowrap;
+}
+
+.home-screen .home-find input {
+  flex: 1 1 0;
+  min-height: clamp(40px, 6vh, 48px);
+}
+
+.home-screen .home-find-row .btn {
+  flex: none;
+}
+
+.home-screen .home-scan {
+  flex: none;
+  width: min(720px, calc(100% - 32px));
+  margin-top: clamp(6px, 1.4vh, 16px);
+}
+
+.home-screen .home-reel {
+  flex: 1 1 0;
+  min-height: 0;
+  width: min(720px, calc(100% - 32px));
+  margin-top: clamp(8px, 2vh, 24px);
+  margin-bottom: clamp(8px, 1.6vh, 20px);
+  padding: clamp(6px, 1.4vh, 16px);
+  gap: clamp(6px, 1.2vh, 16px);
+  display: flex;
+  flex-direction: column;
+}
+
+.home-screen .home-slide {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 1vh, 10px);
+}
+
+.home-screen .home-still {
+  flex: 1 1 0;
+  min-height: 0;
+  aspect-ratio: auto;
+}
+
+.home-screen .home-slide-copy {
+  flex: none;
+}
+
+.home-screen .home-slide-name {
+  font-size: clamp(1rem, 2.8vh, 1.6rem);
+}
+
+.home-screen .home-play-btn {
+  flex: none;
+  min-height: clamp(40px, 6.5vh, 56px);
+}
+
+@media (max-height: 600px) {
+  .home-screen .home-intro,
+  .home-screen .home-find label {
+    display: none;
+  }
+}
+
+@media (max-height: 470px) {
+  .home-screen .home-slide-years,
+  .home-screen .home-play-btn {
+    display: none;
+  }
 }

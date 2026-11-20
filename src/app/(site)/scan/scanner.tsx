@@ -618,9 +618,7 @@ export default function Scanner({
               </button>
             </div>
           ) : null}
-          {device !== 'unknown' ? (
-            <p className="scan-idle-intro">{SCAN_IDLE_INTRO_COPY}</p>
-          ) : null}
+          <p className="scan-idle-intro">{SCAN_IDLE_INTRO_COPY}</p>
         </>
       ) : (
         <>
@@ -660,6 +658,7 @@ export default function Scanner({
             accept="image/*"
             capture="environment"
             className="scan-hidden-input"
+            aria-label="Take a photo"
             tabIndex={-1}
             onChange={onCameraChange}
           />
@@ -668,6 +667,7 @@ export default function Scanner({
             type="file"
             accept="image/*"
             className="scan-hidden-input"
+            aria-label="Choose a photo"
             tabIndex={-1}
             onChange={onLibraryChange}
           />
@@ -678,6 +678,7 @@ export default function Scanner({
           type="file"
           accept="image/*"
           className="scan-hidden-input"
+          aria-label="Choose a photo"
           tabIndex={-1}
           onChange={onChooseChange}
         />

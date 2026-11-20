@@ -297,6 +297,9 @@ test('proxy and the photo route reject a signed-out admin call', async () => {
   const page = await proxy(new NextRequest('https://compactpickup.local/binder'))
   assert.equal(page.status, 200)
 
+  const miss = await proxy(new NextRequest('https://compactpickup.local/catalog-miss'))
+  assert.equal(miss.status, 404)
+
   const previousSecret = process.env.AUTH_SECRET
   const previousAdmin = process.env.ADMIN_EMAIL
   process.env.AUTH_SECRET = 'test-secret-value-32-characters'

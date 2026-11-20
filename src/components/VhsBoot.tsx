@@ -81,10 +81,10 @@ export default function VhsBoot({ onDone }: { onDone: (viaKeyboard: boolean) => 
       setElapsed(performance.now() - started)
     }, 200)
     const timers = [
-      window.setTimeout(() => setPhase('lock'), 800),
-      window.setTimeout(() => setPhase('title'), 1600),
-      window.setTimeout(() => setPhase('out'), 3900),
-      window.setTimeout(() => end(false), 4500),
+      window.setTimeout(() => setPhase('lock'), 350),
+      window.setTimeout(() => setPhase('title'), 700),
+      window.setTimeout(() => setPhase('out'), 1700),
+      window.setTimeout(() => end(false), 2100),
     ]
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' || event.key === 'Enter' || event.key === ' ') {
@@ -133,7 +133,9 @@ export default function VhsBoot({ onDone }: { onDone: (viaKeyboard: boolean) => 
         </p>
         <p className={`boot-tracking ${phase === 'static' ? 'is-on' : ''}`} aria-hidden="true">TRACKING</p>
         <div className="boot-title-block">
-          <p id="boot-title" className="boot-title">Compact Pickup</p>
+          <p id="boot-title" className="boot-title" aria-hidden="true">
+            Compact Pickup
+          </p>
           <p className="boot-deck">Field guide</p>
         </div>
         <p className="boot-tc">{formatTimecode(elapsed)}</p>

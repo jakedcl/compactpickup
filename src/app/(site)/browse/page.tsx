@@ -1,14 +1,17 @@
+import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import BrowseDeck from '@/components/BrowseDeck'
 import { getCatalog } from '@/lib/getCatalog'
+import { buildShareMetadata } from '@/lib/metadata'
 import '@/components/find.css'
 
 export const revalidate = 3600
 
-export const metadata = {
+export const metadata: Metadata = buildShareMetadata({
   title: 'Find a truck · Compact Pickup',
   description: 'Search and filter compact and mid-size pickups by year, drivetrain, engine, and market.',
-}
+  path: '/browse',
+})
 
 function BrowseMessage({ message }: { message: string }) {
   return (
