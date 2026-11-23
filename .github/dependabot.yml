@@ -12,6 +12,8 @@ updates:
     ignore:
       - dependency-name: "@types/node"
         versions: [">=25"]
+      - dependency-name: "typescript"
+        versions: [">=7"]
   - package-ecosystem: "npm"
     directory: "/sanity"
     schedule:
@@ -24,3 +26,5 @@ updates:
     ignore:
       - dependency-name: "@types/node"
         versions: [">=25"]
+      - dependency-name: "typescript"
+        versions: [">=7"]
