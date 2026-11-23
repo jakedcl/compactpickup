@@ -640,7 +640,7 @@ export function Dashboard({ initialCounts }: { initialCounts: Counts | null }) {
                   <button type="button" className="binder-card-open" onClick={() => setReviewId(photo.id)}>
                     {/* Private bytes. next/image would send them through the paid optimizer. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photoImagePath(photo.id, photo.sha256, 'thumb')} alt="" />
+                    <img src={photoImagePath(photo.id, photo.sha256, 'thumb')} alt={title} />
                     <span className="binder-card-copy">
                       <strong>{title}</strong>
                       <span>

@@ -1,3 +1,4 @@
+import { defineQuery } from 'next-sanity'
 import { dataset, projectId } from '@/lib/sanityConfig'
 
 export { apiVersion, dataset, projectId } from '@/lib/sanityConfig'
@@ -17,32 +18,42 @@ export function fileUrlFor(source: { asset: { _ref: string } }) {
   return `https://cdn.sanity.io/files/${projectId}/${dataset}/${id}.${extension}`
 }
 
-// GROQ queries
-export const manufacturersQuery = `*[_type == "manufacturer"] | order(name asc) {
-  _id,
+const relatedTruckProjection = `{
+  _key,
   name,
-  slug,
-  featured,
-  isCatchAll,
-  logo { ${sanityImageFields} }
+  relation,
+  "truck": truck->{
+    title,
+    "slug": slug.current,
+    "manufacturerSlug": manufacturer->slug.current
+  }
 }`
 
-export const manufacturerBySlugQuery = `*[_type == "manufacturer" && slug.current == $slug][0] {
+export const manufacturersQuery = defineQuery(`*[_type == "manufacturer"] | order(name asc) {
   _id,
   name,
   slug,
   featured,
   isCatchAll,
-  logo { ${sanityImageFields} },
+  logo { ${sanityImageFields}, alt }
+}`)
+
+export const manufacturerBySlugQuery = defineQuery(`*[_type == "manufacturer" && slug.current == $slug][0] {
+  _id,
+  name,
+  slug,
+  featured,
+  isCatchAll,
+  logo { ${sanityImageFields}, alt },
   founded,
   hq,
   country,
   website,
   description,
   compactPickupHistory
-}`
+}`)
 
-export const truckModelsByManufacturerQuery = `*[_type == "truckModel" && manufacturer._ref == $manufacturerId] {
+export const truckModelsByManufacturerQuery = defineQuery(`*[_type == "truckModel" && manufacturer._ref == $manufacturerId] {
   _id,
   title,
   slug,
@@ -50,10 +61,10 @@ export const truckModelsByManufacturerQuery = `*[_type == "truckModel" && manufa
   productionStart,
   productionEnd,
   manufacturer->{name, slug}
-}`
+}`)
 
 /** Catch-all page: trucks still filed under More..., plus makes that are not on the homepage. */
-export const groupedTruckModelsQuery = `*[_type == "truckModel" && (
+export const groupedTruckModelsQuery = defineQuery(`*[_type == "truckModel" && (
   manufacturer._ref == $manufacturerId ||
   (
     manufacturer->isCatchAll != true &&
@@ -70,20 +81,9 @@ export const groupedTruckModelsQuery = `*[_type == "truckModel" && (
   productionStart,
   productionEnd,
   manufacturer->{name, slug}
-}`
+}`)
 
-const relatedTruckProjection = `{
-  _key,
-  name,
-  relation,
-  "truck": truck->{
-    title,
-    "slug": slug.current,
-    "manufacturerSlug": manufacturer->slug.current
-  }
-}`
-
-export const truckModelBySlugQuery = `*[_type == "truckModel" && slug.current == $slug][0] {
+export const truckModelBySlugQuery = defineQuery(`*[_type == "truckModel" && slug.current == $slug][0] {
   _id,
   title,
   slug,
@@ -139,10 +139,10 @@ export const truckModelBySlugQuery = `*[_type == "truckModel" && slug.current ==
   "predecessor": predecessor${relatedTruckProjection},
   "successor": successor${relatedTruckProjection},
   "siblings": siblings[]${relatedTruckProjection}
-}`
+}`)
 
 // Query to get all images from all truck models for homepage carousel
-export const allTruckImagesQuery = `*[_type == "truckModel" && defined(content)] {
+export const allTruckImagesQuery = defineQuery(`*[_type == "truckModel" && defined(content)] {
   _id,
   title,
   yearRange,
@@ -157,10 +157,10 @@ export const allTruckImagesQuery = `*[_type == "truckModel" && defined(content)]
     "truckSlug": ^.slug.current,
     "manufacturerSlug": ^.manufacturer->slug.current
   }
-}[count(images) > 0]`
+}[count(images) > 0]`)
 
 // Query to get all truck models for timeline (grouped by decade)
-export const timelineQuery = `*[_type == "truckModel" && defined(content)] | order(coalesce(productionStart, 9999) asc, yearRange asc) {
+export const timelineQuery = defineQuery(`*[_type == "truckModel" && defined(content)] | order(coalesce(productionStart, 9999) asc, yearRange asc) {
   _id,
   title,
   yearRange,
@@ -172,13 +172,46 @@ export const timelineQuery = `*[_type == "truckModel" && defined(content)] | ord
     caption,
     ${sanityImageFields}
   }
-}[count(images) > 0]`
+}[count(images) > 0]`)
 
-export const manufacturerParamsQuery = `*[_type == "manufacturer" && defined(slug.current)]{
+export const manufacturerParamsQuery = defineQuery(`*[_type == "manufacturer" && defined(slug.current)]{
   "manufacturer": slug.current
-}`
+}`)
 
-export const truckParamsQuery = `*[_type == "truckModel" && defined(slug.current) && defined(manufacturer->slug.current)]{
+export const truckParamsQuery = defineQuery(`*[_type == "truckModel" && defined(slug.current) && defined(manufacturer->slug.current)]{
   "manufacturer": manufacturer->slug.current,
   "model": slug.current
-}`
+}`)
+
+export const catalogQuery = defineQuery(`*[_type == "truckModel" && defined(slug.current) && defined(manufacturer)] | order(productionStart asc, title asc) {
+  _id,
+  title,
+  "slug": slug.current,
+  displayTitle,
+  nameplate,
+  generation,
+  yearRange,
+  productionStart,
+  productionEnd,
+  internalCodes,
+  markets,
+  assemblyPlants,
+  bodyStyles,
+  bedLengths,
+  trims,
+  drivetrains,
+  transmissions,
+  productionNotes,
+  summary,
+  notableFeatures,
+  history,
+  "engines": engines[]{name, config, displacement, years, hp, torque, notes},
+  "predecessor": predecessor{name, relation, "title": truck->title},
+  "successor": successor{name, relation, "title": truck->title},
+  "siblings": siblings[]{name, relation, "title": truck->title},
+  "maker": manufacturer->{name, "slug": slug.current},
+  "image": content[_type == "image"][0]{
+    alt,
+    ${sanityImageFields}
+  }
+}`)

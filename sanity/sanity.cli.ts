@@ -1,13 +1,19 @@
 import {defineCliConfig} from 'sanity/cli'
+import {studioDataset, studioProjectId} from './env'
 
 export default defineCliConfig({
   api: {
-    projectId: 'xbw6uf6e',
-    dataset: 'production'
+    projectId: studioProjectId,
+    dataset: studioDataset,
   },
   /**
    * Enable auto-updates for studios.
    * Learn more at https://www.sanity.io/docs/cli#auto-updates
    */
   autoUpdates: true,
+  typegen: {
+    path: ['../src/lib/sanity.ts'],
+    schema: './schema.json',
+    generates: '../src/sanity.types.ts',
+  },
 })

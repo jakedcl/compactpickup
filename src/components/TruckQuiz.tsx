@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import SanityImage from '@/components/SanityImage'
+import { truckStillAlt } from '@/lib/imageAlt'
 import type { SanityImageValue } from '@/lib/sanityImage'
 
 const QUESTIONS = 10
@@ -145,7 +146,7 @@ export default function TruckQuiz({ images, onExit }: { images: QuizImage[]; onE
         <div className="quiz-still">
           <SanityImage
             image={still}
-            alt=""
+            alt={truckStillAlt(still.alt, still)}
             sizes="(max-width: 800px) 100vw, 860px"
             fill
             cropRatio={0.625}

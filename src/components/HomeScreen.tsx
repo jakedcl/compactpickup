@@ -10,6 +10,7 @@ import type { ShelfManufacturer } from '@/components/TapeShelf'
 import { EMPTY_FILTERS, filtersToQuery, searchSuggestions, suggestionHref, type CatalogTruck, type SearchSuggestion } from '@/lib/catalog'
 import { filterEligibleStills, randomShuffle, type GameStill } from '@/lib/gameDeck'
 import { HOME_SLIDE_MS } from '@/lib/homeSlideshow'
+import { truckStillAlt } from '@/lib/imageAlt'
 import { modelTitle } from '@/lib/makes'
 import { scrollMobileFindFieldToTop } from '@/lib/find-search-focus'
 import { hasSeenBoot, markBootSeen, prefersReducedMotion } from '@/lib/vhsSession'
@@ -48,7 +49,7 @@ function TruckSlideshow({
           <span className="home-still">
             <SanityImage
               image={slide}
-              alt=""
+              alt={truckStillAlt(slide.alt, slide)}
               sizes="(max-width: 800px) 100vw, 720px"
               fill
               cropRatio={0.625}

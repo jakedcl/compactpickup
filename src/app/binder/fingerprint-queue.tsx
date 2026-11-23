@@ -263,7 +263,7 @@ export function FingerprintPanel({
           <div className="fp-current">
             {/* Private bytes. next/image would send them through the paid optimizer. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photoImagePath(running.id, running.sha256, 'thumb')} alt="" />
+            <img src={photoImagePath(running.id, running.sha256, 'thumb')} alt="Approved binder photo thumbnail" />
             <p role="status">
               {photoPercent !== null && modelPercent !== null && modelPercent < 100
                 ? `Downloading the model ${modelPercent}%`

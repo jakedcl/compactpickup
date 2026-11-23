@@ -73,13 +73,14 @@ function flattenImages(trucks: Array<{ images?: Array<GameStill | null> | null }
 
 const readManufacturers = unstable_cache(
   async () => {
-    const rows = await client.fetch<ShelfManufacturer[] | null>(manufacturersQuery)
-    return sortManufacturers((rows ?? []).filter((make) => showsOnShelf({
-      name: make.name,
+    const rows = await client.fetch(manufacturersQuery)
+    const filtered = (rows ?? []).filter((make) => showsOnShelf({
+      name: make.name ?? '',
       slug: make.slug?.current,
       featured: make.featured,
       isCatchAll: make.isCatchAll,
-    })))
+    }))
+    return sortManufacturers(filtered as ShelfManufacturer[])
   },
   ['home-manufacturers'],
   { ...hour, tags: ['home-shelf'] },
@@ -87,7 +88,7 @@ const readManufacturers = unstable_cache(
 
 const readTruckImageRows = unstable_cache(
   async () => {
-    const rows = await client.fetch<Array<{ images?: Array<GameStill | null> | null }> | null>(allTruckImagesQuery)
+    const rows = await client.fetch(allTruckImagesQuery)
     return rows ?? []
   },
   ['truck-image-rows'],
@@ -95,7 +96,7 @@ const readTruckImageRows = unstable_cache(
 )
 
 async function readHomeImages() {
-  return flattenImages(await readTruckImageRows())
+  return flattenImages(await readTruckImageRows() as Parameters<typeof flattenImages>[0])
 }
 
 export async function getHomePageData(): Promise<{
@@ -114,14 +115,14 @@ export async function getHomePageData(): Promise<{
 export async function getGameDeck(): Promise<{ stills: GameStill[]; status: 'ready' | 'error' }> {
   try {
     const rows = await readTruckImageRows()
-    return { stills: buildDeck(rows), status: 'ready' }
+    return { stills: buildDeck(rows as Parameters<typeof buildDeck>[0]), status: 'ready' }
   } catch {
     return { stills: [], status: 'error' }
   }
 }
 
 const readManufacturer = unstable_cache(
-  async (slug: string) => client.fetch<ManufacturerRecord | null>(manufacturerBySlugQuery, { slug }),
+  async (slug: string) => client.fetch(manufacturerBySlugQuery, { slug }) as Promise<ManufacturerRecord | null>,
   ['manufacturer-by-slug'],
   hour,
 )
@@ -130,8 +131,9 @@ export const getManufacturerBySlug = cache(readManufacturer)
 
 const readTrucksForManufacturer = unstable_cache(
   async (manufacturerId: string) => {
-    const rows = await client.fetch<ManufacturerTruckRecord[] | null>(truckModelsByManufacturerQuery, { manufacturerId })
-    return [...(rows ?? [])].sort(compareTrucksByYear)
+    return ([...(await client.fetch(truckModelsByManufacturerQuery, { manufacturerId })) ?? []] as ManufacturerTruckRecord[]).sort(
+      compareTrucksByYear,
+    )
   },
   ['trucks-by-manufacturer'],
   hour,
@@ -139,11 +141,11 @@ const readTrucksForManufacturer = unstable_cache(
 
 const readGroupedTrucks = unstable_cache(
   async (manufacturerId: string) => {
-    const rows = await client.fetch<ManufacturerTruckRecord[] | null>(groupedTruckModelsQuery, {
+    const rows = ([...(await client.fetch(groupedTruckModelsQuery, {
       manufacturerId,
       featuredSlugs: [...FEATURED_MAKE_SLUGS],
-    })
-    return [...(rows ?? [])].sort(compareTrucksByYear)
+    })) ?? []] as ManufacturerTruckRecord[]).sort(compareTrucksByYear)
+    return rows
   },
   ['trucks-grouped-under-more'],
   hour,
@@ -160,7 +162,7 @@ export const getTrucksForManufacturer = cache(async (manufacturer: ManufacturerR
 })
 
 const readTruck = unstable_cache(
-  async (slug: string) => client.fetch<TruckModel | null>(truckModelBySlugQuery, { slug }),
+  async (slug: string) => client.fetch(truckModelBySlugQuery, { slug }) as Promise<TruckModel | null>,
   ['truck-by-slug'],
   hour,
 )
@@ -169,8 +171,8 @@ export const getTruckBySlug = cache(readTruck)
 
 const readTimeline = unstable_cache(
   async () => {
-    const rows = await client.fetch<TimelineTruck[] | null>(timelineQuery)
-    return rows ?? []
+    const rows = await client.fetch(timelineQuery)
+    return (rows ?? []) as TimelineTruck[]
   },
   ['timeline-trucks'],
   hour,
@@ -180,8 +182,10 @@ export const getTimelineTrucks = cache(readTimeline)
 
 export const getManufacturerParams = unstable_cache(
   async () => {
-    const rows = await client.fetch<Array<{ manufacturer: string }> | null>(manufacturerParamsQuery)
-    return (rows ?? []).filter((row) => row.manufacturer)
+    const rows = await client.fetch(manufacturerParamsQuery)
+    return (rows ?? []).filter(
+      (row): row is { manufacturer: string } => typeof row.manufacturer === 'string' && row.manufacturer.length > 0,
+    )
   },
   ['manufacturer-params'],
   hour,
@@ -189,8 +193,14 @@ export const getManufacturerParams = unstable_cache(
 
 export const getTruckParams = unstable_cache(
   async () => {
-    const rows = await client.fetch<Array<{ manufacturer: string; model: string }> | null>(truckParamsQuery)
-    return (rows ?? []).filter((row) => row.manufacturer && row.model)
+    const rows = await client.fetch(truckParamsQuery)
+    return (rows ?? []).filter(
+      (row): row is { manufacturer: string; model: string } =>
+        typeof row.manufacturer === 'string' &&
+        row.manufacturer.length > 0 &&
+        typeof row.model === 'string' &&
+        row.model.length > 0,
+    )
   },
   ['truck-params'],
   hour,
