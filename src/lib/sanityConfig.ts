@@ -10,4 +10,4 @@ function requireEnv(name: string): string {
 
 export const projectId = requireEnv('NEXT_PUBLIC_SANITY_PROJECT_ID')
 export const dataset = requireEnv('NEXT_PUBLIC_SANITY_DATASET')
-export const apiVersion = '2024-01-01'
+export const apiVersion = '2026-11-01'
