@@ -5,3 +5,13 @@ export function imageAlt(alt: string | null | undefined, fallback: string): stri
   const fallbackTrimmed = fallback.trim()
   return fallbackTrimmed || 'Truck photo'
 }
+
+export function truckStillAlt(
+  alt: string | null | undefined,
+  parts: { yearRange?: string | null; manufacturerName?: string | null; truckTitle?: string | null },
+): string {
+  const bits = [parts.yearRange, parts.manufacturerName, parts.truckTitle]
+    .map((part) => (typeof part === 'string' ? part.trim() : ''))
+    .filter(Boolean)
+  return imageAlt(alt, bits.join(' '))
+}

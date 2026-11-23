@@ -22,7 +22,7 @@ Catalog of compact and mid-size pickup trucks sold in the U.S., styled like an o
 
 ## Commands
 - `npm run dev`, `npm run build`, `npm run start`, `npm run lint`, `npm run typecheck`, `npm run test:binder` (binder + `src/lib/clip` tests), `npm run test:review-fit` (Playwright; starts the app with `REVIEW_FIT=1`).
-- `npm run studio:dev` and `studio:build` (both use `--dir ./sanity`). Production Studio is `/studio` on the site.
+- `npm run studio:dev` and `studio:build` (both use `--dir ./sanity`). `npm run typegen` refreshes `sanity/schema.json` and `src/sanity.types.ts`. Production Studio is `/studio` on the site.
 - Binder writes are dry-run unless `BINDER_CONFIRM=1`. Use `DATABASE_URL_UNPOOLED` for `npm run db:migrate`, `npm run import:sanity`, `npm run import:folder -- ./folder`, `npm run import:ai-reviews -- ./results.json`, and `npm run seed:faces`. `npm run fix:makes` writes to Sanity only with `BINDER_CONFIRM=1` and `SANITY_API_TOKEN`. The app uses pooled `DATABASE_URL`. Env names are in `.env.example`. Sanity project/dataset vars are required for build and typecheck; other clients stay lazy so binder/scanner checks still pass when Neon and R2 are unset.
 
 ## Gotchas

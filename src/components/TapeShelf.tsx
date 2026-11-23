@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import SanityImage from '@/components/SanityImage'
+import { imageAlt } from '@/lib/imageAlt'
 import type { SanityImageValue } from '@/lib/sanityImage'
 
 export interface ShelfManufacturer {
@@ -141,7 +142,7 @@ export default function TapeShelf({
                             {manufacturer.logo?.asset?._ref ? (
                               <SanityImage
                                 image={manufacturer.logo}
-                                alt=""
+                                alt={imageAlt(manufacturer.logo.alt, `${manufacturer.name} logo`)}
                                 sizes="108px"
                                 width={140}
                                 height={48}
