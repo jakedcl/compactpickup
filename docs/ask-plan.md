@@ -146,7 +146,7 @@ Each phase ends with something runnable and a decision point.
 
 | Phase | Deliverable | Done when |
 |---|---|---|
-| 0. Setup | Install deps, read the Next.js 16 docs in `node_modules`, read the dev framework (see risks), run the existing checks green | `npm run typecheck && npm run lint && npm run test:binder` pass on this branch |
+| 0. Setup | Install deps, read the Next.js 16 docs in `node_modules`, run the existing checks green | `npm run typecheck && npm run lint && npm run test:binder` pass on this branch |
 | 1. Corpus and eval | Sanity export script, chunker, spec parsers with tests, `unparsed` report, 60 hand-written questions with the dev/held-out split | Parsers cover the dataset or list what they can't; questions reviewed by you |
 | 2. Baselines | Systems A and B running against the eval, first results table | Numbers recorded, chunking and `k` tuned on the dev set only |
 | 3. Agent | Tool-calling agent (system C), provider interface, trace logging, refusal behavior, pytest with a fake LLM | Held-out results for A, B, C in one table |
@@ -158,7 +158,6 @@ Each phase ends with something runnable and a decision point.
 
 ## 9. Risks and open questions
 
-- **Dev framework not loaded.** `AGENTS.md` says `jakedcl/dev-framework` is the source of truth, but it is private and `DEV_FRAMEWORK_READ_TOKEN` is not set in this session. It needs to be provided before building, or the conventions may conflict with this plan.
 - **Dependencies not installed.** `node_modules` is absent here, so the Next.js 16 docs that `AGENTS.md` requires reading are not available yet. Phase 0 installs them.
 - **Cost.** LLM and embedding spend is real. Set a budget alert and the daily cap before any public exposure.
 - **Shared database.** The scanner's production data lives in the same Neon project. Use new tables only, and test migrations on a Neon branch first.
