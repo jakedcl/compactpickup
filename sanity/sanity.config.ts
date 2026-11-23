@@ -3,6 +3,7 @@
 import {defineConfig} from 'sanity'
 import {structureTool} from 'sanity/structure'
 import {visionTool} from '@sanity/vision'
+import {studioDataset, studioProjectId} from './env'
 import {schemaTypes} from './schemaTypes'
 
 export default defineConfig({
@@ -10,8 +11,8 @@ export default defineConfig({
   title: 'Compact Pickup',
   basePath: '/studio',
 
-  projectId: 'xbw6uf6e',
-  dataset: 'production',
+  projectId: studioProjectId,
+  dataset: studioDataset,
 
   releases: {enabled: false},
   scheduledDrafts: {enabled: false},
