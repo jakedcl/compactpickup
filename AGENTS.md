@@ -27,6 +27,7 @@ Catalog of compact and mid-size pickup trucks sold in the U.S., styled like an o
 
 ## Gotchas
 - Run Studio through the root `studio:*` scripts (`--dir ./sanity`).
+- Public env vars (`NEXT_PUBLIC_*`, and `SANITY_STUDIO_*` used by the embedded Studio) must be referenced literally as `process.env.VAR_NAME` so Next.js and the Studio Vite build can inline them into the browser bundle. Dynamic access like `process.env[name]` is stripped on the client.
 - Sanity images must stay under `cdn.sanity.io/images/**` (`next.config.ts` remotePatterns), with custom `deviceSizes` and `imageSizes`.
 - Keep the VHS look (status bar, VCR font) consistent across new pages.
 - Binder photos: one ~1600px WebP in private R2, plus a 480px thumb. sha256 of the bytes handed to the importer, for dedupe. status `pending` until the owner approves at `/binder`. Photo rule: if it looks like that truck from the outside, it counts. Visitor scanner submissions also land as `pending` (source `visitor`), and only when the visitor says yes on the consent popup.
