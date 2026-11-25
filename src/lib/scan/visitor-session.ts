@@ -10,6 +10,14 @@ export type VisitorCorrection =
 
 export type VisitorSubmitPhase = 'idle' | 'sending' | 'sent' | 'duplicate' | 'error'
 
+/**
+ * The island belongs to the page it first showed on. Leaving that page without answering
+ * counts as no: the session ends and nothing is sent.
+ */
+export function shouldDismissIslandOnNavigation(shownOnPath: string | null, pathname: string): boolean {
+  return shownOnPath !== null && shownOnPath !== pathname
+}
+
 /** How long the "Sent" / "Nothing sent" notice stays before it goes away. */
 export const CONSENT_NOTICE_MS = 3000
 

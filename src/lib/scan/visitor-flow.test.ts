@@ -17,6 +17,7 @@ import {
   SCAN_IDLE_INTRO_COPY,
   shouldAutoScanAfterCrop,
   shouldBeginConsentIsland,
+  shouldDismissIslandOnNavigation,
   shouldShowConsentIsland,
   shouldShowScanStatus,
   shouldShowVisitorProgress,
@@ -176,4 +177,11 @@ test('consent notice says Sent or Nothing sent and goes away after 3 seconds', (
   assert.equal(consentNoticeText('idle', 'Nothing was stored.'), 'Nothing sent')
   assert.equal(consentNoticeText('error', 'Signal lost. The photo was not stored.'), 'Signal lost. The photo was not stored.')
   assert.equal(consentNoticeText('error', ''), 'Nothing sent')
+})
+
+test('the island is dismissed when the visitor leaves the page it showed on', () => {
+  assert.equal(shouldDismissIslandOnNavigation(null, '/ford/ranger-3'), false)
+  assert.equal(shouldDismissIslandOnNavigation('/ford/ranger-3', '/ford/ranger-3'), false)
+  assert.equal(shouldDismissIslandOnNavigation('/ford/ranger-3', '/'), true)
+  assert.equal(shouldDismissIslandOnNavigation('/scan', '/ford/ranger-3'), true)
 })
