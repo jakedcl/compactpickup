@@ -87,10 +87,13 @@ export function ScanSessionProvider({ children }: { children: ReactNode }) {
     [patchSession],
   )
 
+  // Only /scan reserves room for the question (see scan.css). The island itself always
+  // floats over the page, so it never changes the layout of the page it is on.
+  const asking = islandActive && !session?.consentAnswered
   useEffect(() => {
-    document.documentElement.classList.toggle('scan-island-open', islandActive)
-    return () => document.documentElement.classList.remove('scan-island-open')
-  }, [islandActive])
+    document.documentElement.classList.toggle('scan-island-asking', asking)
+    return () => document.documentElement.classList.remove('scan-island-asking')
+  }, [asking])
 
   useEffect(() => {
     const revoke = () => {

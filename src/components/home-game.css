@@ -506,7 +506,6 @@ body:has(.home-screen) .site-footer {
 }
 
 body:has(.home-screen) .site-footer {
-  width: min(var(--page), calc(100% - 32px));
   padding-block: clamp(8px, 1.6vh, 20px);
 }
 

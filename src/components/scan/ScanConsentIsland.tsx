@@ -1,12 +1,23 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { CONSENT_NOTICE_MS, consentNoticeText } from '@/lib/scan/visitor-session'
 import { submitVisitorScanPhoto } from '@/lib/scan/visitor-submit'
 import { useScanSession } from './ScanSessionProvider'
 
 export default function ScanConsentIsland() {
   const router = useRouter()
-  const { session, islandActive, goToFreshScan, markConsentAnswered, patchSession } = useScanSession()
+  const { session, islandActive, goToFreshScan, clearSession, markConsentAnswered, patchSession } = useScanSession()
+  const answeredNow = Boolean(session?.consentAnswered)
+
+  // The notice goes away on its own. This runs wherever the visitor is, so leaving the page
+  // does not bring it back later.
+  useEffect(() => {
+    if (!answeredNow) return undefined
+    const timer = setTimeout(clearSession, CONSENT_NOTICE_MS)
+    return () => clearTimeout(timer)
+  }, [answeredNow, clearSession])
 
   if (!islandActive || !session) return null
 
@@ -39,11 +50,9 @@ export default function ScanConsentIsland() {
   if (answered) {
     return (
       <div className="scan-consent-island is-compact" role="region" aria-label="Scanner follow-up">
-        {session.submitMessage ? (
-          <p className="scan-consent-island-status" role="status">
-            {session.submitMessage}
-          </p>
-        ) : null}
+        <p className="scan-consent-island-status" role="status">
+          {consentNoticeText(session.submitPhase, session.submitMessage)}
+        </p>
         <button type="button" className="btn btn-accent scan-consent-island-primary" onClick={scanAnother}>
           Scan another
         </button>

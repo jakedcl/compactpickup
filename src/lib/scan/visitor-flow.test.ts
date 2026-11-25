@@ -10,6 +10,8 @@ import {
 import { buildVisitorSubmitFormData } from './visitor-submit'
 import { shouldOfferSavePhoto } from './visitor-save-photo'
 import {
+  CONSENT_NOTICE_MS,
+  consentNoticeText,
   correctionFromGuessIndex,
   hasActiveVisitorSession,
   SCAN_IDLE_INTRO_COPY,
@@ -165,4 +167,13 @@ test('buildVisitorSubmitFormData matches consent submit fields', () => {
   const rightBody = buildVisitorSubmitFormData(jpeg, 'right', truck, null)
   assert.equal(rightBody.get(SCAN_FIELDS.consent), SCAN_CONSENT_VALUE)
   assert.equal(rightBody.get(SCAN_FIELDS.verdict), 'right')
+})
+
+test('consent notice says Sent or Nothing sent and goes away after 3 seconds', () => {
+  assert.equal(CONSENT_NOTICE_MS, 3000)
+  assert.equal(consentNoticeText('sent', 'Thanks'), 'Sent')
+  assert.equal(consentNoticeText('duplicate', 'That photo is already in the library.'), 'Sent')
+  assert.equal(consentNoticeText('idle', 'Nothing was stored.'), 'Nothing sent')
+  assert.equal(consentNoticeText('error', 'Signal lost. The photo was not stored.'), 'Signal lost. The photo was not stored.')
+  assert.equal(consentNoticeText('error', ''), 'Nothing sent')
 })
