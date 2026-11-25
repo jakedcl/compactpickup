@@ -10,6 +10,19 @@ export type VisitorCorrection =
 
 export type VisitorSubmitPhase = 'idle' | 'sending' | 'sent' | 'duplicate' | 'error'
 
+/** How long the "Sent" / "Nothing sent" notice stays before it goes away. */
+export const CONSENT_NOTICE_MS = 3000
+
+/**
+ * Short text for the notice after the visitor answers the consent question.
+ * "No" ends as `idle`; a photo the library already has still counts as sent.
+ */
+export function consentNoticeText(phase: VisitorSubmitPhase, message: string): string {
+  if (phase === 'sent' || phase === 'duplicate') return 'Sent'
+  if (phase === 'idle') return 'Nothing sent'
+  return message || 'Nothing sent'
+}
+
 export type ConsentIslandSurface = 'catalog' | 'scan'
 
 export type VisitorScanSession = {
