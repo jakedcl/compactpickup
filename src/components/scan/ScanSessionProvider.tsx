@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { usePathname } from 'next/navigation'
 import {
+  shouldDismissIslandOnNavigation,
   shouldShowConsentIsland,
   type VisitorScanSession,
 } from '@/lib/scan/visitor-session'
@@ -38,6 +39,9 @@ export function ScanSessionProvider({ children }: { children: ReactNode }) {
   const [scanEpoch, setScanEpoch] = useState(0)
   const scannerResetRef = useRef<(() => void) | null>(null)
   const islandActive = shouldShowConsentIsland(pathname, session)
+  // The page the island first showed on. A session can start on /scan and only show up on the
+  // truck page the visitor picks, so this is set when the island appears, not when it begins.
+  const shownOnPath = useRef<string | null>(null)
 
   const clearSession = useCallback(() => {
     setSession((current) => {
@@ -86,6 +90,19 @@ export function ScanSessionProvider({ children }: { children: ReactNode }) {
     },
     [patchSession],
   )
+
+  useEffect(() => {
+    if (!session) {
+      shownOnPath.current = null
+      return
+    }
+    if (shouldDismissIslandOnNavigation(shownOnPath.current, pathname)) {
+      shownOnPath.current = null
+      clearSession()
+      return
+    }
+    if (islandActive && shownOnPath.current === null) shownOnPath.current = pathname
+  }, [session, islandActive, pathname, clearSession])
 
   // Only /scan reserves room for the question (see scan.css). The island itself always
   // floats over the page, so it never changes the layout of the page it is on.
