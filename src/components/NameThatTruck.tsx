@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import SanityImage from '@/components/SanityImage'
+import { truckStillAlt } from '@/lib/imageAlt'
 import {
   ROUND,
   SECONDS,
@@ -177,7 +178,7 @@ export default function NameThatTruck({ stills }: { stills: GameStill[] }) {
         {still?.asset?._ref ? (
           <SanityImage
             image={still}
-            alt=""
+            alt={truckStillAlt(still.alt, still)}
             sizes="(max-width: 800px) 100vw, 860px"
             fill
             cropRatio={0.625}

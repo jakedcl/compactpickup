@@ -121,7 +121,7 @@ function FindHitButton({
           {suggestion.truck.image ? (
             <SanityImage
               image={suggestion.truck.image}
-              alt=""
+              alt={suggestion.truck.alt}
               sizes="64px"
               fill
               cropRatio={0.75}

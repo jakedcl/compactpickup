@@ -1,7 +1,8 @@
 import 'server-only'
 import { unstable_cache } from 'next/cache'
-import { sanityImageFields } from '@/lib/sanity'
+import { catalogQuery } from '@/lib/sanity'
 import { client } from '@/lib/sanityClient'
+import type { CatalogQueryResult } from '@/sanity.types'
 import type { SanityImageValue } from '@/lib/sanityImage'
 import { displayModelTitle, modelTitle } from '@/lib/makes'
 import {
@@ -15,80 +16,9 @@ import {
   type CatalogTruck,
 } from '@/lib/catalog'
 
-type RawEngine = {
-  name?: string | null
-  config?: string | null
-  displacement?: string | null
-  years?: string | null
-  hp?: number | null
-  torque?: string | null
-  notes?: string | null
-}
-type RawImage = SanityImageValue & { alt?: string | null }
 type RawLink = { name?: string | null; relation?: string | null; title?: string | null }
 
-type RawTruck = {
-  _id: string
-  title: string
-  slug: string
-  displayTitle?: string | null
-  nameplate?: string | null
-  generation?: string | null
-  yearRange?: string | null
-  productionStart?: number | null
-  productionEnd?: number | null
-  productionNotes?: string | null
-  internalCodes?: string[] | null
-  markets?: string[] | null
-  assemblyPlants?: string[] | null
-  bodyStyles?: string[] | null
-  bedLengths?: string[] | null
-  trims?: string[] | null
-  drivetrains?: string[] | null
-  transmissions?: string[] | null
-  engines?: RawEngine[] | null
-  predecessor?: RawLink | null
-  successor?: RawLink | null
-  siblings?: Array<RawLink | null> | null
-  summary?: string | null
-  notableFeatures?: string[] | null
-  history?: string[] | null
-  maker?: { name?: string | null; slug?: string | null } | null
-  image?: RawImage | null
-}
-
-const catalogQuery = `*[_type == "truckModel" && defined(slug.current) && defined(manufacturer)] | order(productionStart asc, title asc) {
-  _id,
-  title,
-  "slug": slug.current,
-  displayTitle,
-  nameplate,
-  generation,
-  yearRange,
-  productionStart,
-  productionEnd,
-  internalCodes,
-  markets,
-  assemblyPlants,
-  bodyStyles,
-  bedLengths,
-  trims,
-  drivetrains,
-  transmissions,
-  productionNotes,
-  summary,
-  notableFeatures,
-  history,
-  "engines": engines[]{name, config, displacement, years, hp, torque, notes},
-  "predecessor": predecessor{name, relation, "title": truck->title},
-  "successor": successor{name, relation, "title": truck->title},
-  "siblings": siblings[]{name, relation, "title": truck->title},
-  "maker": manufacturer->{name, "slug": slug.current},
-  "image": content[_type == "image"][0]{
-    alt,
-    ${sanityImageFields}
-  }
-}`
+type RawTruck = NonNullable<CatalogQueryResult[number]>
 
 function clean(value: string | null | undefined): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -159,11 +89,11 @@ function toCatalogTruck(truck: RawTruck): CatalogTruck | null {
     ]),
   }
 
-  const image = truck.image?.asset?._ref ? truck.image : null
+  const image = truck.image?.asset?._ref ? (truck.image as SanityImageValue) : null
 
   return {
     id: truck._id,
-    title: modelTitle(maker, truck.title),
+    title: modelTitle(maker, truck.title ?? ''),
     href: `/${makerSlug}/${truck.slug}`,
     maker,
     makerSlug,
@@ -177,12 +107,12 @@ function toCatalogTruck(truck: RawTruck): CatalogTruck | null {
     end,
     rank,
     image,
-    alt: clean(image?.alt) || displayModelTitle(maker, truck.title),
+    alt: clean(image?.alt) || displayModelTitle(maker, truck.title ?? ''),
   }
 }
 
 async function loadCatalog(): Promise<CatalogTruck[]> {
-  const rows = await client.fetch<RawTruck[]>(catalogQuery)
+  const rows = await client.fetch(catalogQuery)
   return (rows ?? []).map(toCatalogTruck).filter((truck): truck is CatalogTruck => truck !== null)
 }
 

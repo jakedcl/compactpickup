@@ -5,7 +5,7 @@ Catalog of compact and mid-size pickup trucks sold in the U.S., styled like an o
 ## Stack
 - Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4.
 - 3D model viewer: three 0.186, @react-three/fiber 9, drei 10.
-- Sanity project `xbw6uf6e`, dataset `production`, public data (no env needed). Client and queries are in `src/lib/sanity.ts`.
+- Sanity CMS: public read without a token. Set `NEXT_PUBLIC_SANITY_PROJECT_ID` and `NEXT_PUBLIC_SANITY_DATASET` for the app; `SANITY_STUDIO_PROJECT_ID` and `SANITY_STUDIO_DATASET` for Studio/CLI (usually the same values). Client and queries are in `src/lib/sanity.ts`.
 - Studio config and schemas live in `sanity/`; the editor is embedded at `/studio` via `next-sanity`.
 - Scanner (`/scan`) + binder (`/binder`): Neon Postgres with pgvector (`pg` + `db/migrations`), private Cloudflare R2, Resend one-time codes, and transformers.js models in the browser (D-FINE crop + SigLIP2 fingerprint). Catalog pages do not read Neon or R2. **Read [docs/scanner.md](docs/scanner.md) before touching the scanner, binder fingerprints or `src/lib/clip/`.**
 - No crons or webhooks. Sanity pages use hourly ISR (`revalidate = 3600`).
@@ -22,11 +22,12 @@ Catalog of compact and mid-size pickup trucks sold in the U.S., styled like an o
 
 ## Commands
 - `npm run dev`, `npm run build`, `npm run start`, `npm run lint`, `npm run typecheck`, `npm run test:binder` (binder + `src/lib/clip` tests), `npm run test:review-fit` (Playwright; starts the app with `REVIEW_FIT=1`).
-- `npm run studio:dev` and `studio:build` (both use `--dir ./sanity`). Production Studio is `/studio` on the site.
-- Binder writes are dry-run unless `BINDER_CONFIRM=1`. Use `DATABASE_URL_UNPOOLED` for `npm run db:migrate`, `npm run import:sanity`, `npm run import:folder -- ./folder`, `npm run import:ai-reviews -- ./results.json`, and `npm run seed:faces`. `npm run fix:makes` writes to Sanity only with `BINDER_CONFIRM=1` and `SANITY_API_TOKEN`. The app uses pooled `DATABASE_URL`. Env names are in `.env.example`. Clients are lazy, so lint, typecheck, and build pass when the vars are unset.
+- `npm run studio:dev` and `studio:build` (both use `--dir ./sanity`). `npm run typegen` refreshes `sanity/schema.json` and `src/sanity.types.ts`. Production Studio is `/studio` on the site.
+- Binder writes are dry-run unless `BINDER_CONFIRM=1`. Use `DATABASE_URL_UNPOOLED` for `npm run db:migrate`, `npm run import:sanity`, `npm run import:folder -- ./folder`, `npm run import:ai-reviews -- ./results.json`, and `npm run seed:faces`. `npm run fix:makes` writes to Sanity only with `BINDER_CONFIRM=1` and `SANITY_API_TOKEN`. The app uses pooled `DATABASE_URL`. Env names are in `.env.example`. Sanity project/dataset vars are required for build and typecheck; other clients stay lazy so binder/scanner checks still pass when Neon and R2 are unset.
 
 ## Gotchas
-- `sanity/` has its own package.json. Run Studio through the root `studio:*` scripts.
+- Run Studio through the root `studio:*` scripts (`--dir ./sanity`).
+- Public env vars (`NEXT_PUBLIC_*`, and `SANITY_STUDIO_*` used by the embedded Studio) must be referenced literally as `process.env.VAR_NAME` so Next.js and the Studio Vite build can inline them into the browser bundle. Dynamic access like `process.env[name]` is stripped on the client.
 - Sanity images must stay under `cdn.sanity.io/images/**` (`next.config.ts` remotePatterns), with custom `deviceSizes` and `imageSizes`.
 - Keep the VHS look (status bar, VCR font) consistent across new pages.
 - Binder photos: one ~1600px WebP in private R2, plus a 480px thumb. sha256 of the bytes handed to the importer, for dedupe. status `pending` until the owner approves at `/binder`. Photo rule: if it looks like that truck from the outside, it counts. Visitor scanner submissions also land as `pending` (source `visitor`), and only when the visitor says yes on the consent popup.
